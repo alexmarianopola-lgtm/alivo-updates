@@ -8,16 +8,15 @@ version=str(meta.get('version') or '0.22.12')
 text=p.read_text(encoding='utf-8')
 text=re.sub(r'ALIYVO_VERSION\s*=\s*"[^"]+"', f'ALIYVO_VERSION = "{version}"', text, count=1)
 
-# Update only existing diagnostic methods from 0.22.11.
 start=text.find('    def start_network_capture(self,callback=None):')
 end=text.find('    def read_network_capture(self,callback):', start)
 if start==-1 or end==-1:
     raise SystemExit('start_network_capture not found')
 
-new_start=r'''    def start_network_capture(self,callback=None,reset=True):
+new_start = r'''    def start_network_capture(self,callback=None,reset=True):
         self._capture_started=True
         reset_js='true' if reset else 'false'
-        js=r'''return (() => {
+        js=r"""return (() => {
           try{
             const PREFIX="ALIYVO_CAPTURE::";
             const doReset=__RESET__;
@@ -31,8 +30,6 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
             const log=(kind,obj)=>{ const arr=read(); arr.push(Object.assign({time:new Date().toISOString(),kind:kind,url:location.href},obj||{})); save(arr); };
             if(doReset) save([]);
             log("capture_page",{title:document.title||"",href:location.href});
-
-            // Snapshot forms/fields without exposing secret values.
             try{
               const forms=[...document.forms].map((f,i)=>({
                 index:i,
@@ -42,10 +39,8 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
               }));
               log("forms_snapshot",{forms:forms});
             }catch(e){}
-
             if(!window.__aliyvoNetCaptureInstalled){
               window.__aliyvoNetCaptureInstalled=true;
-
               const oldFetch=window.fetch;
               if(oldFetch){
                 window.fetch=async function(input,init){
@@ -60,7 +55,6 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
                   }catch(e){ log("fetch_error",{requestUrl:String(url),error:String(e)}); throw e; }
                 };
               }
-
               const X=window.XMLHttpRequest;
               if(X){
                 const oldOpen=X.prototype.open, oldSend=X.prototype.send;
@@ -72,7 +66,6 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
                   return oldSend.apply(this,arguments);
                 };
               }
-
               document.addEventListener('submit',function(ev){
                 try{
                   const f=ev.target; const fd=new FormData(f); const vals=[];
@@ -83,7 +76,6 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
                   log("form_submit",{method:String((f.method||'GET').toUpperCase()),requestUrl:String(f.action||location.href),body:redact(vals.join('&'))});
                 }catch(e){}
               },true);
-
               document.addEventListener('click',function(ev){
                 try{
                   const el=ev.target&&ev.target.closest?ev.target.closest('button,a,[role="button"],input[type="submit"]'):null;
@@ -94,26 +86,20 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
                   log("click",{label:label,requestUrl:String(href),formAction:String(form&&form.action||''),formMethod:String(form&&form.method||'')});
                 }catch(e){}
               },true);
-
               const oldOpenWin=window.open;
               window.open=function(url){ log("window_open",{requestUrl:String(url||'')}); return oldOpenWin.apply(this,arguments); };
-
               const oldPush=history.pushState, oldReplace=history.replaceState;
               history.pushState=function(){ log("push_state",{requestUrl:String(arguments[2]||'')}); return oldPush.apply(this,arguments); };
               history.replaceState=function(){ log("replace_state",{requestUrl:String(arguments[2]||'')}); return oldReplace.apply(this,arguments); };
-
               window.addEventListener('beforeunload',()=>log("before_unload",{href:location.href}));
             }
-
-            // Existing resource entries often reveal server endpoints loaded by the page.
             try{
               const entries=performance.getEntriesByType('resource').slice(-80).map(e=>({name:e.name,initiatorType:e.initiatorType}));
               log("resources_snapshot",{entries:entries});
             }catch(e){}
-
             return {ok:true,message:"Captura ativa nesta página",href:location.href};
           }catch(e){ return {ok:false,error:String(e)}; }
-        })();'''.replace('__RESET__',reset_js)
+        })();""".replace('__RESET__',reset_js)
         def done(payload):
             result=self._unwrap_js(payload)
             if callback: callback(result)
@@ -122,13 +108,12 @@ new_start=r'''    def start_network_capture(self,callback=None,reset=True):
 '''
 text=text[:start]+new_start+text[end:]
 
-# Replace diagnostic start/read loop so hooks are reinstalled after every navigation.
 start=text.find('    def _catalog_capture_start(self):')
 end=text.find('    def _catalog_extract(self,text):', start)
 if start==-1 or end==-1:
     raise SystemExit('catalog capture methods not found')
 
-new_catalog=r'''    def _catalog_capture_start(self):
+new_catalog = r'''    def _catalog_capture_start(self):
         browser=self._get_catalog_window(False)
         try:
             browser._background_mode=False; browser.setWindowOpacity(1.0); browser.resize(1280,820)
@@ -140,13 +125,11 @@ new_catalog=r'''    def _catalog_capture_start(self):
         self.plate_panel.status.setText("🧪 Preparando captura persistente...")
         self._capture_generation=getattr(self,'_capture_generation',0)+1
         generation=self._capture_generation
-
         def started(res):
             if not res.get("ok"):
                 self.plate_panel.status.setText("⚠ Não consegui iniciar: "+str(res.get("error") or "erro")); return
             self.plate_panel.status.setText("🧪 Captura ativa. Faça o caminho completo da consulta uma vez.")
             browser.show(); browser.raise_(); browser.activateWindow()
-            # Reinject after navigations. First call already reset capture; all others preserve log in window.name.
             for delay in (900,1800,3000,4500,6500,8500,11000,14000,18000,23000,28000):
                 QTimer.singleShot(delay,lambda b=browser,g=generation:self._catalog_capture_rearm(b,g))
             for delay in (2500,5000,8000,12000,16000,21000,27000,32000):
@@ -174,7 +157,6 @@ new_catalog=r'''    def _catalog_capture_start(self):
                 response=str(ev.get("response") or "")
                 label=str(ev.get("label") or "")
                 if kind in ("form_submit","fetch_request","fetch_response","xhr_request","xhr_response","window_open","push_state","replace_state","before_unload"):
-                    # Ignore known analytics noise unless it is the only thing available.
                     if 'clarity.ms' in url.lower():
                         continue
                     useful+=1
