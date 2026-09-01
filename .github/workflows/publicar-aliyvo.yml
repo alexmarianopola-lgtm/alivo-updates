@@ -48,6 +48,8 @@ jobs:
           echo "BASE_ZIP=$BASE_ZIP" >> "$GITHUB_ENV"
 
       - name: Montar nova versão
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         shell: bash
         run: |
           rm -rf /tmp/build
@@ -56,6 +58,16 @@ jobs:
           if [ -d patch ]; then
             cp -a patch/. /tmp/build/
           fi
+          python - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path('/tmp/build/_app/main.py')
+          if p.exists():
+              s=p.read_text(encoding='utf-8')
+              v=os.environ['VERSION']
+              s=re.sub(r'ALIYVO_VERSION\s*=\s*["\'][^"\']+["\']', f'ALIYVO_VERSION = "{v}"', s, count=1)
+              p.write_text(s,encoding='utf-8')
+          PY
           cd /tmp/build
           zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
 
