@@ -1,0 +1,78 @@
+name: Publicar ALIYVO automaticamente
+
+on:
+  push:
+    paths:
+      - "update.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Ler versão
+        id: meta
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          d=json.load(open('update.json','r',encoding='utf-8'))
+          version=str(d['version']).strip().lstrip('vV')
+          tag='v'+version
+          asset=str(d.get('asset_name') or ('ALIYVO_'+version.replace('.','')+'_AUTO.zip'))
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
+              f.write(f'version={version}\n')
+              f.write(f'tag={tag}\n')
+              f.write(f'asset={asset}\n')
+          PY
+
+      - name: Baixar última versão publicada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/base
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          BASE_ZIP="$(find /tmp/base -maxdepth 1 -type f -name '*.zip' | head -n1)"
+          if [ -z "$BASE_ZIP" ]; then
+            echo "Nenhum ZIP encontrado na última Release."
+            exit 1
+          fi
+          echo "BASE_ZIP=$BASE_ZIP" >> "$GITHUB_ENV"
+
+      - name: Montar nova versão
+        shell: bash
+        run: |
+          rm -rf /tmp/build
+          mkdir -p /tmp/build
+          unzip -q "$BASE_ZIP" -d /tmp/build
+          if [ -d patch ]; then
+            cp -a patch/. /tmp/build/
+          fi
+          cd /tmp/build
+          zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
+
+      - name: Publicar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          ASSET: ${{ steps.meta.outputs.asset }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "/tmp/$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "/tmp/$ASSET" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "ALIYVO $VERSION" \
+              --notes "Atualização automática do ALIYVO $VERSION." \
+              --latest
+          fi
