@@ -46,4 +46,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO ${{ steps.meta.outputs.version }}" --notes "Captura persistente para identificar a chamada GraphQL da busca por placa." --latest
+          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO ${{ steps.meta.outputs.version }}" --notes "Correção do download de arquivos gerados pelo Copiloto/ChatGPT dentro do ALIYVO. Arquivos passam a ser aceitos pelo navegador interno e salvos automaticamente na pasta Downloads." --latest
