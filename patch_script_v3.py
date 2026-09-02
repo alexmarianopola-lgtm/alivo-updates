@@ -89,12 +89,17 @@ def _aliyvo_install_download_hooks():
 # --- fim downloads Copiloto ---
 
 '''
-    # Put helper functions before the first QApplication(...) creation, then arm them just after it.
-    m = re.search(r'(?m)^(?P<indent>\s*)(?P<var>[A-Za-z_]\w*)\s*=\s*QApplication\s*\(', text)
-    if not m:
-        raise SystemExit('QApplication creation not found for download hook')
-    text = text[:m.start()] + hook + text[m.start():]
-    # Locate QApplication again after insertion and schedule the first scan.
+    # Put helper functions BEFORE the top-level __main__ block so indentation remains valid.
+    main_block = re.search(r'(?m)^if\s+__name__\s*==\s*[\"\']__main__[\"\']\s*:', text)
+    if main_block:
+        text = text[:main_block.start()] + hook + text[main_block.start():]
+    else:
+        m = re.search(r'(?m)^(?P<indent>\s*)(?P<var>[A-Za-z_]\w*)\s*=\s*QApplication\s*\(', text)
+        if not m:
+            raise SystemExit('QApplication creation not found for download hook')
+        text = text[:m.start()] + hook + text[m.start():]
+
+    # Arm the hook immediately after QApplication is instantiated.
     m2 = re.search(r'(?m)^(?P<indent>\s*)(?P<var>[A-Za-z_]\w*)\s*=\s*QApplication\s*\([^\n]*\)\s*$', text)
     if not m2:
         raise SystemExit('QApplication assignment not found after download hook')
