@@ -107,6 +107,14 @@ def _aliyvo_install_download_hooks():
     indent = m2.group('indent')
     text = text[:insert_pos] + '\n' + indent + 'QTimer.singleShot(700, _aliyvo_install_download_hooks)' + text[insert_pos:]
 
+# From 0.22.15 onward, reveal the downloaded file in Windows Explorer when it finishes.
+if '_aliyvo_reveal_when_done' not in text:
+    old_download = '''        download.setDownloadDirectory(str(folder))\n        download.setDownloadFileName(candidate.name)\n        download.accept()'''
+    new_download = '''        download.setDownloadDirectory(str(folder))\n        download.setDownloadFileName(candidate.name)\n\n        def _aliyvo_reveal_when_done(*_args):\n            try:\n                _state = download.state()\n                _state_name = str(getattr(_state, "name", _state))\n                if "DownloadCompleted" not in _state_name:\n                    return\n                try:\n                    download.stateChanged.disconnect(_aliyvo_reveal_when_done)\n                except Exception:\n                    pass\n                import subprocess as _subprocess\n                try:\n                    _subprocess.Popen(["explorer.exe", "/select,", str(candidate)])\n                except Exception:\n                    try:\n                        _os.startfile(str(folder))\n                    except Exception:\n                        pass\n            except Exception:\n                pass\n\n        try:\n            download.stateChanged.connect(_aliyvo_reveal_when_done)\n        except Exception:\n            pass\n        download.accept()'''
+    if old_download not in text:
+        raise SystemExit('download handler target not found for reveal upgrade')
+    text=text.replace(old_download,new_download,1)
+
 ast.parse(text)
 p.write_text(text,encoding='utf-8')
 print('patched',version)
