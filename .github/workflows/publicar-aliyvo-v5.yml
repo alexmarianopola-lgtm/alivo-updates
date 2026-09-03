@@ -1,0 +1,59 @@
+name: Publicar ALIYVO v5
+
+on:
+  push:
+    paths:
+      - "update-v5.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler versão
+        id: meta
+        run: |
+          python - <<'PY'
+          import json,os
+          d=json.load(open('update-v5.json',encoding='utf-8'))
+          v=str(d['version']).lstrip('vV')
+          a=str(d.get('asset_name') or ('ALIYVO_'+v.replace('.','')+'_AUTO.zip'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('version='+v+'\n')
+              f.write('tag=v'+v+'\n')
+              f.write('asset='+a+'\n')
+          PY
+      - name: Baixar última Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          echo "BASE_ZIP=$(find /tmp/base -maxdepth 1 -type f -name '*.zip' | head -n1)" >> "$GITHUB_ENV"
+      - name: Aplicar e validar atualização
+        run: |
+          rm -rf /tmp/build && mkdir -p /tmp/build
+          unzip -q "$BASE_ZIP" -d /tmp/build
+          python patch_script_v5.py /tmp/build/_app/main.py
+          python -m py_compile /tmp/build/_app/main.py
+          python - <<'PY'
+          import re
+          variants=['MB309.3','MB-309.3','MB3093','MB309-3','MB 309 3']
+          keys=[re.sub(r'[^A-Z0-9]','',x.upper()) for x in variants]
+          assert len(set(keys))==1 and keys[0]=='MB3093', keys
+          src=open('/tmp/build/_app/main.py',encoding='utf-8').read()
+          assert 'REFERÊNCIAS DETECTADAS' in src
+          assert 'canon_ref=' in src
+          print('OK variantes ->',keys[0])
+          PY
+          cd /tmp/build
+          zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO ${{ steps.meta.outputs.version }}" --notes "Busca de referências flexível: ponto, hífen, barra, sublinhado e espaços deixam de impedir a localização do mesmo código. Exemplos MB309.3, MB-309.3, MB3093, MB309-3 e MB 309 3 passam a usar a mesma chave MB3093. Mantém busca exata como prioridade e usa normalização como segunda camada." --latest
