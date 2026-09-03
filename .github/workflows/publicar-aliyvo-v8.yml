@@ -1,0 +1,49 @@
+name: Publicar ALIYVO v8
+
+on:
+  push:
+    paths:
+      - "update-v8.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler versão
+        id: meta
+        run: |
+          python - <<'PY'
+          import json,os
+          d=json.load(open('update-v8.json',encoding='utf-8'))
+          v=str(d['version']).lstrip('vV')
+          a=str(d.get('asset_name') or ('ALIYVO_'+v.replace('.','')+'_AUTO.zip'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('version='+v+'\n')
+              f.write('tag=v'+v+'\n')
+              f.write('asset='+a+'\n')
+          PY
+      - name: Baixar última Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          echo "BASE_ZIP=$(find /tmp/base -maxdepth 1 -type f -name '*.zip' | head -n1)" >> "$GITHUB_ENV"
+      - name: Aplicar atualização
+        run: |
+          rm -rf /tmp/build && mkdir -p /tmp/build
+          unzip -q "$BASE_ZIP" -d /tmp/build
+          python patch_script_v8.py /tmp/build/_app/main.py
+          python -m py_compile /tmp/build/_app/main.py
+          cd /tmp/build
+          zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO ${{ steps.meta.outputs.version }}" --notes "Assistente Técnico com painel visual para cotação: códigos Soma e referências em destaque, correspondências diretas em verde, possibilidades em amarelo e pedido lido movido para o fim." --latest
