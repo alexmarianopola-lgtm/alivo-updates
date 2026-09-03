@@ -1,0 +1,223 @@
+name: Publicar ALIYVO v11
+
+on:
+  push:
+    paths:
+      - "update-v11.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler versao
+        id: meta
+        run: |
+          python - <<'PY'
+          import json,os
+          d=json.load(open('update-v11.json',encoding='utf-8'))
+          v=str(d['version']).lstrip('vV')
+          a=str(d.get('asset_name') or ('ALIYVO_BETA_GRATIS_'+v.replace('.','')+'.zip'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('version='+v+'\n')
+              f.write('tag=v'+v+'\n')
+              f.write('asset='+a+'\n')
+          PY
+
+      - name: Baixar ultima Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          echo "BASE_ZIP=$(find /tmp/base -maxdepth 1 -type f -name '*.zip' | head -n1)" >> "$GITHUB_ENV"
+
+      - name: Montar pacote para novos usuarios
+        run: |
+          rm -rf /tmp/build && mkdir -p /tmp/build
+          unzip -q "$BASE_ZIP" -d /tmp/build
+          python patch_script_v11.py /tmp/build/_app/main.py
+          python -m py_compile /tmp/build/_app/main.py
+          rm -rf /tmp/build/dados /tmp/build/cache_usuario /tmp/build/logs /tmp/build/webview2_whatsapp_profile /tmp/build/CANAL_ATUALIZACAO_EXEMPLO || true
+          find /tmp/build -maxdepth 1 -type f \( -name 'NOVIDADES_ALIYVO_v*.txt' -o -name 'LEIA-ME_*.txt' -o -name 'ATUALIZADOR_AUTOMATICO.txt' -o -name 'COMO USAR.txt' \) -delete || true
+          find /tmp/build/_app/_setup -maxdepth 1 -type f -name '*.txt' -delete 2>/dev/null || true
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('/tmp/build')
+          installer=r'''@echo off
+          setlocal EnableExtensions
+          cd /d "%~dp0"
+          title ALIYVO - Instalacao
+
+          echo ============================================
+          echo              ALIYVO BETA GRATIS
+          echo ============================================
+          echo.
+          echo Este instalador prepara o ALIYVO neste computador.
+          echo Nao feche esta janela durante a instalacao.
+          echo.
+
+          set "APPDIR=%~dp0_app"
+          if not exist "%APPDIR%\Aliyvo.pyw" goto app_missing
+          if not exist "%APPDIR%\Aliyvo.ico" goto app_missing
+
+          set "PYTHON="
+          for /f "delims=" %%P in ('py -3.12 -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON=%%P"
+          if defined PYTHON goto python_found
+
+          for /f "delims=" %%P in ('where python.exe 2^>nul') do (
+            set "PYTHON=%%P"
+            goto python_found
+          )
+
+          echo Python nao encontrado. Tentando instalar Python 3.12 para o usuario atual...
+          where winget.exe >nul 2>&1
+          if errorlevel 1 goto python_missing
+
+          winget install -e --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
+          if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
+            set "PYTHON=%LocalAppData%\Programs\Python\Python312\python.exe"
+            goto python_found
+          )
+          for /f "delims=" %%P in ('py -3.12 -c "import sys; print(sys.executable)" 2^>nul') do set "PYTHON=%%P"
+          if not defined PYTHON goto python_missing
+
+          :python_found
+          echo.
+          echo Python encontrado: %PYTHON%
+          for %%D in ("%PYTHON%") do set "PYDIR=%%~dpD"
+          set "PYTHONW=%PYDIR%pythonw.exe"
+          if not exist "%PYTHONW%" goto pythonw_missing
+
+          echo.
+          echo Instalando componentes necessarios do ALIYVO...
+          "%PYTHON%" -m ensurepip --upgrade >nul 2>&1
+          "%PYTHON%" -m pip install --disable-pip-version-check --upgrade pip
+          "%PYTHON%" -m pip install --disable-pip-version-check PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+          if errorlevel 1 goto deps_error
+
+          "%PYTHON%" -c "from PyQt6.QtWidgets import QApplication; from PyQt6.QtWebEngineWidgets import QWebEngineView; from qtwebview2 import QtWebView2Widget"
+          if errorlevel 1 goto deps_error
+
+          echo.
+          echo Criando atalho ALIYVO na Area de Trabalho...
+          powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+           "$desktop=[Environment]::GetFolderPath('Desktop');" ^
+           "$shortcut=Join-Path $desktop 'ALIYVO.lnk';" ^
+           "if(Test-Path $shortcut){Remove-Item $shortcut -Force};" ^
+           "$shell=New-Object -ComObject WScript.Shell;" ^
+           "$s=$shell.CreateShortcut($shortcut);" ^
+           "$s.TargetPath='%PYTHONW%';" ^
+           "$s.Arguments='"""%APPDIR%\Aliyvo.pyw"""';" ^
+           "$s.WorkingDirectory='%APPDIR%';" ^
+           "$s.IconLocation='%APPDIR%\Aliyvo.ico,0';" ^
+           "$s.Description='ALIYVO - Central comercial inteligente';" ^
+           "$s.WindowStyle=1;" ^
+           "$s.Save();"
+          if errorlevel 1 goto shortcut_error
+
+          ie4uinit.exe -show >nul 2>&1
+          echo.
+          echo ============================================
+          echo           INSTALACAO CONCLUIDA
+          echo ============================================
+          echo.
+          echo Um atalho ALIYVO foi criado na Area de Trabalho.
+          echo Na primeira abertura, entre no seu proprio WhatsApp.
+          echo Seus dados ficam somente no seu computador.
+          echo.
+          echo Abrindo ALIYVO...
+          start "" "%PYTHONW%" "%APPDIR%\Aliyvo.pyw"
+          timeout /t 3 >nul
+          exit /b 0
+
+          :app_missing
+          echo ERRO: arquivos do ALIYVO nao encontrados.
+          echo Extraia TODO o ZIP antes de executar o instalador.
+          goto fail
+
+          :python_missing
+          echo ERRO: nao consegui instalar o Python automaticamente.
+          echo Instale Python 3.12 pelo site python.org e execute este arquivo novamente.
+          start "" "https://www.python.org/downloads/windows/"
+          goto fail
+
+          :pythonw_missing
+          echo ERRO: pythonw.exe nao encontrado na instalacao do Python.
+          goto fail
+
+          :deps_error
+          echo ERRO: nao consegui instalar os componentes do ALIYVO.
+          echo Verifique a internet e execute o instalador novamente.
+          goto fail
+
+          :shortcut_error
+          echo ERRO: componentes instalados, mas nao consegui criar o atalho.
+          echo Execute novamente o instalador.
+          goto fail
+
+          :fail
+          echo.
+          pause
+          exit /b 1
+          '''
+          # Remove a indentacao usada apenas para manter este workflow legivel.
+          import textwrap
+          installer=textwrap.dedent(installer).lstrip()
+          (root/'INSTALAR ALIYVO.bat').write_bytes(installer.replace('\n','\r\n').encode('ascii','replace'))
+
+          readme='''ALIYVO BETA GRATIS - INSTALACAO RAPIDA
+
+1. Extraia TODO o arquivo ZIP para uma pasta.
+2. Dê dois cliques em INSTALAR ALIYVO.bat.
+3. Aguarde o instalador preparar os componentes e criar o atalho ALIYVO.
+4. Abra o ALIYVO pelo atalho da Area de Trabalho.
+5. Entre no seu proprio WhatsApp.
+
+IMPORTANTE
+- Cada instalacao comeca limpa. A copia nao leva conversas, cookies, listas ou dados de outro usuario.
+- O ALIYVO salva os dados pessoais do usuario em LocalAppData\\ALIYVO.
+- O programa recebe atualizacoes pelo proprio menu Atualizacoes.
+- Esta e uma versao BETA GRATIS para testes.
+
+OBSERVACOES
+Use o botao Enviar observacao para informar erros e sugestoes.
+No Assistente Tecnico existe o botao Informar resultado errado / sugestao.
+O envio nao inclui automaticamente conversa do WhatsApp, contatos, cookies ou senhas.
+
+AUDIO
+A transcricao local de audio e opcional e pode exigir instalacao adicional pelo proprio recurso de Audio.
+'''
+          (root/'LEIA-ME-ALIYVO.txt').write_text(readme,encoding='utf-8')
+
+          # Limpa textos antigos de branding em scripts auxiliares que podem ser abertos pelo usuario.
+          setup=root/'_app'/'_setup'
+          if setup.exists():
+              for f in setup.glob('*.bat'):
+                  try:
+                      s=f.read_text(encoding='utf-8',errors='replace')
+                      s=s.replace('SOMAFORCE','ALIYVO').replace('COPILOTO ALIYVO','ALIYVO').replace('COPILOTO SOMAFORCE','ALIYVO')
+                      f.write_bytes(s.replace('\r\n','\n').replace('\n','\r\n').encode('ascii','replace'))
+                  except Exception:
+                      pass
+          PY
+          cd /tmp/build
+          zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
+
+      - name: Guardar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALIYVO_BETA_GRATIS_${{ steps.meta.outputs.version }}
+          path: /tmp/${{ steps.meta.outputs.asset }}
+          if-no-files-found: error
+
+      - name: Publicar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis ${{ steps.meta.outputs.version }}" --notes "Pacote de distribuicao Beta Gratis: instalador para primeiro uso, feedback integrado, atualizador automatico e copia limpa sem dados pessoais." --latest
