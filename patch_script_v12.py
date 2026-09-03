@@ -58,7 +58,6 @@ def _aliyvo_register_unique_install():
                 _=resp.read(256)
             marker_file.write_text(str(install_id),encoding="utf-8")
         except Exception:
-            # Se estiver offline, tenta novamente na proxima abertura. Nunca bloqueia o app.
             pass
     try:
         import threading as _threading
@@ -69,11 +68,12 @@ def _aliyvo_register_unique_install():
 '''
     text=text.replace(marker,telemetry+marker,1)
 
-    # Uma unica tentativa por abertura, alguns segundos depois da interface iniciar.
-    anchor='QTimer.singleShot(1200, _aliyvo_install_feedback_button)'
-    if anchor not in text:
+    # Agenda uma unica tentativa por abertura, sem bloquear a interface.
+    m=re.search(r'(?m)^(?P<indent>\s*)QTimer\.singleShot\(1200, _aliyvo_install_feedback_button\)\s*$',text)
+    if not m:
         raise SystemExit('feedback startup anchor not found')
-    text=text.replace(anchor,anchor+'\n'+re.match(r'\s*',anchor).group(0)+'QTimer.singleShot(3500, _aliyvo_register_unique_install)',1)
+    insert=m.group(0)+'\n'+m.group('indent')+'QTimer.singleShot(3500, _aliyvo_register_unique_install)'
+    text=text[:m.start()]+insert+text[m.end():]
 
 ast.parse(text)
 p.write_text(text,encoding='utf-8')
