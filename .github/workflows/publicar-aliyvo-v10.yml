@@ -43,30 +43,26 @@ jobs:
           unzip -q "$BASE_ZIP" -d /tmp/build
           python patch_script_v10.py /tmp/build/_app/main.py
           python -m py_compile /tmp/build/_app/main.py
-
-          # Garante que nenhuma pasta de uso pessoal acompanhe o pacote distribuído.
           rm -rf /tmp/build/dados /tmp/build/cache_usuario /tmp/build/logs /tmp/build/webview2_whatsapp_profile || true
-
-          cat > /tmp/build/LEIA-ME-ALIYVO.txt <<EOF
-ALIYVO BETA GRÁTIS - versão ${{ steps.meta.outputs.version }}
-
-COMO USAR
-1. Extraia TODO o conteúdo do ZIP para uma pasta do Windows.
-2. Abra ALIYVO.exe.
-3. Entre no seu próprio WhatsApp quando solicitado.
-4. Cada computador cria seus próprios dados em LocalAppData\\ALIYVO.
-
-OBSERVAÇÕES / MELHORIAS
-Use o botão "Enviar observação" dentro do ALIYVO.
-No Assistente Técnico existe também "Informar resultado errado / sugestão".
-O envio automático NÃO inclui conversa do WhatsApp, contatos, cookies ou senhas.
-
-ATUALIZAÇÕES
-O programa usa o canal oficial de atualizações do ALIYVO. Não é necessário baixar uma nova cópia para cada correção.
-
-Esta é uma versão BETA GRÁTIS para testes e melhoria do produto.
-EOF
-
+          printf '%s\n' \
+            "ALIYVO BETA GRATIS - versao ${{ steps.meta.outputs.version }}" \
+            "" \
+            "COMO USAR" \
+            "1. Extraia TODO o conteudo do ZIP para uma pasta do Windows." \
+            "2. Abra ALIYVO.exe." \
+            "3. Entre no seu proprio WhatsApp quando solicitado." \
+            "4. Cada computador cria seus proprios dados em LocalAppData\\ALIYVO." \
+            "" \
+            "OBSERVACOES / MELHORIAS" \
+            "Use o botao Enviar observacao dentro do ALIYVO." \
+            "No Assistente Tecnico existe tambem Informar resultado errado / sugestao." \
+            "O envio automatico NAO inclui conversa do WhatsApp, contatos, cookies ou senhas." \
+            "" \
+            "ATUALIZACOES" \
+            "O programa usa o canal oficial de atualizacoes do ALIYVO." \
+            "" \
+            "Esta e uma versao BETA GRATIS para testes e melhoria do produto." \
+            > /tmp/build/LEIA-ME-ALIYVO.txt
           cd /tmp/build
           zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
 
@@ -81,8 +77,4 @@ EOF
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "ALIYVO Beta Grátis ${{ steps.meta.outputs.version }}" \
-            --notes "Primeira distribuição Beta Grátis para colegas. Inclui canal de observações, botão de correção no Assistente Técnico, ID anônimo por instalação e mantém dados pessoais fora do ZIP." \
-            --latest
+          gh release create "${{ steps.meta.outputs.tag }}" "/tmp/${{ steps.meta.outputs.asset }}" --repo "$GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis ${{ steps.meta.outputs.version }}" --notes "Primeira distribuicao Beta Gratis para colegas. Inclui canal de observacoes, botao de correcao no Assistente Tecnico, ID anonimo por instalacao e mantem dados pessoais fora do ZIP." --latest
