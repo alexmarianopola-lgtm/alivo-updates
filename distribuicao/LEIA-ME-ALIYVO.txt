@@ -1,0 +1,21 @@
+ALIYVO BETA GRATIS - INSTALACAO RAPIDA
+
+1. Extraia TODO o arquivo ZIP para uma pasta.
+2. De dois cliques em INSTALAR ALIYVO.bat.
+3. Aguarde o instalador preparar os componentes e criar o atalho ALIYVO.
+4. Abra o ALIYVO pelo atalho da Area de Trabalho.
+5. Entre no seu proprio WhatsApp.
+
+IMPORTANTE
+- Cada instalacao comeca limpa. A copia nao leva conversas, cookies, listas ou dados de outro usuario.
+- O ALIYVO salva os dados pessoais do usuario em LocalAppData\ALIYVO.
+- O programa recebe atualizacoes pelo proprio menu Atualizacoes.
+- Esta e uma versao BETA GRATIS para testes.
+
+OBSERVACOES
+Use o botao Enviar observacao para informar erros e sugestoes.
+No Assistente Tecnico existe o botao Informar resultado errado / sugestao.
+O envio nao inclui automaticamente conversa do WhatsApp, contatos, cookies ou senhas.
+
+AUDIO
+A transcricao local de audio e opcional e pode exigir instalacao adicional pelo proprio recurso de Audio.
