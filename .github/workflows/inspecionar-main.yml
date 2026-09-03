@@ -4,10 +4,8 @@ on:
   push:
     paths:
       - "inspect.json"
-
 permissions:
   contents: write
-
 jobs:
   inspecionar:
     runs-on: ubuntu-latest
@@ -25,26 +23,16 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('/tmp/build/_app/main.py')
-          lines=p.read_text(encoding='utf-8').splitlines()
-          ranges=[
-            ('DB_HELPERS',340,430),
-            ('WHATSAPP_VIEW',1780,2085),
-            ('PRODUCT_SEARCH',3560,3735),
-            ('MAIN_INIT',4710,4905),
-            ('QUICK_ACTIONS',5420,5605),
-            ('WA_TEXT_EXISTING',2525,2615),
-            ('MAIN_WA_METHODS',6980,7075),
-          ]
+          p=Path('/tmp/build/_app/main.py'); lines=p.read_text(encoding='utf-8').splitlines()
+          ranges=[('MAIN_BINDINGS',4890,5115),('QUICK_END',5590,5685),('ASSISTANT_INIT',3370,3565),('WA_COMPAT',2040,2095),('WA_EXISTING',2525,2615)]
           out=[]
           for title,a,b in ranges:
               out.append(f'===== {title} SOURCE {a}-{b} =====')
-              for n in range(a,b+1):
-                  if 1 <= n <= len(lines): out.append(f'{n:05d}: {lines[n-1]}')
+              out += [f'{n:05d}: {lines[n-1]}' for n in range(a,b+1) if n<=len(lines)]
               out.append('')
           Path('inspect-output.txt').write_text('\n'.join(out),encoding='utf-8')
           PY
-      - name: Salvar relatório no repositório
+      - name: Salvar relatório
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
