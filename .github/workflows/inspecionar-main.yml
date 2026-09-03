@@ -21,50 +21,28 @@ jobs:
           gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
           BASE_ZIP=$(find /tmp/base -maxdepth 1 -type f -name '*.zip' | head -n1)
           unzip -q "$BASE_ZIP" -d /tmp/build
-      - name: Gerar relatório compacto
+      - name: Gerar trechos exatos
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
           p=Path('/tmp/build/_app/main.py')
           lines=p.read_text(encoding='utf-8').splitlines()
-          out=[]
-          def add_block(title, idx, before=18, after=28):
-              if idx is None: return
-              a=max(0,idx-before); b=min(len(lines),idx+after+1)
-              out.append(f'\n===== {title} | LINHAS {a+1}-{b} =====')
-              out.extend(f'{j+1:05d}: {lines[j]}' for j in range(a,b))
-          # mapa enxuto de classes/métodos relevantes
-          out.append('===== DECLARACOES RELEVANTES =====')
-          rx=re.compile(r'^\s*(class\s+\w+|def\s+\w+)')
-          keys=('webview','whatsapp','produto','product','search','busca','assist','quick','acao','ação','main','window','page','javascript','evaluate')
-          for i,l in enumerate(lines):
-              if rx.match(l) and any(k in l.lower() for k in keys):
-                  out.append(f'{i+1:05d}: {l}')
-          targets=[
-              ('UI ACOES RAPIDAS','Ações rápidas'),
-              ('UI BUSCA POR IMAGEM','Busca por imagem'),
-              ('DB CODPROD','CODPROD'),
-              ('DB COMPLDESC','COMPLDESC'),
-              ('WEBVIEW ADAPTER','class _WebView2PageAdapter'),
-              ('RUNJAVASCRIPT','runJavaScript'),
-              ('EVALUATE_JS','evaluate_js'),
+          ranges=[
+            ('DB_HELPERS',340,430),
+            ('WHATSAPP_VIEW',1780,2085),
+            ('PRODUCT_SEARCH',3560,3735),
+            ('MAIN_INIT',4710,4905),
+            ('QUICK_ACTIONS',5420,5605),
+            ('WA_TEXT_EXISTING',2525,2615),
+            ('MAIN_WA_METHODS',6980,7075),
           ]
-          for title,pat in targets:
-              idx=next((i for i,l in enumerate(lines) if pat.lower() in l.lower()),None)
-              add_block(title,idx)
-          # somente linhas com criação/binding dos botões da lateral
-          out.append('\n===== BOTOES/LATERAL MATCHES =====')
-          count=0
-          for i,l in enumerate(lines):
-              ll=l.lower()
-              if ('qpushbutton' in ll or '.clicked.connect' in ll or 'ações rápidas' in ll or 'acoes rápidas' in ll or 'acoes rapidas' in ll) and 0 < len(l) < 400:
-                  if any(k in ll for k in ('assist','imagem','prazo','disparo','diagn','atualiza','placa','rápida','rapida','qpushbutton')):
-                      out.append(f'{i+1:05d}: {l}')
-                      count+=1
-                      if count>=80: break
+          out=[]
+          for title,a,b in ranges:
+              out.append(f'===== {title} SOURCE {a}-{b} =====')
+              for n in range(a,b+1):
+                  if 1 <= n <= len(lines): out.append(f'{n:05d}: {lines[n-1]}')
+              out.append('')
           Path('inspect-output.txt').write_text('\n'.join(out),encoding='utf-8')
-          print('relatorio',len(out),'linhas')
           PY
       - name: Salvar relatório no repositório
         run: |
