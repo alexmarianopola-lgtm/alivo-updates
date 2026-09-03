@@ -1,326 +1,97 @@
-===== DECLARACOES RELEVANTES =====
-00121: def _prepare_webview2_whatsapp_profile():
-00170: def _prepare_stable_whatsapp_profile():
-00375: def search_products_by_words(db_path, words, limit=40):
-00649:     def request_search_whatsapp(self):
-01673:     def new_search(self):
-01723:     def search_lens(self):
-01769: class _WebView2ProfileAdapter:
-01783: class _WebView2PageAdapter:
-01792:     def runJavaScript(self, script, callback=None):
-01796: class WhatsAppView(QtWebView2Widget):
-01851:     def _configure_webview2_core(self,core):
-01874:     def _on_webview2_permission_requested(self,sender,args):
-01909:     def _whatsapp_download_folder(self):
-01924:     def _unique_whatsapp_download_name(self,folder,name):
-01939:     def _on_webview2_download_starting(self,sender,args):
-01987:     def _on_webview2_download_done(self,path,is_audio,success):
-02010:     def page(self):
-02032:     def open_whatsapp(self):
-02057:     def _run_javascript_compat(self,script,callback=None):
-02549:     def load_from_whatsapp(self, chat_name, incoming_text, meta=None, auto_analyze=True):
-02567:     def _extract_visible_whatsapp_chats(self, callback):
-02660:     def choose_whatsapp_contacts(self):
-02663:     def _show_whatsapp_contact_picker(self, result):
-03077:     def refresh_quick_messages(self):
-03090:     def use_quick_message(self):
-03098:     def save_current_reply_as_quick(self):
-03141:     def push_reply_to_whatsapp_input(self, silent=False):
-03309:     def payment_to_whatsapp(self):
-03612:     def search_products(self):
-03698:     def web_search(self):
-04137: class CatalogBrowserWindow(QMainWindow):
-04202:     def evaluate(self,code,callback=None):
-04237:     def search_plate(self,plate,callback=None,result_callback=None):
-04256:     def _search_attempt(self,plate,callback,result_callback,token,attempt):
-04637: class PlateSearchPanel(QWidget):
-04707:     def _search(self):
-04718: class MainWindow(QMainWindow):
-05106:     def _release_whatsapp_focus(self):
-05178:     def _get_catalog_window(self,show=False):
-05205:     def _catalog_search_plate(self,value):
-05219:         def searched(res):
-05408:     def _catalog_receive_page(self,result):
-05469:     def _quick_tool_width(self, tool, expanded=False):
-05508:     def _restore_quick_actions(self):
-05540:     def _open_quick_tool(self, tool):
-05646:     def _position_quick_tool(self, tool):
-06586:     def _toggle_maximize_window(self):
-06624:     def _on_whatsapp_loaded(self,ok):
-06631:     def apply_aliyvo_whatsapp_theme(self):
-07004:     def _check_whatsapp_stuck(self):
-07031:     def _handle_whatsapp_health(self, result):
-07072:     def _reload_whatsapp_url(self):
-07081:     def capture_open_whatsapp_image(self):
-07140:     def _save_captured_whatsapp_image(self, result):
-07316:     def visual_search_external_image(self):
-07374:     def visual_search_open_image(self):
-07466:     def _handle_whatsapp_media_download(self, path):
-07509:     def _pick_campaign_contacts_from_whatsapp(self):
-07690:     def _campaign_search_whatsapp(self, term):
-09088:     def _campaign_search_contact_in_whatsapp(self, phone):
-09208:     def _campaign_click_search_result(self):
-
-===== UI ACOES RAPIDAS | LINHAS 3833-3879 =====
-03833:         self.title_bar.setStyleSheet("background-color:#0F4C5C;")
-03834:         head=QHBoxLayout(self.title_bar)
-03835:         head.setContentsMargins(8,4,6,4)
-03836: 
-03837:         title=QLabel("🩺 Diagnóstico")
-03838:         title.setStyleSheet(
-03839:             "background:transparent;color:white;"
-03840:             "font-weight:700;font-size:15px;padding:8px;"
-03841:         )
-03842:         head.addWidget(title)
-03843:         head.addStretch(1)
-03844: 
-03845:         self.expand_btn=QPushButton("⛶")
-03846:         self.expand_btn.setToolTip("Expandir diagnóstico")
-03847:         self.expand_btn.setFixedWidth(34)
-03848:         head.addWidget(self.expand_btn)
-03849: 
-03850:         self.close_btn=QPushButton("◀")
-03851:         self.close_btn.setToolTip("Voltar para Ações rápidas")
-03852:         self.close_btn.setFixedWidth(34)
-03853:         head.addWidget(self.close_btn)
-03854: 
-03855:         lay.addWidget(self.title_bar)
-03856: 
-03857:         self.summary=QLabel(
-03858:             "Clique em Atualizar para verificar o estado do ALIYVO."
-03859:         )
-03860:         self.summary.setWordWrap(True)
-03861:         self.summary.setStyleSheet(
-03862:             "font-weight:700;color:#164E63;padding:4px;"
-03863:         )
-03864:         lay.addWidget(self.summary)
-03865: 
-03866:         self.report=QTextEdit()
-03867:         self.report.setReadOnly(True)
-03868:         self.report.setPlaceholderText(
-03869:             "O relatório de diagnóstico aparecerá aqui."
-03870:         )
-03871:         self.report.setStyleSheet(
-03872:             "QTextEdit{font-family:Consolas,'Courier New';"
-03873:             "font-size:10px;background:#F8FAFC;color:#0F172A;"
-03874:             "border:1px solid #CBD5E1;border-radius:6px;}"
-03875:         )
-03876:         lay.addWidget(self.report,1)
-03877: 
-03878:         row=QHBoxLayout()
-03879:         self.refresh_btn=QPushButton("⟳ Atualizar")
-
-===== UI BUSCA POR IMAGEM | LINHAS 1566-1612 =====
-01566:         lay.setSpacing(5)
-01567: 
-01568:         self.title_bar=QWidget()
-01569:         self.title_bar.setStyleSheet("background-color:#0F766E;")
-01570:         head=QHBoxLayout(self.title_bar)
-01571:         head.setContentsMargins(8,4,6,4)
-01572: 
-01573:         title=QLabel("🔎 Lens")
-01574:         title.setStyleSheet("background-color:#0F766E;color:white;font-weight:700;font-size:15px;padding:8px;border-radius:5px;")
-01575:         head.addWidget(title)
-01576:         head.addStretch(1)
-01577: 
-01578:         self.back_btn=QPushButton("←")
-01579:         self.back_btn.setToolTip("Voltar para a página anterior do Lens")
-01580:         self.back_btn.setFixedWidth(34)
-01581:         head.addWidget(self.back_btn)
-01582: 
-01583:         self.new_search_btn=QPushButton("＋")
-01584:         self.new_search_btn.setToolTip("Nova busca por imagem")
-01585:         self.new_search_btn.setFixedWidth(34)
-01586:         head.addWidget(self.new_search_btn)
-01587: 
-01588:         self.expand_btn=QPushButton("⛶")
-01589:         self.expand_btn.setToolTip("Expandir Lens sobre a área da conversa")
-01590:         self.expand_btn.setFixedWidth(34)
-01591:         head.addWidget(self.expand_btn)
-01592: 
-01593:         self.close_btn=QPushButton("◀")
-01594:         self.close_btn.setToolTip("Recolher painel")
-01595:         self.close_btn.setFixedWidth(34)
-01596:         head.addWidget(self.close_btn)
-01597:         lay.addWidget(self.title_bar)
-01598: 
-01599:         self.expanded=False
-01600: 
-01601:         self.preview=QLabel("Win + Shift + S\nRecorte a peça")
-01602:         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-01603:         self.preview.setMinimumHeight(120)
-01604:         self.preview.setMaximumHeight(180)
-01605:         self.preview.setStyleSheet("border:1px solid #aaa;background:#f7f7f7;")
-01606:         lay.addWidget(self.preview)
-01607: 
-01608:         row=QHBoxLayout()
-01609:         self.use_clip_btn=QPushButton("📋")
-01610:         self.use_clip_btn.setToolTip("Usar imagem da área de transferência")
-01611:         self.search_btn=QPushButton("🔎")
-01612:         self.search_btn.setToolTip("Pesquisar imagem no Google Lens")
-
-===== DB CODPROD | LINHAS 294-340 =====
-00294:     return t
-00295: 
-00296: 
-00297: def find_alias_alternatives(text, db_path):
-00298:     t=normalize_phrase(text)
-00299:     terms=[]
-00300:     if "mola da cuica" in t:
-00301:         terms.append("mola da cuica")
-00302:     if "mola de cuica" in t:
-00303:         terms.append("mola de cuica")
-00304:     if not terms:
-00305:         return []
-00306: 
-00307:     con=sqlite3.connect(db_path)
-00308:     cur=con.cursor()
-00309:     rows=[]
-00310:     for term in terms:
-00311:         rows += cur.execute("""
-00312:             SELECT a.codprod,a.funcao,a.observacao,
-00313:                    p.refforn,p.marca,p.descricao,p.compldesc
-00314:             FROM alternativas_apelidos a
-00315:             LEFT JOIN produtos p ON p.codprod=a.codprod
-00316:             WHERE a.termo_cliente=?
-00317:             ORDER BY a.codprod
-00318:         """,(term,)).fetchall()
-00319:     con.close()
-00320: 
-00321:     # remove duplicatas por codprod
-00322:     seen=set()
-00323:     out=[]
-00324:     for r in rows:
-00325:         if r[0] in seen:
-00326:             continue
-00327:         seen.add(r[0])
-00328:         out.append(r)
-00329:     return out
-00330: 
-00331: 
-00332: def find_alias_match(text, db_path):
-00333:     t=normalize_phrase(text)
-00334:     con=sqlite3.connect(db_path)
-00335:     cur=con.cursor()
-00336:     rows=cur.execute("""
-00337:         SELECT termo_cliente,termo_tecnico,medida_contexto,codprod_preferido,observacao
-00338:         FROM apelidos_produtos
-00339:     """).fetchall()
-00340:     con.close()
-
-===== DB COMPLDESC | LINHAS 295-341 =====
-00295: 
-00296: 
-00297: def find_alias_alternatives(text, db_path):
-00298:     t=normalize_phrase(text)
-00299:     terms=[]
-00300:     if "mola da cuica" in t:
-00301:         terms.append("mola da cuica")
-00302:     if "mola de cuica" in t:
-00303:         terms.append("mola de cuica")
-00304:     if not terms:
-00305:         return []
-00306: 
-00307:     con=sqlite3.connect(db_path)
-00308:     cur=con.cursor()
-00309:     rows=[]
-00310:     for term in terms:
-00311:         rows += cur.execute("""
-00312:             SELECT a.codprod,a.funcao,a.observacao,
-00313:                    p.refforn,p.marca,p.descricao,p.compldesc
-00314:             FROM alternativas_apelidos a
-00315:             LEFT JOIN produtos p ON p.codprod=a.codprod
-00316:             WHERE a.termo_cliente=?
-00317:             ORDER BY a.codprod
-00318:         """,(term,)).fetchall()
-00319:     con.close()
-00320: 
-00321:     # remove duplicatas por codprod
-00322:     seen=set()
-00323:     out=[]
-00324:     for r in rows:
-00325:         if r[0] in seen:
-00326:             continue
-00327:         seen.add(r[0])
-00328:         out.append(r)
-00329:     return out
-00330: 
-00331: 
-00332: def find_alias_match(text, db_path):
-00333:     t=normalize_phrase(text)
-00334:     con=sqlite3.connect(db_path)
-00335:     cur=con.cursor()
-00336:     rows=cur.execute("""
-00337:         SELECT termo_cliente,termo_tecnico,medida_contexto,codprod_preferido,observacao
-00338:         FROM apelidos_produtos
-00339:     """).fetchall()
+===== DB_HELPERS SOURCE 340-430 =====
 00340:     con.close()
 00341: 
+00342:     best=None
+00343:     for r in rows:
+00344:         if r[0] in t:
+00345:             score=10
+00346:             if r[2]:
+00347:                 # aceita "8 polegadas" e formas aproximadas
+00348:                 number = re.search(r"\d+(?:[.,]\d+)?", r[2])
+00349:                 if number and number.group(0) in t:
+00350:                     score += 10
+00351:             if best is None or score > best[0]:
+00352:                 best=(score,r)
+00353:     return best[1] if best else None
+00354: 
+00355: 
+00356: 
+00357: def find_technical_knowledge(text, db_path):
+00358:     t=normalize_phrase(text)
+00359:     con=sqlite3.connect(db_path)
+00360:     cur=con.cursor()
+00361:     rows=cur.execute("""
+00362:         SELECT frase_cliente,termo_tecnico,aplicacao,consulta_sugerida,observacao
+00363:         FROM conhecimento_tecnico
+00364:     """).fetchall()
+00365:     con.close()
+00366:     best=None
+00367:     for r in rows:
+00368:         phrase=normalize_phrase(r[0])
+00369:         if phrase and phrase in t:
+00370:             score=len(phrase)
+00371:             if best is None or score>best[0]:
+00372:                 best=(score,r)
+00373:     return best[1] if best else None
+00374: 
+00375: def search_products_by_words(db_path, words, limit=40):
+00376:     clean=[w.strip() for w in words if w and len(w.strip())>=2]
+00377:     if not clean:
+00378:         return []
+00379:     con=sqlite3.connect(db_path)
+00380:     cur=con.cursor()
+00381:     clauses=[]
+00382:     params=[]
+00383:     for w in clean[:5]:
+00384:         x=f"%{w.upper()}%"
+00385:         clauses.append("(UPPER(descricao) LIKE ? OR UPPER(compldesc) LIKE ? OR UPPER(refforn) LIKE ? OR UPPER(marca) LIKE ?)")
+00386:         params += [x,x,x,x]
+00387:     sql=f"""
+00388:         SELECT id,codprod,refforn,marca,descricao,compldesc,55 AS score
+00389:         FROM produtos
+00390:         WHERE {' AND '.join(clauses)}
+00391:         LIMIT ?
+00392:     """
+00393:     params.append(limit)
+00394:     cur.execute(sql,params)
+00395:     rows=cur.fetchall()
+00396:     con.close()
+00397:     return rows
+00398: 
+00399: 
+00400: 
+00401: 
+00402: 
+00403: 
+00404: 
+00405: 
+00406: 
+00407: class CampaignPanel(QWidget):
+00408:     def __init__(self, parent=None):
+00409:         super().__init__(parent)
+00410:         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+00411:         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+00412:         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+00413:         self.setAutoFillBackground(True)
+00414:         self.setStyleSheet("background-color:#FFFFFF;")
+00415:         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+00416:         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+00417:         self.setAutoFillBackground(True)
+00418:         pal=self.palette()
+00419:         pal.setColor(QPalette.ColorRole.Window, QColor("#FFFFFF"))
+00420:         self.setPalette(pal)
+00421:         self.setObjectName("opaqueToolPanel")
+00422:         self.setStyleSheet("#opaqueToolPanel{background-color:#FFFFFF;}")
+00423:         self.setAutoFillBackground(True)
+00424:         self.setStyleSheet("background-color:#FFFFFF;")
+00425:         self.expanded=False
+00426: 
+00427:         self.contacts=[]
+00428:         self.queue=[]
+00429:         self.running=False
+00430:         self.current_index=0
 
-===== WEBVIEW ADAPTER | LINHAS 1765-1811 =====
-01765: 
-01766: 
-01767: 
-01768: 
-01769: class _WebView2ProfileAdapter:
-01770:     """Compatibilidade mínima com chamadas antigas page().profile()."""
-01771:     def __init__(self, owner):
-01772:         self.owner=owner
-01773: 
-01774:     def httpUserAgent(self):
-01775:         return "Microsoft Edge WebView2 (Evergreen)"
-01776: 
-01777:     def clearHttpCache(self):
-01778:         # Não apagamos cookies/sessão. O método de recuperação antigo não fica
-01779:         # ativo em segundo plano; este no-op preserva a conta do WhatsApp.
-01780:         return None
-01781: 
-01782: 
-01783: class _WebView2PageAdapter:
-01784:     """Faz o código existente de WA-JS continuar usando page().runJavaScript."""
-01785:     def __init__(self, owner):
-01786:         self.owner=owner
-01787:         self._profile=_WebView2ProfileAdapter(owner)
-01788: 
-01789:     def profile(self):
-01790:         return self._profile
-01791: 
-01792:     def runJavaScript(self, script, callback=None):
-01793:         return self.owner._run_javascript_compat(script,callback)
-01794: 
-01795: 
-01796: class WhatsAppView(QtWebView2Widget):
-01797:     """
-01798:     WhatsApp via Microsoft Edge WebView2.
-01799: 
-01800:     Vídeos, chamadas e codecs são responsabilidade do Edge, como no teste
-01801:     aprovado. O restante do ALIYVO continua usando a API compatível
-01802:     page().runJavaScript para WA-JS e automações existentes.
-01803:     """
-01804:     loadFinished=pyqtSignal(bool)
-01805:     loadStarted=pyqtSignal()
-01806:     _download_done=pyqtSignal(str,bool,bool)
-01807: 
-01808:     def __init__(self):
-01809:         self.media_download_callback=None
-01810:         self.audio_download_callback=None
-01811:         self.audio_download_pending=False
-
-===== RUNJAVASCRIPT | LINHAS 1766-1812 =====
-01766: 
-01767: 
-01768: 
-01769: class _WebView2ProfileAdapter:
-01770:     """Compatibilidade mínima com chamadas antigas page().profile()."""
-01771:     def __init__(self, owner):
-01772:         self.owner=owner
-01773: 
-01774:     def httpUserAgent(self):
-01775:         return "Microsoft Edge WebView2 (Evergreen)"
-01776: 
-01777:     def clearHttpCache(self):
-01778:         # Não apagamos cookies/sessão. O método de recuperação antigo não fica
-01779:         # ativo em segundo plano; este no-op preserva a conta do WhatsApp.
+===== WHATSAPP_VIEW SOURCE 1780-2085 =====
 01780:         return None
 01781: 
 01782: 
@@ -354,8 +125,235 @@
 01810:         self.audio_download_callback=None
 01811:         self.audio_download_pending=False
 01812:         self._download_handlers=[]
-
-===== EVALUATE_JS | LINHAS 2042-2088 =====
+01813:         self._current_url="https://web.whatsapp.com/"
+01814: 
+01815:         # O WebView2 usa o Edge Evergreen do Windows, sem UA falso.
+01816:         super().__init__(
+01817:             url=self._current_url,
+01818:             user_agent=None,
+01819:             debug=False,
+01820:             context_menus=False,
+01821:             transparent=False,
+01822:             background_color="#071A2B",
+01823:             handle_new_window=True,
+01824:             lazyload=False,
+01825:             user_data_folder=str(WEBVIEW2_PROFILE_DIR),
+01826:             no_local_storage=False,
+01827:             fullscreen_support=True,
+01828:             init_settings_hook=self._configure_webview2_core,
+01829:             parent=None,
+01830:         )
+01831: 
+01832:         self._page_adapter=_WebView2PageAdapter(self)
+01833:         self.setAcceptDrops(True)
+01834: 
+01835:         self._download_done.connect(self._on_webview2_download_done)
+01836: 
+01837:         # O QtWebView2 0.5 fornece DOMContentLoaded e initialization_done.
+01838:         try:
+01839:             self.bridge.domContentLoaded.connect(self._on_dom_loaded)
+01840:         except Exception:
+01841:             pass
+01842: 
+01843:         try:
+01844:             self.bridge.initialization_done.connect(self._on_wv2_initialized)
+01845:         except Exception:
+01846:             pass
+01847: 
+01848:     # --------------------------------------------------------
+01849:     # Core WebView2: downloads + permissions
+01850:     # --------------------------------------------------------
+01851:     def _configure_webview2_core(self,core):
+01852:         self._core_webview2=core
+01853: 
+01854:         # Downloads do próprio WhatsApp.
+01855:         try:
+01856:             core.DownloadStarting += self._on_webview2_download_starting
+01857:         except Exception:
+01858:             pass
+01859: 
+01860:         # O teste já comprovou chamadas. Aqui apenas autorizamos
+01861:         # microfone/câmera/notificações quando a origem for WhatsApp.
+01862:         try:
+01863:             core.PermissionRequested += self._on_webview2_permission_requested
+01864:         except Exception:
+01865:             pass
+01866: 
+01867:         # Mantém autoplay/mídia sob responsabilidade do Edge.
+01868:         try:
+01869:             settings=core.Settings
+01870:             settings.IsScriptEnabled=True
+01871:         except Exception:
+01872:             pass
+01873: 
+01874:     def _on_webview2_permission_requested(self,sender,args):
+01875:         try:
+01876:             uri=str(getattr(args,"Uri","") or "").lower()
+01877:             if "whatsapp.com" not in uri:
+01878:                 return
+01879: 
+01880:             kind=str(getattr(args,"PermissionKind","") or "").lower()
+01881:             allow_kinds=(
+01882:                 "microphone",
+01883:                 "camera",
+01884:                 "notifications",
+01885:                 "clipboard",
+01886:                 "other sensors",
+01887:             )
+01888: 
+01889:             if not any(x in kind for x in allow_kinds):
+01890:                 return
+01891: 
+01892:             # Python.NET enum: type(State).Allow nas versões atuais.
+01893:             current=getattr(args,"State",None)
+01894:             enum_type=type(current)
+01895:             allow=getattr(enum_type,"Allow",None)
+01896:             if allow is None and current is not None:
+01897:                 allow=getattr(current,"Allow",None)
+01898: 
+01899:             if allow is not None:
+01900:                 args.State=allow
+01901:                 try:
+01902:                     args.SavesInProfile=True
+01903:                 except Exception:
+01904:                     pass
+01905:         except Exception:
+01906:             # Se a enum variar, o Edge mostra o prompt nativo normalmente.
+01907:             pass
+01908: 
+01909:     def _whatsapp_download_folder(self):
+01910:         home=Path.home()
+01911:         candidates=[
+01912:             home/"Downloads",
+01913:             home/"OneDrive"/"Downloads",
+01914:             USER_CACHE_DIR/"downloads"
+01915:         ]
+01916:         for folder in candidates:
+01917:             try:
+01918:                 folder.mkdir(parents=True,exist_ok=True)
+01919:                 return folder
+01920:             except Exception:
+01921:                 pass
+01922:         return APP_DIR
+01923: 
+01924:     def _unique_whatsapp_download_name(self,folder,name):
+01925:         name=(name or "arquivo_whatsapp").strip()
+01926:         target=folder/name
+01927:         if not target.exists():
+01928:             return name
+01929: 
+01930:         stem=Path(name).stem
+01931:         suffix=Path(name).suffix
+01932:         i=1
+01933:         while True:
+01934:             candidate=f"{stem} ({i}){suffix}"
+01935:             if not (folder/candidate).exists():
+01936:                 return candidate
+01937:             i+=1
+01938: 
+01939:     def _on_webview2_download_starting(self,sender,args):
+01940:         """
+01941:         Usa o download nativo do Edge e esconde somente o pop-up de download.
+01942:         O download continua normalmente.
+01943:         """
+01944:         try:
+01945:             operation=args.DownloadOperation
+01946:             original=str(getattr(args,"ResultFilePath","") or "")
+01947:             suggested=Path(original).name if original else "arquivo_whatsapp"
+01948: 
+01949:             folder=self._whatsapp_download_folder()
+01950:             filename=self._unique_whatsapp_download_name(folder,suggested)
+01951:             target=(folder/filename).resolve()
+01952: 
+01953:             args.ResultFilePath=str(target)
+01954:             args.Handled=True
+01955:             try:
+01956:                 args.Cancel=False
+01957:             except Exception:
+01958:                 pass
+01959: 
+01960:             is_audio=bool(getattr(self,"audio_download_pending",False))
+01961: 
+01962:             def state_changed(op_sender,op_args,
+01963:                               op=operation,
+01964:                               path=str(target),
+01965:                               audio=is_audio):
+01966:                 try:
+01967:                     state=str(getattr(op,"State","") or "")
+01968:                     done=("Completed" in state)
+01969:                     failed=("Interrupted" in state)
+01970: 
+01971:                     if done or failed:
+01972:                         self._download_done.emit(path,audio,done)
+01973:                         try:
+01974:                             op.StateChanged -= state_changed
+01975:                         except Exception:
+01976:                             pass
+01977:                 except Exception:
+01978:                     pass
+01979: 
+01980:             self._download_handlers.append(state_changed)
+01981:             operation.StateChanged += state_changed
+01982: 
+01983:         except Exception:
+01984:             # Se nossa customização falhar, o Edge continua com o download padrão.
+01985:             pass
+01986: 
+01987:     def _on_webview2_download_done(self,path,is_audio,success):
+01988:         try:
+01989:             if is_audio:
+01990:                 self.audio_download_pending=False
+01991: 
+01992:             if not success:
+01993:                 return
+01994: 
+01995:             if is_audio:
+01996:                 cb=getattr(self,"audio_download_callback",None)
+01997:                 if cb:
+01998:                     cb(str(path))
+01999:                     return
+02000: 
+02001:             cb=getattr(self,"media_download_callback",None)
+02002:             if cb:
+02003:                 cb(str(path))
+02004:         except Exception:
+02005:             pass
+02006: 
+02007:     # --------------------------------------------------------
+02008:     # Compatibility API used by the existing ALIYVO code
+02009:     # --------------------------------------------------------
+02010:     def page(self):
+02011:         return self._page_adapter
+02012: 
+02013:     def current_url(self):
+02014:         try:
+02015:             if getattr(self,"is_ready",False) and getattr(self,"_webview",None):
+02016:                 src=str(self._webview.Source)
+02017:                 if src:
+02018:                     self._current_url=src
+02019:         except Exception:
+02020:             pass
+02021:         return self._current_url
+02022: 
+02023:     def setUrl(self,url):
+02024:         try:
+02025:             value=url.toString() if hasattr(url,"toString") else str(url)
+02026:             self._current_url=value
+02027:             self.loadStarted.emit()
+02028:             self.load_url(value)
+02029:         except Exception:
+02030:             pass
+02031: 
+02032:     def open_whatsapp(self):
+02033:         self.setUrl(QUrl("https://web.whatsapp.com/"))
+02034: 
+02035:     def reload(self):
+02036:         self.loadStarted.emit()
+02037:         try:
+02038:             super().reload()
+02039:         except Exception:
+02040:             try:
+02041:                 self.load_url(self._current_url)
 02042:             except Exception:
 02043:                 pass
 02044: 
@@ -400,88 +398,758 @@
 02083: 
 02084:         def finished(payload):
 02085:             if callback is None:
-02086:                 return
-02087:             try:
-02088:                 if isinstance(payload,dict) and payload.get("success"):
 
-===== BOTOES/LATERAL MATCHES =====
-00014:     QPushButton, QLabel, QTextEdit, QTableWidget, QTableWidgetItem, QSplitter,
-00454:         self.expand_btn=QPushButton("⛶")
-00459:         self.close_btn=QPushButton("◀")
-00471:         self.new_list_btn=QPushButton("➕ Nova lista")
-00473:         self.use_list_btn=QPushButton("Usar lista")
-00474:         self.save_current_btn=QPushButton("💾 Salvar")
-00494:         self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
-00496:         self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
-00518:         self.remove_selected_btn=QPushButton("➖ Remover")
-00519:         self.clear_contacts_btn=QPushButton("🗑 Limpar lista")
-00529:         self.review_btn=QPushButton("✓ Revisar PT-BR")
-00545:         self.image_btn=QPushButton("🖼 Imagem")
-00553:         self.test_one_btn=QPushButton("🧪 Testar 1 contato")
-00555:         self.start_btn=QPushButton("▶ Iniciar")
-00556:         self.pause_btn=QPushButton("⏸ Pausar")
-01007:         self.expand_btn=QPushButton("⛶")
-01012:         self.close_btn=QPushButton("◀")
-01044:         self.copy_btn=QPushButton("📋")
-01046:         self.clear_btn=QPushButton("🗑")
-01170:         self.expand_btn=QPushButton("⛶")
-01175:         self.close_btn=QPushButton("◀")
-01189:         self.calc_btn=QPushButton("Calcular condição")
-01206:         self.copy_btn=QPushButton("📋")
-01208:         self.clear_btn=QPushButton("🗑")
-01318:         self.back_btn=QPushButton("←")
-01323:         self.home_btn=QPushButton("⌂")
-01328:         self.reload_btn=QPushButton("⟳")
-01333:         self.expand_btn=QPushButton("⛶")
-01338:         self.close_btn=QPushButton("◀")
-01578:         self.back_btn=QPushButton("←")
-01583:         self.new_search_btn=QPushButton("＋")
-01588:         self.expand_btn=QPushButton("⛶")
-01593:         self.close_btn=QPushButton("◀")
-01609:         self.use_clip_btn=QPushButton("📋")
-01611:         self.search_btn=QPushButton("🔎")
-01614:         self.reload_btn=QPushButton("⟳")
-02346:         btn_an = QPushButton("ANALISAR")
-02348:         btn_clear = QPushButton("Limpar")
-02369:         b = QPushButton("Buscar")
-02388:         self.webbtn = QPushButton("Pesquisar código na internet")
-02390:         addbtn = QPushButton("Adicionar à resposta")
-02423:         bimg=QPushButton("Selecionar imagem")
-02430:         bi=QPushButton("Importar CSV")
-02432:         bw=QPushButton("Escolher do WhatsApp")
-02434:         bcur=QPushButton("Adicionar conversa atual")
-02436:         br=QPushButton("Atualizar contatos")
-02455:         self.start_campaign_btn=QPushButton("INICIAR CAMPANHA")
-02457:         self.stop_campaign_btn=QPushButton("Parar")
-02478:         self.quick_use_btn = QPushButton("Usar mensagem pronta")
-02480:         self.quick_add_btn = QPushButton("Salvar resposta atual")
-02502:         self.pay_btn=QPushButton("Gerar prazos")
-02515:         self.pay_to_reply=QPushButton("Usar como resposta")
-02517:         self.pay_to_whatsapp=QPushButton("Jogar no WhatsApp")
-02532:         gen = QPushButton("Gerar resposta")
-02534:         put = QPushButton("Enviar para campo do WhatsApp")
-02536:         copy = QPushButton("Copiar resposta")
+===== PRODUCT_SEARCH SOURCE 3560-3735 =====
+03560:             lines.append("")
+03561:             lines.append("PESQUISA POR CÓDIGOS:")
+03562:             con=self.db(); cur=con.cursor()
+03563:             for code in codes[:20]:
+03564:                 nq=norm(code)
+03565:                 cur.execute("""
+03566:                     SELECT codprod,refforn,marca,descricao,
+03567:                     CASE
+03568:                       WHEN codprod=? THEN 100
+03569:                       WHEN refforn=? THEN 98
+03570:                       WHEN n_codprod=? THEN 95
+03571:                       WHEN n_refforn=? THEN 93
+03572:                       WHEN n_compldesc LIKE ? THEN 80
+03573:                       ELSE 0 END sc
+03574:                     FROM produtos
+03575:                     WHERE codprod=? OR refforn=? OR n_codprod=? OR n_refforn=? OR n_compldesc LIKE ?
+03576:                     ORDER BY sc DESC LIMIT 10
+03577:                 """,(code,code,nq,nq,f"%{nq}%",code,code,nq,nq,f"%{nq}%"))
+03578:                 rows=cur.fetchall()
+03579:                 if not rows:
+03580:                     lines.append(f"❌ {code}: não localizado")
+03581:                     doubts.append(f"{code}: pesquisar externamente / confirmar aplicação.")
+03582:                 else:
+03583:                     best=rows[0]
+03584:                     conf="ALTA" if best[4]>=93 else "MÉDIA"
+03585:                     lines.append(f"✅ {code}: Soma {best[0]} | {best[1]} | {best[2]} | {conf}")
+03586:                     if len(rows)>1:
+03587:                         doubts.append(f"{code}: há {len(rows)} possibilidades; conferir aplicação.")
+03588:             con.close()
+03589: 
+03590:         if plate:
+03591:             doubts.append(f"Placa {plate}: precisa confirmar no catálogo original.")
+03592: 
+03593:         if not codes and not alias and not technical:
+03594:             # Sem código nem apelido conhecido: procurar por palavras técnicas, mas não inventar
+03595:             words=[w for w in re.findall(r"[A-Za-zÀ-ÿ0-9]+", text.lower()) if len(w)>=4 and not w.isdigit()]
+03596:             lines.append("")
+03597:             lines.append("Não encontrei código explícito nem apelido conhecido com segurança.")
+03598:             if words:
+03599:                 lines.append("Palavras úteis para pesquisa: " + ", ".join(words[:8]))
+03600:             doubts.append("Necessário pesquisar por descrição/aplicação antes de afirmar a peça.")
+03601: 
+03602:         lines.append("")
+03603:         lines.append("DÚVIDAS / CONFERÊNCIAS:")
+03604:         if doubts:
+03605:             lines.extend("• "+d for d in doubts)
+03606:         else:
+03607:             lines.append("• Nenhuma dúvida crítica detectada; revisar aplicação/quantidade antes de enviar.")
+03608: 
+03609:         self.analysis.setPlainText("\n".join(lines))
+03610:         self.generate_reply()
+03611: 
+03612:     def search_products(self):
+03613:         q=self.search.text().strip()
+03614:         self.table.setRowCount(0)
+03615:         self.last_results=[]
+03616:         self.detail.clear()
+03617:         if not q: return
+03618:         nq=norm(q)
+03619:         con=self.db()
+03620:         cur=con.cursor()
+03621:         cur.execute("""
+03622:             SELECT id,codprod,refforn,marca,descricao,compldesc,
+03623:             CASE
+03624:               WHEN codprod=? THEN 100
+03625:               WHEN refforn=? THEN 98
+03626:               WHEN n_codprod=? THEN 95
+03627:               WHEN n_refforn=? THEN 93
+03628:               WHEN n_compldesc LIKE ? THEN 80
+03629:               WHEN n_all LIKE ? THEN 60
+03630:               ELSE 0 END score
+03631:             FROM produtos
+03632:             WHERE codprod=? OR refforn=? OR n_codprod=? OR n_refforn=? OR n_compldesc LIKE ? OR n_all LIKE ?
+03633:             ORDER BY score DESC,codprod
+03634:             LIMIT 80
+03635:         """,(q,q,nq,nq,f"%{nq}%",f"%{nq}%",q,q,nq,nq,f"%{nq}%",f"%{nq}%"))
+03636:         rows=cur.fetchall()
+03637:         con.close()
+03638:         self.last_results=rows
+03639: 
+03640:         for r in rows:
+03641:             conf="ALTA" if r[6]>=93 else ("MÉDIA" if r[6]>=75 else "APROX.")
+03642:             row=self.table.rowCount()
+03643:             self.table.insertRow(row)
+03644:             vals=[conf,r[1],r[2],r[3],r[4]]
+03645:             for col,val in enumerate(vals):
+03646:                 self.table.setItem(row,col,QTableWidgetItem(str(val or "")))
+03647: 
+03648:         if rows:
+03649:             self.table.selectRow(0)
+03650:         else:
+03651:             self.detail.setPlainText("Nenhum produto encontrado na base local.")
+03652: 
+03653:     def selected_result(self):
+03654:         row=self.table.currentRow()
+03655:         if row<0 or row>=len(self.last_results): return None
+03656:         return self.last_results[row]
+03657: 
+03658:     def show_selected_detail(self):
+03659:         r=self.selected_result()
+03660:         if not r: return
+03661:         conf="ALTA" if r[6]>=93 else ("MÉDIA" if r[6]>=75 else "APROXIMADA")
+03662:         txt=(f"Confiança: {conf}\nCódigo Soma: {r[1]}\nReferência fornecedor: {r[2]}\n"
+03663:              f"Marca: {r[3]}\nDescrição/aplicação: {r[4]}\nComplemento/referências cruzadas: {r[5]}")
+03664:         self.detail.setPlainText(txt)
+03665: 
+03666:     def add_selected_to_reply(self):
+03667:         r=self.selected_result()
+03668:         if not r: return
+03669:         extra=f"\n\nCód. Soma {r[1]} | Ref. {r[2]} | {r[3]}\n{r[4]}"
+03670:         self.reply.setPlainText((self.reply.toPlainText()+extra).strip())
+03671: 
+03672:     def generate_reply(self):
+03673:         text=self.msg.toPlainText().strip()
+03674:         low=normalize_phrase(text)
+03675: 
+03676:         if "hl4" in low and "1113" in low:
+03677:             r="Entendi, diferencial HL4 do 1113. Já confiro a aplicação e te passo."
+03678:         elif "mola da cuica" in low or "mola de cuica" in low:
+03679:             r="Tenho duas opções. Você precisa a do freio de pé ou do estacionário?"
+03680:         elif detect_plate(text):
+03681:             r="Já confiro pela placa e te retorno."
+03682:         elif any(x in low for x in ["preço","preco","valor","orçamento","orcamento"]):
+03683:             r="Bom dia! Já vejo seu orçamento, só um minuto."
+03684:         elif any(x in low for x in ["foto","imagem"]):
+03685:             r="Bom dia! Recebi a foto, já confiro pra você."
+03686:         elif extract_codes_strict(text):
+03687:             r="Bom dia! Recebi as referências, já confiro."
+03688:         else:
+03689:             r="Bom dia! Já vejo pra você."
+03690: 
+03691:         self.reply.setPlainText(r)
+03692:         self.push_reply_to_whatsapp_input(silent=True)
+03693: 
+03694:     def copy_reply(self):
+03695:         QApplication.clipboard().setText(self.reply.toPlainText())
+03696:         self.status.setText("Resposta copiada para a área de transferência.")
+03697: 
+03698:     def web_search(self):
+03699:         q=self.search.text().strip()
+03700:         if q:
+03701:             webbrowser.open("https://www.google.com/search?q="+q.replace(" ","+"))
+03702: 
+03703: 
+03704: class AliyvoReferenceHeader(QWidget):
+03705:     """Cabeçalho oficial baseado diretamente no mockup aprovado."""
+03706:     minimizeRequested = pyqtSignal()
+03707:     maximizeRequested = pyqtSignal()
+03708:     closeRequested = pyqtSignal()
+03709: 
+03710:     def __init__(self, parent=None):
+03711:         super().__init__(parent)
+03712:         self.setFixedHeight(48)
+03713: 
+03714:         self.brand = QPixmap(
+03715:             str(APP_DIR/"assets"/"aliyvo_brand_aprovada.png")
+03716:         )
+03717: 
 03718:         self.min_btn = QPushButton("—", self)
 03719:         self.max_btn = QPushButton("□", self)
 03720:         self.close_btn = QPushButton("×", self)
+03721: 
+03722:         for btn in (self.min_btn, self.max_btn, self.close_btn):
+03723:             btn.setFixedSize(33, 24)
+03724:             btn.setCursor(Qt.CursorShape.PointingHandCursor)
+03725:             btn.setStyleSheet("""
 03726:                 QPushButton {
+03727:                     color:#D5E1E4;
+03728:                     background:transparent;
+03729:                     border:none;
+03730:                     font-size:13px;
+03731:                     font-weight:600;
+03732:                 }
 03733:                 QPushButton:hover {
-03739:             QPushButton {
-03746:             QPushButton:hover {
-03845:         self.expand_btn=QPushButton("⛶")
-03850:         self.close_btn=QPushButton("◀")
-03851:         self.close_btn.setToolTip("Voltar para Ações rápidas")
-03879:         self.refresh_btn=QPushButton("⟳ Atualizar")
-03880:         self.copy_btn=QPushButton("📋 Copiar relatório")
-03881:         self.folder_btn=QPushButton("📁 Pasta do diagnóstico")
-03954:         self.expand_btn=QPushButton("⛶")
-03959:         self.close_btn=QPushButton("◀")
-03961:         self.close_btn.setToolTip("Voltar para Ações rápidas")
-03997:         self.save_btn=QPushButton("💾 Salvar canal")
-03998:         self.check_btn=QPushButton("🔄 Verificar atualização")
-04010:         self.install_btn=QPushButton("⬇ Atualizar agora")
-04013:             "QPushButton{background:#0F766E;color:white;"
-04015:             "QPushButton:disabled{background:#94A3B8;color:#E2E8F0;}"
-04019:         self.test_btn=QPushButton("🧪 Testar motor do atualizador")
-04040:         self.backup_btn=QPushButton("💾 Backup dos meus dados")
-04041:         self.restore_btn=QPushButton("♻ Restaurar backup")
+03734:                     background:rgba(255,255,255,0.09);
+03735:                 }
+
+===== MAIN_INIT SOURCE 4710-4905 =====
+04710:         if self.on_connect: self.on_connect()
+04711:     def _capture(self):
+04712:         if self.on_capture: self.on_capture()
+04713:     def _open(self):
+04714:         if self.on_open_catalog: self.on_open_catalog()
+04715:     def _read(self):
+04716:         if self.on_read_current: self.on_read_current()
+04717: 
+04718: class MainWindow(QMainWindow):
+04719:     def __init__(self):
+04720:         super().__init__()
+04721:         try:
+04722:             import ctypes
+04723:             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+04724:                 "ALIYVO.Desktop.Comercial"
+04725:             )
+04726:         except Exception:
+04727:             pass
+04728: 
+04729:         icon_path=APP_DIR/"copiloto_a_icon.ico"
+04730:         if icon_path.exists():
+04731:             self.setWindowIcon(QIcon(str(icon_path)))
+04732: 
+04733:         self.setWindowTitle("ALIYVO")
+04734:         self.setWindowFlags(
+04735:             Qt.WindowType.FramelessWindowHint |
+04736:             Qt.WindowType.Window
+04737:         )
+04738:         self.resize(1650,950)
+04739:         self.last_chat_signature=""
+04740: 
+04741:         shell=QWidget()
+04742:         shell.setObjectName("aliyvoShell")
+04743:         shell.setStyleSheet(
+04744:             "QWidget#aliyvoShell{background:#061626;}"
+04745:         )
+04746:         shell_lay=QVBoxLayout(shell)
+04747:         shell_lay.setContentsMargins(0,0,0,0)
+04748:         shell_lay.setSpacing(0)
+04749: 
+04750:         # ========== CABEÇALHO EXATO ==========
+04751:         self.brand_bar=AliyvoReferenceHeader()
+04752:         self.brand_bar.minimizeRequested.connect(self.showMinimized)
+04753:         self.brand_bar.maximizeRequested.connect(self._toggle_maximize_window)
+04754:         self.brand_bar.closeRequested.connect(self.close)
+04755:         shell_lay.addWidget(self.brand_bar)
+04756: 
+04757:         # ========== SEGUNDA FAIXA DO MOCKUP ==========
+04758:         nav=QWidget()
+04759:         nav.setObjectName("aliyvoNav")
+04760:         nav.setFixedHeight(44)
+04761:         nav.setStyleSheet("""
+04762:             QWidget#aliyvoNav{
+04763:                 background:#061626;
+04764:                 border-bottom:1px solid #15364B;
+04765:             }
+04766:             QWidget#aliyvoNav QPushButton{
+04767:                 background:#071C2E;
+04768:                 color:#EFF8F5;
+04769:                 border:1px solid #12374D;
+04770:                 border-radius:6px;
+04771:                 padding:6px 15px;
+04772:                 min-height:25px;
+04773:                 font-size:11px;
+04774:                 font-weight:700;
+04775:             }
+04776:             QWidget#aliyvoNav QPushButton:hover{
+04777:                 background:#0B2E35;
+04778:                 border-color:#20E983;
+04779:             }
+04780:         """)
+04781:         nav_lay=QHBoxLayout(nav)
+04782:         nav_lay.setContentsMargins(14,5,14,5)
+04783:         nav_lay.setSpacing(14)
+04784: 
+04785:         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+04786:         self.prazo_toggle=QPushButton("▣  Prazos")
+04787:         self.chat_toggle=QPushButton("◉  Assistente")
+04788:         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+04789:         self.plate_toggle=QPushButton("🚚  Busca placa")
+04790: 
+04791:         # Primeiro botão destacado como na referência
+04792:         self.campaign_toggle.setStyleSheet("""
+04793:             QPushButton{
+04794:                 background:#061E28;
+04795:                 color:#F3FBF8;
+04796:                 border:1px solid #0CCB72;
+04797:                 border-radius:6px;
+04798:                 padding:6px 15px;
+04799:                 min-height:25px;
+04800:                 font-size:11px;
+04801:                 font-weight:700;
+04802:             }
+04803:             QPushButton:hover{
+04804:                 background:#0A332D;
+04805:                 border-color:#20E983;
+04806:             }
+04807:         """)
+04808: 
+04809:         nav_lay.addWidget(self.campaign_toggle)
+04810:         nav_lay.addWidget(self.prazo_toggle)
+04811:         nav_lay.addWidget(self.chat_toggle)
+04812:         nav_lay.addWidget(self.nav_lens_toggle)
+04813:         nav_lay.addWidget(self.plate_toggle)
+04814:         nav_lay.addStretch(1)
+04815:         shell_lay.addWidget(nav)
+04816: 
+04817:         # ========== CORPO ==========
+04818:         body=QWidget()
+04819:         body.setObjectName("aliyvoBody")
+04820:         body.setMinimumHeight(0)
+04821:         body.setSizePolicy(
+04822:             QSizePolicy.Policy.Expanding,
+04823:             QSizePolicy.Policy.Expanding
+04824:         )
+04825:         body.setStyleSheet(
+04826:             "QWidget#aliyvoBody{background:#061626;}"
+04827:         )
+04828:         body_lay=QHBoxLayout(body)
+04829:         body_lay.setContentsMargins(0,0,0,0)
+04830:         body_lay.setSpacing(0)
+04831: 
+04832:         self.web=WhatsAppView()
+04833: 
+04834:         self.web_host=QWidget()
+04835:         self.web_host.setObjectName("webHost")
+04836:         self.web_host.setMinimumHeight(0)
+04837:         self.web_host.setSizePolicy(
+04838:             QSizePolicy.Policy.Expanding,
+04839:             QSizePolicy.Policy.Expanding
+04840:         )
+04841:         self.web.setMinimumHeight(0)
+04842:         self.web.setSizePolicy(
+04843:             QSizePolicy.Policy.Expanding,
+04844:             QSizePolicy.Policy.Expanding
+04845:         )
+04846:         self.web_host.setStyleSheet(
+04847:             "QWidget#webHost{background:#061626;border:none;}"
+04848:         )
+04849:         self.web_host_layout=QVBoxLayout(self.web_host)
+04850:         self.web_host_layout.setContentsMargins(0,0,0,0)
+04851:         self.web_host_layout.setSpacing(0)
+04852:         self.web_host_layout.addWidget(self.web)
+04853:         body_lay.addWidget(self.web_host,1)
+04854: 
+04855:         # Painel da direita como no mockup aprovado
+04856:         self.quick_panel=QWidget()
+04857:         self.quick_panel.setObjectName("quickPanel")
+04858:         self.quick_panel.setFixedWidth(225)
+04859:         self.quick_panel.setStyleSheet("""
+04860:             QWidget#quickPanel{
+04861:                 background:#071A2B;
+04862:                 border-left:1px solid #15364B;
+04863:             }
+04864:             QWidget#quickPanel QLabel{
+04865:                 color:#F4FAF8;
+04866:                 background:transparent;
+04867:             }
+04868:             QWidget#quickPanel QPushButton{
+04869:                 text-align:left;
+04870:                 background:#0A2236;
+04871:                 color:#F4FAF8;
+04872:                 border:1px solid #173B52;
+04873:                 border-radius:7px;
+04874:                 padding:9px 11px;
+04875:                 min-height:28px;
+04876:                 font-size:10px;
+04877:                 font-weight:700;
+04878:             }
+04879:             QWidget#quickPanel QPushButton:hover{
+04880:                 background:#0D303B;
+04881:                 border-color:#20E983;
+04882:             }
+04883:         """)
+04884:         q=QVBoxLayout(self.quick_panel)
+04885:         q.setContentsMargins(13,14,13,12)
+04886:         q.setSpacing(9)
+04887: 
+04888:         qtitle=QLabel("Ações rápidas")
+04889:         qtitle.setStyleSheet(
+04890:             "font-size:14px;font-weight:800;color:white;"
+04891:         )
+04892:         qsub=QLabel("Ferramentas do ALIYVO")
+04893:         qsub.setStyleSheet(
+04894:             "font-size:9px;color:#69BBA4;"
+04895:         )
+04896: 
+04897:         self.lens_toggle=QPushButton("🔎  Busca por imagem")
+04898:         self.audio_toggle=QPushButton("🎙  Áudio")
+04899:         self.quick_prazo=QPushButton("▣  Prazos")
+04900:         self.quick_chat=QPushButton("◉  Assistente")
+04901:         self.quick_campaign=QPushButton("➤  Disparo de mensagens")
+04902:         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+04903:         self.quick_update=QPushButton("⬆  Atualizações")
+04904:         self.quick_plate=QPushButton("🚚  Busca por placa")
+04905: 
+
+===== QUICK_ACTIONS SOURCE 5420-5605 =====
+05420:         meaningful=has_current_plate and bool(fields)
+05421:         if not meaningful:
+05422:             self.plate_panel.status.setText("⚠ A fonte respondeu, mas ainda não abriu os detalhes desta placa automaticamente.")
+05423:             return
+05424: 
+05425:         self.plate_panel.raw.setPlainText("\n".join(clean))
+05426: 
+05427:         out=["DADOS DO VEÍCULO",""]
+05428:         if fields:
+05429:             width=max(len(k) for k,_ in fields)
+05430:             for label,value in fields:
+05431:                 out.append(f"{label:<{width}} : {value}")
+05432:         else:
+05433:             out.append("Veículo identificado, mas os campos ainda não foram separados automaticamente.")
+05434: 
+05435:         if apps:
+05436:             out += ["","APLICAÇÕES / PEÇAS POSSÍVEIS",""]
+05437:             out.extend(apps[:80])
+05438: 
+05439:         self.plate_panel.result.setPlainText("\n".join(out))
+05440: 
+05441:         matches=self._catalog_cross_soma(codes)
+05442:         soma=["POSSÍVEIS CORRESPONDÊNCIAS NA BASE SOMA","",
+05443:               "Aplicação provável. Confirme código/chassi antes da venda.",""]
+05444:         if matches:
+05445:             for cod,ref,marca,desc,compl in matches:
+05446:                 soma.append(f"SOMA {cod} • {ref or '-'} • {marca or '-'}")
+05447:                 soma.append(str(desc or ""))
+05448:                 if compl: soma.append("Ref.: "+str(compl)[:220])
+05449:                 soma.append("")
+05450:         else:
+05451:             soma.append("Nenhuma referência desta tela bateu diretamente com a Base Soma.")
+05452:         self.plate_panel.soma.setPlainText("\n".join(soma))
+05453:         self.plate_panel.status.setText(
+05454:             f"✅ Veículo identificado • {len(fields)} dado(s) técnico(s) • {len(matches)} correspondência(s) Soma possível(is)."
+05455:         )
+05456: 
+05457:     def _tool_panel(self, tool):
+05458:         return {
+05459:             "lens": self.lens_panel,
+05460:             "chat": self.chat_panel,
+05461:             "prazo": self.prazo_panel,
+05462:             "audio": self.audio_panel,
+05463:             "campaign": self.campaign_panel,
+05464:             "diagnostic": self.diagnostic_panel,
+05465:             "update": self.update_panel,
+05466:             "plate": self.plate_panel,
+05467:         }.get(tool)
+05468: 
+05469:     def _quick_tool_width(self, tool, expanded=False):
+05470:         if expanded:
+05471:             return {
+05472:                 "lens": 620,
+05473:                 "chat": 620,
+05474:                 "prazo": 620,
+05475:                 "audio": 620,
+05476:                 "campaign": 720,
+05477:                 "diagnostic": 680,
+05478:                 "update": 650,
+05479:                 "plate": 760,
+05480:             }.get(tool,620)
+05481:         return {
+05482:             "lens": 430,
+05483:             "chat": 450,
+05484:             "prazo": 430,
+05485:             "audio": 430,
+05486:             "campaign": 500,
+05487:             "diagnostic": 520,
+05488:             "update": 500,
+05489:             "plate": 560,
+05490:         }.get(tool,430)
+05491: 
+05492:     def _reset_tool_button_texts(self):
+05493:         # Mantém os rótulos reais do topo e das Ações rápidas.
+05494:         self.campaign_toggle.setText("➤  Disparo de mensagens")
+05495:         self.prazo_toggle.setText("▣  Prazos")
+05496:         self.chat_toggle.setText("◉  Assistente")
+05497:         self.nav_lens_toggle.setText("🔎  Busca por imagem")
+05498:         self.plate_toggle.setText("🚚  Busca placa")
+05499:         self.lens_toggle.setText("🔎  Busca por imagem")
+05500:         self.audio_toggle.setText("🎙  Áudio")
+05501:         self.quick_prazo.setText("▣  Prazos")
+05502:         self.quick_chat.setText("◉  Assistente")
+05503:         self.quick_campaign.setText("➤  Disparo de mensagens")
+05504:         self.quick_diagnostic.setText("🩺  Diagnóstico")
+05505:         self.quick_update.setText("⬆  Atualizações")
+05506:         self.quick_plate.setText("🚚  Busca por placa")
+05507: 
+05508:     def _restore_quick_actions(self):
+05509:         tool=getattr(self,"_quick_mode_tool",None)
+05510:         if tool:
+05511:             panel=self._tool_panel(tool)
+05512:             if panel is not None:
+05513:                 try:
+05514:                     current=self.quick_scroll.takeWidget()
+05515:                 except Exception:
+05516:                     current=None
+05517: 
+05518:                 if current is not None and current is not panel:
+05519:                     try:
+05520:                         current.hide()
+05521:                         current.setParent(self.web_host)
+05522:                     except Exception:
+05523:                         pass
+05524: 
+05525:                 panel.hide()
+05526:                 panel.setParent(self.web_host)
+05527:                 panel.expanded=False
+05528:                 try:
+05529:                     panel.expand_btn.setText("⛶")
+05530:                 except Exception:
+05531:                     pass
+05532: 
+05533:         self._quick_mode_tool=None
+05534:         self.quick_scroll.hide()
+05535:         self.quick_host.setFixedWidth(225)
+05536:         self.quick_panel.show()
+05537:         self.quick_panel.raise_()
+05538:         self._reset_tool_button_texts()
+05539: 
+05540:     def _open_quick_tool(self, tool):
+05541:         panel=self._tool_panel(tool)
+05542:         if panel is None:
+05543:             return
+05544: 
+05545:         # Native Edge/WebView2 must not keep keyboard focus while a Qt tool opens.
+05546:         self._release_whatsapp_focus()
+05547: 
+05548:         # Clicar novamente na ferramenta aberta volta para Ações rápidas.
+05549:         if (
+05550:             getattr(self,"_quick_mode_tool",None)==tool and
+05551:             panel.isVisible()
+05552:         ):
+05553:             self._restore_quick_actions()
+05554:             return
+05555: 
+05556:         # Fecha qualquer ferramenta anterior do espaço de Ações rápidas.
+05557:         if getattr(self,"_quick_mode_tool",None):
+05558:             self._restore_quick_actions()
+05559: 
+05560:         # Esconde overlays que possam ter sido abertos pela barra superior.
+05561:         for name in ("lens","chat","prazo","audio","campaign","diagnostic","update","plate"):
+05562:             other=self._tool_panel(name)
+05563:             if other is not None and other is not panel:
+05564:                 other.hide()
+05565: 
+05566:         # Se a própria ferramenta estava como overlay, retira antes de mover.
+05567:         panel.hide()
+05568: 
+05569:         self.quick_panel.hide()
+05570: 
+05571:         # O painel fica dentro da área rolável e não participa do cálculo
+05572:         # da altura mínima do corpo/WhatsApp.
+05573:         try:
+05574:             old_widget=self.quick_scroll.takeWidget()
+05575:             if old_widget is not None and old_widget is not panel:
+05576:                 old_widget.hide()
+05577:                 old_widget.setParent(self.web_host)
+05578:         except Exception:
+05579:             pass
+05580: 
+05581:         panel.setMinimumHeight(0)
+05582:         panel.setSizePolicy(
+05583:             QSizePolicy.Policy.Expanding,
+05584:             QSizePolicy.Policy.Expanding
+05585:         )
+05586:         self.quick_scroll.setWidget(panel)
+05587:         self.quick_scroll.show()
+05588:         self._quick_mode_tool=tool
+05589: 
+05590:         panel.expanded=False
+05591:         try:
+05592:             panel.expand_btn.setText("⛶")
+05593:         except Exception:
+05594:             pass
+05595: 
+05596:         self.quick_host.setFixedWidth(
+05597:             self._quick_tool_width(tool,False)
+05598:         )
+05599: 
+05600:         panel.show()
+05601:         panel.raise_()
+05602:         QTimer.singleShot(
+05603:             40,
+05604:             lambda t=tool:self._focus_tool_primary_control(t)
+05605:         )
+
+===== WA_TEXT_EXISTING SOURCE 2525-2615 =====
+02525:         # Resposta sempre visível
+02526:         root.addWidget(QLabel("Resposta sugerida"))
+02527:         self.reply = QTextEdit()
+02528:         self.reply.setMaximumHeight(150)
+02529:         root.addWidget(self.reply)
+02530: 
+02531:         rr = QHBoxLayout()
+02532:         gen = QPushButton("Gerar resposta")
+02533:         gen.clicked.connect(self.generate_reply)
+02534:         put = QPushButton("Enviar para campo do WhatsApp")
+02535:         put.clicked.connect(self.push_reply_to_whatsapp_input)
+02536:         copy = QPushButton("Copiar resposta")
+02537:         copy.clicked.connect(self.copy_reply)
+02538:         rr.addWidget(gen)
+02539:         rr.addWidget(put)
+02540:         rr.addWidget(copy)
+02541:         root.addLayout(rr)
+02542: 
+02543:         info = QLabel("v0.5: WhatsApp integrado visualmente. Leitura automática da conversa aberta entra na próxima etapa.")
+02544:         info.setWordWrap(True)
+02545:         info.setStyleSheet("color:#666;font-size:11px;")
+02546:         root.addWidget(info)
+02547: 
+02548: 
+02549:     def load_from_whatsapp(self, chat_name, incoming_text, meta=None, auto_analyze=True):
+02550:         text=(incoming_text or "").strip()
+02551:         if not text:
+02552:             self.analysis.setPlainText(
+02553:                 f"Conversa: {chat_name or 'não identificada'}\n\n"
+02554:                 "Não encontrei uma mensagem de texto recebida para analisar."
+02555:             )
+02556:             return
+02557: 
+02558:         self.msg.setPlainText(text)
+02559:         if chat_name:
+02560:             self.status.setText(f"Cliente: {chat_name} | última mensagem recebida capturada")
+02561: 
+02562:         if auto_analyze:
+02563:             self.analyze_text()
+02564: 
+02565: 
+02566: 
+02567:     def _extract_visible_whatsapp_chats(self, callback):
+02568:         js = r"""
+02569:         (() => {
+02570:           try {
+02571:             const pane =
+02572:               document.querySelector("#pane-side") ||
+02573:               document.querySelector("[aria-label*='Chat list' i]") ||
+02574:               document.querySelector("[aria-label*='Lista de conversas' i]");
+02575: 
+02576:             if (!pane) return {ok:false,error:"Lista de conversas não encontrada"};
+02577: 
+02578:             const rows = Array.from(
+02579:               pane.querySelectorAll("[role='listitem'], [role='row'], div[tabindex='-1']")
+02580:             );
+02581: 
+02582:             const chats=[];
+02583:             const seen=new Set();
+02584: 
+02585:             function cleanPhone(s){
+02586:               if(!s) return "";
+02587:               const digits=String(s).replace(/\D/g,"");
+02588:               return digits.length>=10 ? digits : "";
+02589:             }
+02590: 
+02591:             function extractFromAttrs(el){
+02592:               const attrs=["data-id","data-testid","id","title","aria-label","href"];
+02593:               for(const a of attrs){
+02594:                 const v=el.getAttribute && el.getAttribute(a);
+02595:                 if(!v) continue;
+02596: 
+02597:                 // JIDs comuns: 5548999999999@c.us / @s.whatsapp.net
+02598:                 const m1=String(v).match(/(\d{10,15})@(c\.us|s\.whatsapp\.net)/i);
+02599:                 if(m1) return m1[1];
+02600: 
+02601:                 // números longos em identificadores internos
+02602:                 const m2=String(v).match(/(?:^|[^0-9])(\d{10,15})(?:[^0-9]|$)/);
+02603:                 if(m2) return m2[1];
+02604:               }
+02605:               return "";
+02606:             }
+02607: 
+02608:             for(const row of rows){
+02609:               let name="";
+02610:               const titleEl=row.querySelector("span[title]");
+02611:               if(titleEl){
+02612:                 name=(titleEl.getAttribute("title")||titleEl.textContent||"").trim();
+02613:               }
+02614:               if(!name){
+02615:                 const spans=Array.from(row.querySelectorAll("span"))
+
+===== MAIN_WA_METHODS SOURCE 6980-7075 =====
+06980:                 window.__aliyvoThemeObserver.disconnect();
+06981:                 delete window.__aliyvoThemeObserver;
+06982:               }
+06983:             }catch(e){}
+06984: 
+06985:             return {
+06986:               ok:true,
+06987:               mode:"turbo-dark-completo-no-observer"
+06988:             };
+06989: 
+06990:           }catch(e){
+06991:             return {
+06992:               ok:false,
+06993:               error:String(e)
+06994:             };
+06995:           }
+06996:         })();
+06997:         """
+06998:         try:
+06999:             self.web.page().runJavaScript(js)
+07000:         except Exception:
+07001:             pass
+07002: 
+07003: 
+07004:     def _check_whatsapp_stuck(self):
+07005:         js = r"""
+07006:         (() => {
+07007:           try {
+07008:             const txt=(document.body && (document.body.innerText || document.body.textContent) || "").toLowerCase();
+07009:             const loading =
+07010:               txt.includes("carregando suas conversas") ||
+07011:               txt.includes("loading your chats") ||
+07012:               txt.includes("loading chats");
+07013:             const ready =
+07014:               !!document.querySelector("#pane-side") ||
+07015:               !!document.querySelector("[aria-label*='lista de conversas' i]") ||
+07016:               !!document.querySelector("[aria-label*='chat list' i]");
+07017:             const qr =
+07018:               !!document.querySelector("canvas") &&
+07019:               (txt.includes("escaneie") || txt.includes("scan"));
+07020:             return {loading,ready,qr};
+07021:           } catch(e) {
+07022:             return {loading:false,ready:false,qr:false,error:String(e)};
+07023:           }
+07024:         })();
+07025:         """
+07026:         try:
+07027:             self.web.page().runJavaScript(js, self._handle_whatsapp_health)
+07028:         except:
+07029:             pass
+07030: 
+07031:     def _handle_whatsapp_health(self, result):
+07032:         if not result:
+07033:             return
+07034: 
+07035:         if result.get("ready"):
+07036:             self._wa_ready_seen=True
+07037:             self._wa_recovery_attempts=0
+07038:             self.web_status.setText("WhatsApp carregado")
+07039:             return
+07040: 
+07041:         if result.get("qr"):
+07042:             self.web_status.setText("WhatsApp aguardando login")
+07043:             return
+07044: 
+07045:         if not result.get("loading"):
+07046:             return
+07047: 
+07048:         self._wa_recovery_attempts += 1
+07049: 
+07050:         if self._wa_recovery_attempts == 1:
+07051:             self.web_status.setText("WhatsApp sincronizando... tentando recarregar")
+07052:             try:
+07053:                 self.web.reload()
+07054:             except:
+07055:                 pass
+07056:             return
+07057: 
+07058:         if self._wa_recovery_attempts == 2:
+07059:             self.web_status.setText("WhatsApp preso na sincronização • limpando cache")
+07060:             try:
+07061:                 self.web.page().profile().clearHttpCache()
+07062:             except:
+07063:                 pass
+07064:             QTimer.singleShot(1200, self._reload_whatsapp_url)
+07065:             return
+07066: 
+07067:         if self._wa_recovery_attempts >= 3:
+07068:             self.web_status.setText("WhatsApp ainda sincronizando • reiniciando página")
+07069:             self._wa_recovery_attempts=0
+07070:             self._reload_whatsapp_url()
+07071: 
+07072:     def _reload_whatsapp_url(self):
+07073:         try:
+07074:             self.web.setUrl(QUrl("https://web.whatsapp.com/"))
+07075:         except:
