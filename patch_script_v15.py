@@ -9,7 +9,6 @@ text=p.read_text(encoding='utf-8')
 text=re.sub(r'ALIYVO_VERSION\s*=\s*"[^"]+"', f'ALIYVO_VERSION = "{version}"', text, count=1)
 
 if 'class _AliyvoUpdateNoticeBridge(QObject):' not in text:
-    # Garante signal/bridge sem bloquear o WhatsApp durante a consulta.
     imports='\nfrom PyQt6.QtCore import QObject, pyqtSignal\n'
     pos=0
     for mm in re.finditer(r'(?m)^(?:from\s+\S+\s+import\s+.+|import\s+.+)$',text):
@@ -78,7 +77,6 @@ def _aliyvo_show_update_notice(info):
         marker=folder/"update_notice_seen.txt"
         if marker.exists() and marker.read_text(encoding="utf-8",errors="ignore").strip()==latest:
             return
-        title=str(info.get("name") or ("ALIYVO "+latest))
         notes=str(info.get("body") or "Nova atualização disponível.").strip()
         if len(notes)>1000: notes=notes[:1000]+"..."
 
@@ -88,7 +86,7 @@ def _aliyvo_show_update_notice(info):
         dlg.setText(f"🚀 <b>Nova versão disponível: {latest}</b>")
         dlg.setInformativeText("<b>O que mudou:</b><br>"+notes.replace("\n","<br>")+"<br><br>Você está usando a versão "+current+".")
         go=dlg.addButton("Abrir Atualizações",QMessageBox.ButtonRole.AcceptRole)
-        later=dlg.addButton("Depois",QMessageBox.ButtonRole.RejectRole)
+        dlg.addButton("Depois",QMessageBox.ButtonRole.RejectRole)
         dlg.exec()
         try: marker.write_text(latest,encoding="utf-8")
         except Exception: pass
@@ -120,7 +118,6 @@ def _aliyvo_check_update_notice():
                 d=_json.loads(resp.read(65536).decode("utf-8","replace"))
             bridge.ready.emit({
                 "version":str(d.get("tag_name") or "").lstrip("vV"),
-                "name":str(d.get("name") or ""),
                 "body":str(d.get("body") or ""),
             })
         except Exception:
@@ -134,10 +131,13 @@ def _aliyvo_check_update_notice():
 '''
     text=text.replace(marker,code+marker,1)
 
-    anchor='QTimer.singleShot(3500, _aliyvo_register_unique_install)'
-    if anchor not in text:
+    pat=r'(?m)^(?P<indent>[ \t]*)QTimer\.singleShot\(3500, _aliyvo_register_unique_install\)[ \t]*$'
+    m=re.search(pat,text)
+    if not m:
         raise SystemExit('startup anchor not found')
-    text=text.replace(anchor,anchor+'\nQTimer.singleShot(6500, _aliyvo_check_update_notice)',1)
+    indent=m.group('indent')
+    repl=indent+'QTimer.singleShot(3500, _aliyvo_register_unique_install)\n'+indent+'QTimer.singleShot(6500, _aliyvo_check_update_notice)'
+    text=text[:m.start()]+repl+text[m.end():]
 
 ast.parse(text)
 p.write_text(text,encoding='utf-8')
