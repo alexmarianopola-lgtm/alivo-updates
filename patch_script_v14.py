@@ -9,25 +9,21 @@ text=p.read_text(encoding='utf-8')
 text=re.sub(r'ALIYVO_VERSION\s*=\s*"[^"]+"', f'ALIYVO_VERSION = "{version}"', text, count=1)
 
 # v0.22.28 - Busca simples de catálogo para pedidos como "Tem DOT 4?".
-# A ideia é reproduzir a busca simples do Sankhya: procurar a expressão nos campos
-# descrição, referência, complemento e marca, sem exigir aplicação/chassi.
-
-# 1) Injeta a busca de catálogo antes da montagem das possibilidades por aplicação.
+# Reproduz a lógica de uma pesquisa simples do Sankhya: expressão direta na Base Soma,
+# sem exigir aplicação/chassi quando o item é uma especificação comercial.
 anchor='''        part_words={\n'''
 if anchor not in text:
     raise SystemExit('part_words anchor not found')
 
 catalog_code=r'''        # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4).
-        # Usa prioritariamente as mensagens do cliente para não confundir preços/respostas do vendedor.
+        # Usa prioritariamente mensagens do cliente para não confundir preços/respostas antigas do vendedor.
         simple_results=[]
         simple_query_label=""
         simple_source="\n".join(customer_messages[-10:]) if customer_messages else text
-        simple_norm=normalize_phrase(simple_source).lower()
-
-        # Expressões alfanuméricas curtas em que o número faz parte do nome comercial/especificação.
-        # Mantemos os formatos mais comuns do balcão e um detector genérico letra+número.
         simple_candidates=[]
-        for mm in re.finditer(r"(?i)\\b([a-z]{2,12})\\s*[-./]?\\s*(\\d{1,4})\\b",simple_source):
+
+        # Detecta expressões letra+número que funcionam como nome/especificação de produto.
+        for mm in re.finditer(r"(?i)\b([a-z]{2,12})\s*[-./]?\s*(\d{1,4})\b",simple_source):
             a=mm.group(1).strip(); b=mm.group(2).strip()
             if a.lower() in {"ano","mod","modelo","cod","codigo","soma","r","rs","qtd","qtde"}:
                 continue
@@ -36,14 +32,11 @@ catalog_code=r'''        # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4
             if len(compact)>=4 and label not in simple_candidates:
                 simple_candidates.append(label)
 
-        # Casos em que o usuário fala uma descrição simples sem número, mas com termos de produto claros.
-        # Não substitui a lógica de aplicação; apenas complementa quando não houve código Soma prioritário.
         if not priority_soma_codes:
-            # DOT 4 é o caso de controle desta versão.
             for label in simple_candidates[:8]:
                 compact=re.sub(r"[^A-Z0-9]","",label.upper())
-                # Evita interpretar qualquer palavra+número como catálogo quando há contexto típico de veículo.
-                if re.search(r"(?i)\\b(?:ano|modelo|mod|chassi|placa|motor)\\b",simple_source):
+                # Se a frase já fala explicitamente de veículo/aplicação, deixa a lógica técnica normal decidir.
+                if re.search(r"(?i)\b(?:ano|modelo|mod|chassi|placa|motor)\b",simple_source):
                     continue
                 try:
                     con=sqlite3.connect(DB_PATH); cur=con.cursor()
@@ -51,11 +44,9 @@ catalog_code=r'''        # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4
                     expr_comp="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(compldesc,'')),' ',''),'-',''),'.',''),'/','')"
                     expr_ref="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(refforn,'')),' ',''),'-',''),'.',''),'/','')"
                     expr_marca="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(marca,'')),' ',''),'-',''),'.',''),'/','')"
-                    sql=f'''SELECT id,codprod,refforn,marca,descricao,compldesc,88 AS score
-                            FROM produtos
-                            WHERE {expr_desc} LIKE ? OR {expr_comp} LIKE ? OR {expr_ref} LIKE ? OR {expr_marca} LIKE ?
-                            ORDER BY CAST(COALESCE(codprod,'0') AS INTEGER), codprod
-                            LIMIT 40'''
+                    sql=("SELECT id,codprod,refforn,marca,descricao,compldesc,88 AS score FROM produtos WHERE "
+                         +expr_desc+" LIKE ? OR "+expr_comp+" LIKE ? OR "+expr_ref+" LIKE ? OR "+expr_marca+
+                         " LIKE ? ORDER BY CAST(COALESCE(codprod,'0') AS INTEGER), codprod LIMIT 40")
                     like="%"+compact+"%"
                     rows=cur.execute(sql,(like,like,like,like)).fetchall()
                     con.close()
@@ -68,48 +59,47 @@ catalog_code=r'''        # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4
                         break
                 except Exception:
                     simple_results=[]
-
-        # Se uma busca simples encontrou produtos, não pede chassi/ano e não mistura sugestões vagas.
-        if simple_results:
-            fuzzy=[]
-            fuzzy_seen=set()
 '''
 text=text.replace(anchor,catalog_code+anchor,1)
 
-# 2) Impede o fallback de uma palavra de reabrir ruído quando a busca simples já encontrou produtos.
+# Não reabre busca vaga de uma palavra se o catálogo já respondeu.
 text=text.replace(
     'if not exact and not fuzzy and parts and not priority_soma_codes:',
     'if not exact and not fuzzy and not simple_results and parts and not priority_soma_codes:',
     1
 )
 
-# 3) Limpa pedidos de confirmação quando a busca foi apenas de catálogo e retornou opções.
-# O bloco "missing" já existe antes da renderização visual; inserimos limpeza imediatamente antes do HTML.
+# Depois que a busca fuzzy normal rodar, uma resposta simples de catálogo tem prioridade e elimina ruído.
+priority_anchor='''        if priority_soma_codes and exact:\n            fuzzy=[]\n            fuzzy_seen=set()\n'''
+if priority_anchor in text:
+    text=text.replace(priority_anchor,
+'''        if simple_results or (priority_soma_codes and exact):\n            fuzzy=[]\n            fuzzy_seen=set()\n''',1)
+else:
+    raise SystemExit('priority fuzzy anchor not found')
+
+# Busca de catálogo não precisa pedir ano/chassi.
 html_anchor='''        # Painel visual de cotação: produtos primeiro, contexto depois.\n'''
 if html_anchor not in text:
     raise SystemExit('visual panel anchor not found')
 text=text.replace(html_anchor,
 '''        if simple_results:\n            missing=[]\n\n'''+html_anchor,1)
 
-# 4) Ajusta resumo e cria seção azul para resultados de catálogo.
+# Resumo superior.
 old_summary='''            f'<span style="color:#047857;"><b>{len(exact)}</b> correspondência(s) direta(s)</span>'\n            f' &nbsp; <span style="color:#B45309;"><b>{len(fuzzy)}</b> possibilidade(s)</span>'\n'''
 if old_summary not in text:
     raise SystemExit('visual summary anchor not found')
-new_summary='''            f'<span style="color:#047857;"><b>{len(exact)}</b> correspondência(s) direta(s)</span>'\n            f' &nbsp; <span style="color:#1D4ED8;"><b>{len(simple_results)}</b> resultado(s) de catálogo</span>'\n            f' &nbsp; <span style="color:#B45309;"><b>{len(fuzzy)}</b> possibilidade(s)</span>'\n'''
-text=text.replace(old_summary,new_summary,1)
+text=text.replace(old_summary,
+'''            f'<span style="color:#047857;"><b>{len(exact)}</b> correspondência(s) direta(s)</span>'\n            f' &nbsp; <span style="color:#1D4ED8;"><b>{len(simple_results)}</b> resultado(s) de catálogo</span>'\n            f' &nbsp; <span style="color:#B45309;"><b>{len(fuzzy)}</b> possibilidade(s)</span>'\n''',1)
 
+# Cards azuis de catálogo antes das possibilidades amarelas.
 fuzzy_anchor='''        if fuzzy:\n            cards.append('<div class="section">🟡 POSSIBILIDADES — CONFIRMAR APLICAÇÃO</div>')\n'''
 if fuzzy_anchor not in text:
     raise SystemExit('fuzzy visual anchor not found')
-
 simple_visual=r'''        if simple_results:
             cards.append('<div class="section">🔵 RESULTADOS DA BASE SOMA — BUSCA '+_esc(simple_query_label or 'SIMPLES')+'</div>')
             for r in simple_results[:30]:
-                soma=_esc(r[1])
-                ref=_esc(r[2] or '-')
-                marca=_esc(r[3] or '-')
-                desc=_esc(str(r[4] or '')[:220])
-                comp=_esc(str(r[5] or '')[:180])
+                soma=_esc(r[1]); ref=_esc(r[2] or '-'); marca=_esc(r[3] or '-')
+                desc=_esc(str(r[4] or '')[:220]); comp=_esc(str(r[5] or '')[:180])
                 cards.append(
                     '<table width="100%" cellspacing="0" cellpadding="7" '
                     'style="margin-bottom:6px;background:#EFF6FF;border:1px solid #93C5FD;">'
@@ -127,14 +117,9 @@ simple_visual=r'''        if simple_results:
 '''
 text=text.replace(fuzzy_anchor,simple_visual+fuzzy_anchor,1)
 
-# 5) Quando só houve busca simples, não exibe "nenhum produto".
-text=text.replace(
-    'if not exact and not fuzzy:',
-    'if not exact and not fuzzy and not simple_results:',
-    1
-)
+# Não mostra mensagem de base vazia se houve resultado simples.
+text=text.replace('if not exact and not fuzzy:', 'if not exact and not fuzzy and not simple_results:',1)
 
-# 6) Status superior inclui o número de itens de catálogo.
 old_status='''        self.status.setText(f"✅ {len(exact)} direta(s) • {len(fuzzy)} possibilidade(s) — produtos organizados para cotação.")'''
 if old_status in text:
     text=text.replace(old_status,
