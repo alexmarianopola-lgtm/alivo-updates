@@ -41,7 +41,7 @@ jobs:
         run: |
           rm -rf /tmp/build && mkdir -p /tmp/build
           unzip -q "$BASE_ZIP" -d /tmp/build
-          python patch_script_v25.py /tmp/build/_app/main.py
+          python patch_script_v25b.py /tmp/build/_app/main.py
           python -m py_compile /tmp/build/_app/main.py
           cd /tmp/build
           zip -qr "/tmp/${{ steps.meta.outputs.asset }}" .
