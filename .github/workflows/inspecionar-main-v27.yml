@@ -1,0 +1,45 @@
+name: Inspecionar main ALIYVO v27
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-main-v27.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar ultima release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/build
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -type f -name '*.zip' | head -n1)" -d /tmp/build
+      - name: Mostrar estrutura relevante
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('/tmp/build/_app/main.py')
+          s=p.read_text(encoding='utf-8',errors='ignore')
+          keys=['class Main','QMainWindow','web_host','WebView2','webview','WhatsApp','whatsapp','_technical_analyze_current','active chat','conversa','conversation','chat','evaluate','runJavaScript','execute_script','window.chrome.webview','quick_tool','toolbar']
+          lines=s.splitlines()
+          hits=[]
+          for i,l in enumerate(lines):
+              if any(k.lower() in l.lower() for k in keys):
+                  hits.append(i)
+          # junta contextos próximos, max 900 linhas
+          chosen=set()
+          for i in hits:
+              for j in range(max(0,i-4), min(len(lines),i+12)):
+                  chosen.add(j)
+          print('MAIN SIZE',len(lines),'lines')
+          for j in sorted(chosen)[:900]:
+              print(f'{j+1:05d}: {lines[j]}')
+          PY
