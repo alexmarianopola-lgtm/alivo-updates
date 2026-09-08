@@ -41,6 +41,13 @@ jobs:
         run: |
           rm -rf /tmp/build && mkdir -p /tmp/build
           unzip -q "$BASE_ZIP" -d /tmp/build
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('patch_script_v28.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("text=text.replace(anchor,''''","text=text.replace(anchor,'''")
+          p.write_text(s,encoding='utf-8')
+          PY
           python patch_script_v28.py /tmp/build/_app/main.py
           python -m py_compile /tmp/build/_app/main.py
           cd /tmp/build
