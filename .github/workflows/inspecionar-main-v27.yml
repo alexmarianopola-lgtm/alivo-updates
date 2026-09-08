@@ -18,31 +18,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          rm -rf /tmp/base /tmp/build
           mkdir -p /tmp/base /tmp/build
           gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
           unzip -q "$(find /tmp/base -type f -name '*.zip' | head -n1)" -d /tmp/build
-      - name: Mostrar metodos e blocos de WhatsApp
+      - name: Mostrar fila de atendimentos atual
         run: |
           python - <<'PY'
           from pathlib import Path
-          import ast,re
+          import ast
           p=Path('/tmp/build/_app/main.py')
           s=p.read_text(encoding='utf-8',errors='ignore')
           lines=s.splitlines()
           tree=ast.parse(s)
-          print('=== CLASSES / METODOS RELEVANTES ===')
+          print('=== METODOS ATTENDANCE ===')
           for n in ast.walk(tree):
-              if isinstance(n,(ast.ClassDef,ast.FunctionDef,ast.AsyncFunctionDef)):
-                  name=n.name.lower()
-                  if any(k in name for k in ['main','chat','whatsapp','technical','quick','current','conversation','contact','message']):
-                      print(type(n).__name__, n.name, 'line', n.lineno)
-          print('=== CONTEXTO DOS PONTOS MAIS IMPORTANTES ===')
-          pats=['class MainWindow','class Main','def _read_current','def read_current','def _get_current','def get_current','def _technical_analyze_current','def add_current_chat','def _open_quick_tool','self.web=WhatsAppView','self.web = WhatsAppView','self.web_host','on_add_current_chat']
-          hits=[]
-          for i,l in enumerate(lines):
-              if any(p.lower() in l.lower() for p in pats): hits.append(i)
-          chosen=set()
-          for i in hits:
-              for j in range(max(0,i-15),min(len(lines),i+85)): chosen.add(j)
-          for j in sorted(chosen): print(f'{j+1:05d}: {lines[j]}')
+              if isinstance(n,(ast.ClassDef,ast.FunctionDef)) and ('attendance' in n.name.lower() or n.name=='AliyvoAttendancePanel'):
+                  print(type(n).__name__,n.name,n.lineno,getattr(n,'end_lineno',n.lineno))
+          print('=== BLOCOS ===')
+          ranges=[]
+          for n in ast.walk(tree):
+              if isinstance(n,ast.ClassDef) and n.name=='AliyvoAttendancePanel':
+                  ranges.append((n.lineno,n.end_lineno))
+              if isinstance(n,ast.FunctionDef) and 'attendance' in n.name.lower():
+                  ranges.append((n.lineno,n.end_lineno))
+          for a,b in sorted(ranges):
+              print(f'--- {a}:{b} ---')
+              for j in range(a-1,min(b,len(lines))): print(f'{j+1:05d}: {lines[j]}')
           PY
