@@ -32,6 +32,7 @@ jobs:
       - name: Instalar como usuario novo
         shell: pwsh
         run: |
+          # Simula um usuario que nunca instalou dependencias do ALIYVO.
           $p = Start-Process -FilePath $env:SETUP -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Setup falhou com codigo $($p.ExitCode)" }
 
