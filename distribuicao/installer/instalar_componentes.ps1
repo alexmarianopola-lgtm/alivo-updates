@@ -15,11 +15,15 @@ function Log([string]$msg) {
     Add-Content -Path $log -Value $line -Encoding UTF8
 }
 
-function RunPython([string[]]$Args) {
-    Log ('python ' + ($Args -join ' '))
-    & $Python @Args 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+function RunPython {
+    param(
+        [Parameter(Mandatory=$true, Position=0)]
+        [string[]]$PyArgs
+    )
+    Log ('python ' + ($PyArgs -join ' '))
+    & $Python @PyArgs 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "Falha ao executar Python: $($Args -join ' ') (codigo $LASTEXITCODE)"
+        throw "Falha ao executar Python: $($PyArgs -join ' ') (codigo $LASTEXITCODE)"
     }
 }
 
@@ -28,20 +32,20 @@ try {
     if (-not (Test-Path $Python)) { throw "Python interno nao encontrado: $Python" }
     if (-not (Test-Path $AppDir)) { throw "Pasta do ALIYVO nao encontrada: $AppDir" }
 
-    RunPython @('-m','ensurepip','--upgrade')
-    RunPython @('-m','pip','install','--disable-pip-version-check','--upgrade','pip','setuptools','wheel')
+    RunPython -PyArgs @('-m','ensurepip','--upgrade')
+    RunPython -PyArgs @('-m','pip','install','--disable-pip-version-check','--upgrade','pip','setuptools','wheel')
 
     # Componentes principais do ALIYVO.
-    RunPython @('-m','pip','install','--disable-pip-version-check','--prefer-binary',
+    RunPython -PyArgs @('-m','pip','install','--disable-pip-version-check','--prefer-binary',
         'PyQt6','PyQt6-WebEngine','pyspellchecker','qtwebview2==0.5.0','qtpy','pythonnet')
 
     # Audio local e transcricao. O modelo Whisper e baixado automaticamente
     # na primeira utilizacao caso ainda nao exista no cache deste usuario.
-    RunPython @('-m','pip','install','--disable-pip-version-check','--prefer-binary','faster-whisper')
+    RunPython -PyArgs @('-m','pip','install','--disable-pip-version-check','--prefer-binary','faster-whisper')
 
     # OCR local e imagens. Os modelos do EasyOCR tambem sao obtidos
     # automaticamente quando forem usados pela primeira vez.
-    RunPython @('-m','pip','install','--disable-pip-version-check','--prefer-binary','easyocr','pillow')
+    RunPython -PyArgs @('-m','pip','install','--disable-pip-version-check','--prefer-binary','easyocr','pillow')
 
     # Teste real dos componentes que antes exigiam instalacao manual.
     $test = @'
