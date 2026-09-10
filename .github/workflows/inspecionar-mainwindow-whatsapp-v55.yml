@@ -1,0 +1,28 @@
+name: Inspecionar MainWindow WhatsApp v55
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-mainwindow-whatsapp-v55.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspecionar conexoes e fechamento
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/base /tmp/app && mkdir -p /tmp/base /tmp/app
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -name '*.zip' | head -n1)" -d /tmp/app
+          sed -n '6225,6545p' /tmp/app/_app/main.py
+          echo '=== LOAD CONNECTS ==='
+          grep -nE 'loadFinished\.connect|loadStarted\.connect|_web_loaded|web_status|close_btn|window_close|self\.close\(' /tmp/app/_app/main.py | head -n 400
+          echo '=== TITLE BAR CLOSE REGION ==='
+          sed -n '6121,6228p' /tmp/app/_app/main.py
