@@ -1,0 +1,26 @@
+name: TMP inspect AI v60
+on:
+  push:
+    paths:
+      - '.github/workflows/tmp-inspect-ai-v60.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect AI observer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/app /tmp/z && mkdir -p /tmp/app /tmp/z
+          gh release download v0.22.60 --repo "$GITHUB_REPOSITORY" --pattern 'ALIYVO_BETA_GRATIS_*.zip' --dir /tmp/z
+          unzip -q "$(find /tmp/z -name '*.zip' | head -n1)" -d /tmp/app
+          echo '=== AI METHODS ==='
+          grep -nE '^    def _ai_|^    def show_ai|ia_observ|ai_observ|IA Observadora' /tmp/app/_app/main.py | head -n 240
+          echo '=== AI BLOCK 1 ==='
+          n=$(grep -n 'def _ai_observer_run' /tmp/app/_app/main.py | head -n1 | cut -d: -f1); sed -n "$((n-220)),$((n+520))p" /tmp/app/_app/main.py
+          echo '=== DIAGNOSTIC UI ==='
+          grep -nE 'IA Observadora|Diagn.stico|diagnostic.*btn|ai.*btn' /tmp/app/_app/main.py | head -n 160
