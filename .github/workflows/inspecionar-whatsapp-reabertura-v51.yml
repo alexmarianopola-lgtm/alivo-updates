@@ -1,0 +1,32 @@
+name: Inspecionar WhatsApp reabertura v51
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-whatsapp-reabertura-v51.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspecionar codigo atual
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/base /tmp/app && mkdir -p /tmp/base /tmp/app
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -name '*.zip' | head -n1)" -d /tmp/app
+          echo '=== MATCHES ==='
+          grep -nE 'class WhatsAppView|webview2_whatsapp_profile|QtWebView2Widget|WA_URL|web.whatsapp|closeEvent|showEvent|hideEvent|setVisible|deleteLater|shutdown|dispose|destroy|whatsapp_view|self\.whatsapp|central' /tmp/app/_app/main.py | head -n 500 || true
+          echo '=== WHATSAPP CLASS CONTEXT ==='
+          n=$(grep -n 'class WhatsAppView' /tmp/app/_app/main.py | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-30)),$((n+260))p" /tmp/app/_app/main.py; fi
+          echo '=== CLOSE EVENT CONTEXT ==='
+          for n in $(grep -n 'def closeEvent' /tmp/app/_app/main.py | cut -d: -f1); do sed -n "$((n-40)),$((n+120))p" /tmp/app/_app/main.py; done
+          echo '=== INIT WHATSAPP CONTEXT ==='
+          grep -nE 'WhatsAppView\(|whatsapp.*=' /tmp/app/_app/main.py | head -n 120
