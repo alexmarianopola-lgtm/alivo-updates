@@ -7,6 +7,9 @@
 #ifndef PythonInstaller
   #define PythonInstaller "python-3.12.10-amd64.exe"
 #endif
+#ifndef WebView2Installer
+  #define WebView2Installer "MicrosoftEdgeWebview2Setup.exe"
+#endif
 
 #define MyAppName "ALIYVO"
 #define MyPublisher "ALIYVO"
@@ -46,6 +49,7 @@ Source: "{#PayloadDir}\_app\*"; DestDir: "{app}\_app"; Flags: ignoreversion recu
 Source: "{#PayloadDir}\_app\copiloto.db"; DestDir: "{app}\_app"; Flags: onlyifdoesntexist
 Source: "{#PayloadDir}\LEIA-ME-ALIYVO.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PythonInstaller}"; DestDir: "{tmp}"; DestName: "python-aliyvo.exe"; Flags: deleteafterinstall
+Source: "{#WebView2Installer}"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: deleteafterinstall
 Source: "instalar_componentes.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
@@ -84,6 +88,12 @@ begin
   if CurStep <> ssPostInstall then
     exit;
 
+  { O WebView2 normalmente ja existe no Windows 10/11. O bootstrapper e executado
+    de forma silenciosa para garantir o runtime sem exigir acao do usuario. }
+  if FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe')) then
+    ExecChecked(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install',
+      'Verificando o navegador interno do ALIYVO...');
+
   if not RuntimeReady() then
   begin
     Params := '/quiet InstallAllUsers=0 Include_launcher=0 InstallLauncherAllUsers=0 PrependPath=0 AssociateFiles=0 Shortcuts=0 Include_test=0 Include_doc=0 Include_dev=0 Include_debug=0 Include_tcltk=0 Include_pip=1 TargetDir="' + ExpandConstant('{app}\runtime') + '"';
@@ -102,7 +112,7 @@ begin
     AppDir := ExpandConstant('{app}\_app');
     Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '" -Python "' + PythonExe + '" -AppDir "' + AppDir + '"';
     if not ExecChecked(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params,
-      'Instalando audio, corretor, navegador e componentes do ALIYVO. Isso pode levar alguns minutos...') then
+      'Instalando audio, corretor, OCR e componentes do ALIYVO. Isso pode levar alguns minutos...') then
       RaiseException('Falha ao instalar os componentes do ALIYVO. Veja %LOCALAPPDATA%\ALIYVO\logs\INSTALACAO.log e execute o instalador novamente.');
   end;
 
