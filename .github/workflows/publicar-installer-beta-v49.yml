@@ -89,3 +89,5 @@ jobs:
           $setup = "distribuicao\installer\output\ALIYVO_BETA_SETUP_${{ steps.meta.outputs.compact }}.exe"
           gh release upload "${{ steps.meta.outputs.tag }}" $setup --repo $env:GITHUB_REPOSITORY --clobber
           Write-Host "Instalador publicado: $setup"
+
+# build do instalador sincronizado com a release 0.22.58
