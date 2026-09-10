@@ -1,5 +1,6 @@
 {
   "version": "0.22.60",
   "asset_name": "ALIYVO_BETA_GRATIS_02260.zip",
-  "notes": "Corrige regressao das ligacoes do WhatsApp. Mantem o mesmo WebView2 durante toda a sessao, desativa a recriacao automatica agressiva introduzida na 0.22.58, reforca permissoes de microfone, camera, autoplay e gerenciamento de janela do WhatsApp e usa encerramento conservador ao fechar o ALIYVO. Preserva as correcoes do Prazos da 0.22.59 e todos os dados locais."
+  "notes": "Corrige regressao das ligacoes do WhatsApp. Mantem o mesmo WebView2 durante toda a sessao, desativa a recriacao automatica agressiva introduzida na 0.22.58, reforca permissoes de microfone, camera, autoplay e gerenciamento de janela do WhatsApp e usa encerramento conservador ao fechar o ALIYVO. Preserva as correcoes do Prazos da 0.22.59 e todos os dados locais.",
+  "build": 1
 }
