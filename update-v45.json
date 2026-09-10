@@ -1,5 +1,6 @@
 {
   "version": "0.22.59",
   "asset_name": "ALIYVO_BETA_GRATIS_02259.zip",
+  "channel": "beta",
   "notes": "Corrige o painel Prazos que podia aparecer fora da lateral direita e sobrepor o WhatsApp. Remove a rota antiga de overlay do Prazos, mantem uma unica abertura dentro das Acoes rapidas e elimina o uso de winId/SetFocus nativo no campo de valor, preservando o foco pelo Qt sem transformar o editor em uma janela separada."
 }
