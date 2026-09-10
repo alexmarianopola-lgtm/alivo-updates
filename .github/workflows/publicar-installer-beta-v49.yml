@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/publicar-installer-beta-v49.yml"
+      - "distribuicao/installer/**"
   workflow_dispatch:
 
 permissions:
