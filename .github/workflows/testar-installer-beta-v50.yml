@@ -1,0 +1,60 @@
+name: Testar instalador Beta ALIYVO v50
+
+on:
+  push:
+    paths:
+      - ".github/workflows/testar-installer-beta-v50.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar instalador atual
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path stage | Out-Null
+          $release = gh release view --repo $env:GITHUB_REPOSITORY --json tagName | ConvertFrom-Json
+          $tag = [string]$release.tagName
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "ALIYVO_BETA_SETUP_*.exe" --dir stage
+          $setup = Get-ChildItem stage -Filter 'ALIYVO_BETA_SETUP_*.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'Setup nao encontrado.' }
+          "SETUP=$($setup.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Instalar como usuario novo
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath $env:SETUP -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Setup falhou com codigo $($p.ExitCode)" }
+
+      - name: Validar instalacao completa
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:LOCALAPPDATA 'Programs\ALIYVO'
+          $python = Join-Path $root 'runtime\python.exe'
+          $app = Join-Path $root '_app\Aliyvo.pyw'
+          $main = Join-Path $root '_app\main.py'
+          $marker = Join-Path $root 'runtime\.aliyvo_componentes_v1.ok'
+          if (-not (Test-Path $python)) { throw 'Python interno ausente.' }
+          if (-not (Test-Path $app)) { throw 'Aliyvo.pyw ausente.' }
+          if (-not (Test-Path $main)) { throw 'main.py ausente.' }
+          if (-not (Test-Path $marker)) { throw 'Marcador de componentes ausente.' }
+          & $python -c "from PyQt6.QtWidgets import QApplication; from PyQt6.QtWebEngineWidgets import QWebEngineView; from qtwebview2 import QtWebView2Widget; from spellchecker import SpellChecker; from faster_whisper import WhisperModel; import easyocr, PIL, clr; print('ALIYVO_INSTALLER_SMOKE_OK')"
+          if ($LASTEXITCODE -ne 0) { throw 'Imports do ambiente instalado falharam.' }
+          & $python -m py_compile $main
+          if ($LASTEXITCODE -ne 0) { throw 'main.py instalado nao compila.' }
+
+      - name: Mostrar log da instalacao se existir
+        if: always()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'ALIYVO\logs\INSTALACAO.log'
+          if (Test-Path $log) { Get-Content $log -Tail 120 }
