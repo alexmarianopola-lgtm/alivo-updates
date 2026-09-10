@@ -1,0 +1,5 @@
+{
+  "version": "0.22.62",
+  "asset_name": "ALIYVO_BETA_GRATIS_02262.zip",
+  "notes": "Refina o aprendizado da IA Observadora para contar casos unicos em vez de linhas tecnicas repetidas do diagnostico. A versao recalcula automaticamente o aprendizado antigo v1 usando o historico existente, deduplica atendimentos, esperas, interrupcoes, ligacoes e frases repetidas, exige diversidade de clientes para aumentar a confianca e melhora o ranking de futura automacao. Nao altera WhatsApp, chamadas, Prazos, chave da IA, diagnosticos ou demais dados locais."
+}
