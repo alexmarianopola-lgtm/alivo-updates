@@ -1,0 +1,36 @@
+name: Inspecionar foco Prazos v45
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-foco-prazos-v45.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar ultima release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/base /tmp/build && mkdir -p /tmp/base /tmp/build
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -type f -name '*.zip' | head -n1)" -d /tmp/build
+      - name: Mostrar blocos de foco
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/build/_app/main.py'); lines=p.read_text(encoding='utf-8',errors='ignore').splitlines()
+          for a,b,label in [(2140,2190,'WhatsAppView.setFocus'),(8950,9115,'quick tools'),(13920,14020,'prazo overlay'),(6320,6460,'setup panels')]:
+              print(f'=== {label} {a}:{b} ===')
+              for i in range(a-1,min(b,len(lines))): print(f'{i+1:05d}: {lines[i]}')
+          print('=== setFocus calls ===')
+          for i,line in enumerate(lines,1):
+              if '.setFocus(' in line or 'focusWidget' in line or 'activateWindow' in line or 'FocusReason' in line:
+                  if 6000 <= i <= 14200: print(f'{i:05d}: {line}')
+          PY
