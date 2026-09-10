@@ -1,0 +1,29 @@
+name: Inspecionar qtwebview2 v53
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-qtwebview2-v53.yml"
+  workflow_dispatch:
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar e inspecionar qtwebview2
+        run: |
+          python -m pip download qtwebview2==0.5.0 --no-deps -d /tmp/q
+          python - <<'PY'
+          import zipfile,glob,os
+          p=glob.glob('/tmp/q/*')[0]
+          if p.endswith('.whl'):
+              zipfile.ZipFile(p).extractall('/tmp/qq')
+          else:
+              print('PACKAGE',p)
+          PY
+          find /tmp/qq -type f -maxdepth 4 -print
+          grep -RniE 'class QtWebView2Widget|def close|closeEvent|dispose|shutdown|destroy|controller|environment|user_data_folder|initialization_done|CreateCoreWebView2' /tmp/qq | head -n 500 || true
+          for f in $(grep -Rli 'class QtWebView2Widget' /tmp/qq); do echo "===== $f ====="; sed -n '1,520p' "$f"; done
