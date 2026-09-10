@@ -1,0 +1,42 @@
+name: Inspecionar PrazoPanel v44
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-prazos-v44.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar ultima release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/base /tmp/build
+          mkdir -p /tmp/base /tmp/build
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -type f -name '*.zip' | head -n1)" -d /tmp/build
+      - name: Mostrar PrazoPanel e foco
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path('/tmp/build/_app/main.py')
+          s=p.read_text(encoding='utf-8',errors='ignore')
+          lines=s.splitlines(); tree=ast.parse(s)
+          for n in ast.walk(tree):
+              if isinstance(n,ast.ClassDef) and n.name=='PrazoPanel':
+                  a=max(1,n.lineno-20); b=min(len(lines),n.end_lineno+30)
+                  print(f'=== PrazoPanel {a}:{b} ===')
+                  for j in range(a-1,b): print(f'{j+1:05d}: {lines[j]}')
+          print('=== referencias PrazoPanel ===')
+          for i,line in enumerate(lines,1):
+              if 'PrazoPanel' in line or 'prazo_panel' in line.lower() or 'tool_panel' in line.lower() or 'quick_tool' in line.lower():
+                  print(f'{i:05d}: {line}')
+          PY
