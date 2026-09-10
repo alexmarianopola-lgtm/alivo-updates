@@ -1,0 +1,90 @@
+name: Publicar instalador Beta ALIYVO v49
+
+on:
+  push:
+    paths:
+      - ".github/workflows/publicar-installer-beta-v49.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descobrir ultima versao
+        id: meta
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $release = gh release view --repo $env:GITHUB_REPOSITORY --json tagName,name | ConvertFrom-Json
+          $tag = [string]$release.tagName
+          $version = $tag.TrimStart('v','V')
+          $compact = $version.Replace('.','')
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "compact=$compact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Baixar pacote Beta atual
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path stage,payload | Out-Null
+          gh release download "${{ steps.meta.outputs.tag }}" --repo $env:GITHUB_REPOSITORY --pattern "ALIYVO_BETA_GRATIS_*.zip" --dir stage
+          $zip = Get-ChildItem stage -Filter 'ALIYVO_BETA_GRATIS_*.zip' | Select-Object -First 1
+          if (-not $zip) { throw 'ZIP Beta nao encontrado.' }
+          Expand-Archive -Path $zip.FullName -DestinationPath payload -Force
+          if (-not (Test-Path 'payload\_app\Aliyvo.pyw')) { throw 'Aliyvo.pyw nao encontrado no pacote.' }
+          if (-not (Test-Path 'payload\_app\main.py')) { throw 'main.py nao encontrado no pacote.' }
+
+      - name: Baixar mecanismos oficiais
+        shell: pwsh
+        run: |
+          $ProgressPreference='SilentlyContinue'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' -OutFile 'python-3.12.10-amd64.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile 'MicrosoftEdgeWebview2Setup.exe'
+          if ((Get-Item 'python-3.12.10-amd64.exe').Length -lt 10000000) { throw 'Download do Python parece invalido.' }
+          if ((Get-Item 'MicrosoftEdgeWebview2Setup.exe').Length -lt 500000) { throw 'Download do WebView2 parece invalido.' }
+
+      - name: Incluir plugin de audio WhatsApp
+        shell: pwsh
+        run: |
+          $ProgressPreference='SilentlyContinue'
+          New-Item -ItemType Directory -Force -Path 'payload\_app\_setup' | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/wppconnect-team/wa-js/releases/download/nightly/wppconnect-wa.js' -OutFile 'payload\_app\_setup\wppconnect-wa.js'
+          if ((Get-Item 'payload\_app\_setup\wppconnect-wa.js').Length -lt 100000) { throw 'Plugin WA-JS parece invalido.' }
+
+      - name: Instalar compilador do Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Compilar Setup EXE
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe nao encontrado.' }
+          $payload = (Resolve-Path 'payload').Path
+          $python = (Resolve-Path 'python-3.12.10-amd64.exe').Path
+          $webview = (Resolve-Path 'MicrosoftEdgeWebview2Setup.exe').Path
+          Push-Location 'distribuicao\installer'
+          & $iscc "/DAppVersion=${{ steps.meta.outputs.version }}" "/DPayloadDir=$payload" "/DPythonInstaller=$python" "/DWebView2Installer=$webview" 'ALIYVO-Setup.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou: $LASTEXITCODE" }
+          Pop-Location
+          $expected = "distribuicao\installer\output\ALIYVO_BETA_SETUP_${{ steps.meta.outputs.compact }}.exe"
+          if (-not (Test-Path $expected)) { throw "Setup nao foi criado: $expected" }
+          Get-FileHash $expected -Algorithm SHA256
+
+      - name: Publicar instalador na mesma Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = "distribuicao\installer\output\ALIYVO_BETA_SETUP_${{ steps.meta.outputs.compact }}.exe"
+          gh release upload "${{ steps.meta.outputs.tag }}" $setup --repo $env:GITHUB_REPOSITORY --clobber
+          Write-Host "Instalador publicado: $setup"
