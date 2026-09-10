@@ -1,0 +1,5 @@
+{
+  "version": "0.22.58",
+  "asset_name": "ALIYVO_BETA_GRATIS_02258.zip",
+  "notes": "Corrige o WhatsApp que podia desaparecer ao fechar e reabrir o ALIYVO. Agora todos os WebView2 sao encerrados de forma explicita, inclusive janelas tecnicas ocultas. Se o WebView2 do WhatsApp falhar ou travar na inicializacao, o ALIYVO recria automaticamente apenas o navegador usando o mesmo perfil persistente, sem apagar login, IA, diagnosticos, lembretes ou outros dados do usuario."
+}
