@@ -1,0 +1,57 @@
+name: Inspecionar painel Prazos v43
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-prazos-v43.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar ultima release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/base /tmp/build
+          mkdir -p /tmp/base /tmp/build
+          gh release download --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/base
+          unzip -q "$(find /tmp/base -type f -name '*.zip' | head -n1)" -d /tmp/build
+      - name: Mostrar codigo relacionado a prazos e foco
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast,re
+          p=Path('/tmp/build/_app/main.py')
+          s=p.read_text(encoding='utf-8',errors='ignore')
+          lines=s.splitlines()
+          tree=ast.parse(s)
+          keys=('prazo','condi','orcamento','orçamento','quick_tool','focus','whatsapp')
+          print('=== FUNCOES/CLASSES RELEVANTES ===')
+          ranges=[]
+          for n in ast.walk(tree):
+              name=getattr(n,'name','')
+              low=name.lower()
+              if isinstance(n,(ast.ClassDef,ast.FunctionDef)) and any(k in low for k in keys):
+                  print(type(n).__name__,name,n.lineno,getattr(n,'end_lineno',n.lineno))
+                  if any(k in low for k in ('prazo','quick_tool','focus')):
+                      ranges.append((n.lineno,getattr(n,'end_lineno',n.lineno)))
+          print('=== LINHAS COM TEXTOS/IDENTIFICADORES ===')
+          for i,line in enumerate(lines,1):
+              low=line.lower()
+              if any(k in low for k in ('prazos','calcular condição','calcular condicao','valor total','mensagem para o cliente','prazo')):
+                  print(f'{i:05d}: {line}')
+          print('=== BLOCOS ===')
+          seen=[]
+          for a,b in sorted(ranges):
+              a=max(1,a-8);b=min(len(lines),b+8)
+              if any(a>=x and b<=y for x,y in seen): continue
+              seen.append((a,b))
+              print(f'--- {a}:{b} ---')
+              for j in range(a-1,b): print(f'{j+1:05d}: {lines[j]}')
+          PY
