@@ -1,0 +1,33 @@
+name: TMP inspect calls
+on:
+  push:
+    paths:
+      - '.github/workflows/tmp-inspect-calls.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect current and previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/v57 /tmp/v59 /tmp/z && mkdir -p /tmp/v57 /tmp/v59 /tmp/z
+          gh release download v0.22.57 --repo "$GITHUB_REPOSITORY" --pattern 'ALIYVO_BETA_GRATIS_*.zip' --dir /tmp/z
+          unzip -q "$(find /tmp/z -name '*.zip' | head -n1)" -d /tmp/v57
+          rm -rf /tmp/z/*
+          gh release download v0.22.59 --repo "$GITHUB_REPOSITORY" --pattern 'ALIYVO_BETA_GRATIS_*.zip' --dir /tmp/z
+          unzip -q "$(find /tmp/z -name '*.zip' | head -n1)" -d /tmp/v59
+          echo '=== WHATSAPPVIEW V57 ==='
+          n=$(grep -n '^class WhatsAppView' /tmp/v57/_app/main.py | head -n1 | cut -d: -f1); sed -n "${n},$((n+300))p" /tmp/v57/_app/main.py
+          echo '=== WHATSAPPVIEW V59 ==='
+          n=$(grep -n '^class WhatsAppView' /tmp/v59/_app/main.py | head -n1 | cut -d: -f1); sed -n "${n},$((n+380))p" /tmp/v59/_app/main.py
+          echo '=== MEDIA/PERMISSION V57 ==='
+          grep -niE 'permission|microphone|camera|media|webrtc|autoplay|audio|user.?media|capture|PermissionRequested' /tmp/v57/_app/main.py | head -n 300 || true
+          echo '=== MEDIA/PERMISSION V59 ==='
+          grep -niE 'permission|microphone|camera|media|webrtc|autoplay|audio|user.?media|capture|PermissionRequested' /tmp/v59/_app/main.py | head -n 350 || true
+          echo '=== DIFF WHATSAPP/RECOVERY ==='
+          diff -u <(sed -n '1850,2200p' /tmp/v57/_app/main.py) <(sed -n '1850,2300p' /tmp/v59/_app/main.py) | head -n 500 || true
