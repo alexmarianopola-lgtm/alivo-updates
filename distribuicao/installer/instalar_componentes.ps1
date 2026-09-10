@@ -21,9 +21,19 @@ function RunPython {
         [string[]]$PyArgs
     )
     Log ('python ' + ($PyArgs -join ' '))
-    & $Python @PyArgs 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Falha ao executar Python: $($PyArgs -join ' ') (codigo $LASTEXITCODE)"
+    $oldEap = $ErrorActionPreference
+    try {
+        # pip escreve avisos normais no stderr (por exemplo, Scripts fora do PATH).
+        # Esses avisos nao podem abortar o Setup; o codigo de saida e a fonte da verdade.
+        $ErrorActionPreference = 'Continue'
+        & $Python @PyArgs 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldEap
+    }
+    if ($code -ne 0) {
+        throw "Falha ao executar Python: $($PyArgs -join ' ') (codigo $code)"
     }
 }
 
@@ -59,8 +69,16 @@ import easyocr
 import clr
 print('ALIYVO_COMPONENTES_OK')
 '@
-    & $Python -c $test 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Teste dos componentes falhou.' }
+    $oldEap = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $Python -c $test 2>&1 | Tee-Object -FilePath $log -Append | Out-Null
+        $testCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldEap
+    }
+    if ($testCode -ne 0) { throw "Teste dos componentes falhou (codigo $testCode)." }
 
     $marker = Join-Path (Split-Path $Python -Parent) '.aliyvo_componentes_v1.ok'
     Set-Content -Path $marker -Value ('ok ' + (Get-Date -Format o)) -Encoding UTF8
