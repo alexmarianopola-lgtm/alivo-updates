@@ -1,0 +1,30 @@
+name: Inspecionar updater worker v61
+on:
+  push:
+    paths:
+      - 'trigger-inspecionar-updater-worker-v61.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar e mostrar worker e painel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/app
+          echo '### updater_worker.pyw'
+          cat /tmp/app/_app/updater_worker.pyw
+          echo '### UpdatePanel related classes'
+          python - <<'PY'
+          import ast,pathlib
+          p=pathlib.Path('/tmp/app/_app/main.py'); s=p.read_text(encoding='utf-8'); t=ast.parse(s); lines=s.splitlines()
+          for n in t.body:
+              if isinstance(n,ast.ClassDef) and ('update' in n.name.lower() or 'panel' in n.name.lower()):
+                  print('\n### CLASS',n.name)
+                  print('\n'.join(lines[n.lineno-1:n.end_lineno]))
+          PY
