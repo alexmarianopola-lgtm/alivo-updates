@@ -1,0 +1,5 @@
+{
+  "version": "0.22.68",
+  "asset_name": "ALIYVO_BETA_GRATIS_02268.zip",
+  "notes": "Corrige o botao CRM do dia nos Lembretes, que estava ligado ao nome errado de funcao e por isso nao abria a janela. Tambem corrige o roteamento da IA para usar o prompt especifico de CRM do dia e de estrategia por cliente, em vez do prompt geral. Preserva o visual dos lembretes, WhatsApp, chamadas, Prazos, IA e todos os dados locais existentes."
+}
