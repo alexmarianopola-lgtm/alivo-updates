@@ -1,0 +1,23 @@
+name: Inspecionar updater 0.22.72
+on:
+  push:
+    paths: ['trigger-inspect-updater-02272.txt']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.72 e mostrar updater
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v72 | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\v72 -Force
+          Write-Host '=== updater_worker.pyw ==='
+          Get-Content C:\temp\v72\_app\updater_worker.pyw
+          Write-Host '=== main update snippets ==='
+          Select-String -Path C:\temp\v72\_app\main.py -Pattern 'updater_worker|Atualizar agora|singleShot\(500|start_update|_update' -Context 4,8
