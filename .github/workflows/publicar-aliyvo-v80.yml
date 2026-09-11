@@ -40,11 +40,12 @@ jobs:
           Path(__file__).with_name('restart_ok.txt').write_text('OK',encoding='utf-8')
           '@ | Set-Content (Join-Path $payload '_app\Aliyvo.pyw') -Encoding utf8
           Compress-Archive -Path (Join-Path $payload '*') -DestinationPath (Join-Path $test 'update.zip') -Force
-          $sha=(Get-FileHash (Join-Path $test 'update.zip') -Algorithm SHA256).Hash.ToLower()
+          $zipPath=Join-Path $test 'update.zip'
+          $sha=(Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
           $parent=Start-Process python -ArgumentList '-c','import time;time.sleep(2)' -PassThru -WindowStyle Hidden
           $pending=@{
             version='9.9.9';
-            download_url=('file:///'+((Join-Path $test 'update.zip') -replace '\\','/'));
+            download_url=$zipPath;
             sha256=$sha;
             install_root=$install;
             launch_path=(Join-Path $install '_app\Aliyvo.pyw');
@@ -53,7 +54,7 @@ jobs:
           $pendingPath=Join-Path $test 'pending.json'
           Set-Content $pendingPath $pending -Encoding utf8
           python (Join-Path $install '_app\updater_worker.pyw') $pendingPath
-          Start-Sleep -Seconds 3
+          Start-Sleep -Seconds 4
           if((Get-Content (Join-Path $install '_app\old.txt') -Raw).Trim() -ne 'NEW'){ throw 'worker nao substituiu arquivos' }
           if(-not (Test-Path (Join-Path $install '_app\restart_ok.txt'))){ throw 'worker nao reiniciou launcher' }
           Write-Host 'TESTE COMPLETO DO ATUALIZADOR: OK'
