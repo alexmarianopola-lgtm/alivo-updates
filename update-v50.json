@@ -1,0 +1,5 @@
+{
+  "version": "0.22.64",
+  "asset_name": "ALIYVO_BETA_GRATIS_02264.zip",
+  "notes": "Otimiza a tela de Perfis comerciais da IA Observadora. Os perfis passam a usar cache local, a janela abre sem recalcular todos os clientes, a atualização pesada roda em segundo plano e o cálculo de perfis/desfechos é feito em uma única passada pelo diagnóstico. Selecionar um cliente passa a renderizar somente aquele perfil. Não altera WhatsApp, chamadas, Prazos, chave da IA, diagnósticos ou demais dados locais."
+}
