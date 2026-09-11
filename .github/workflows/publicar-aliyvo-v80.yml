@@ -43,17 +43,25 @@ jobs:
           $zipPath=Join-Path $test 'update.zip'
           $sha=(Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
           $parent=Start-Process python -ArgumentList '-c','import time;time.sleep(2)' -PassThru -WindowStyle Hidden
-          $pending=@{
-            version='9.9.9';
-            download_url=$zipPath;
-            sha256=$sha;
-            install_root=$install;
-            launch_path=(Join-Path $install '_app\Aliyvo.pyw');
-            pid=$parent.Id
-          } | ConvertTo-Json
           $pendingPath=Join-Path $test 'pending.json'
-          Set-Content $pendingPath $pending -Encoding utf8
+          @"
+          import json
+          from pathlib import Path
+          data = {
+              'version': '9.9.9',
+              'download_url': r'''$zipPath''',
+              'sha256': '$sha',
+              'install_root': r'''$install''',
+              'launch_path': r'''$(Join-Path $install '_app\Aliyvo.pyw')''',
+              'pid': $($parent.Id),
+          }
+          Path(r'''$pendingPath''').write_text(json.dumps(data), encoding='utf-8')
+          "@ | python -
           python (Join-Path $install '_app\updater_worker.pyw') $pendingPath
+          $code=$LASTEXITCODE
+          $log=Join-Path $env:LOCALAPPDATA 'ALIYVO\logs\UPDATER.log'
+          if(Test-Path $log){ Write-Host '=== UPDATER LOG ==='; Get-Content $log -Tail 30 }
+          if($code -ne 0){ throw "updater retornou codigo $code" }
           Start-Sleep -Seconds 4
           if((Get-Content (Join-Path $install '_app\old.txt') -Raw).Trim() -ne 'NEW'){ throw 'worker nao substituiu arquivos' }
           if(-not (Test-Path (Join-Path $install '_app\restart_ok.txt'))){ throw 'worker nao reiniciou launcher' }
