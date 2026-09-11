@@ -1,0 +1,69 @@
+name: Publicar ALIYVO v71
+on:
+  push:
+    paths:
+      - 'trigger-v71.txt'
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar base 0.22.72
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+      - name: Montar 0.22.76
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force C:\temp\build,C:\temp\verify,C:\temp\sim -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path C:\temp\build,C:\temp\verify,C:\temp\sim | Out-Null
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\build -Force
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\sim -Force
+          Copy-Item C:\temp\sim\_app\updater_worker.pyw C:\temp\old_updater.pyw -Force
+          python patch_script_v71.py C:\temp\build\_app\main.py
+          python -m py_compile C:\temp\build\_app\main.py
+          $m = Select-String -Path C:\temp\build\_app\main.py -SimpleMatch 'ALIYVO_VERSION = "0.22.76"'
+          if (-not $m) { throw 'main.py nao foi marcado como 0.22.76' }
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\ALIYVO_BETA_GRATIS_02276.zip -Force
+      - name: Validar ZIP FINAL
+        shell: pwsh
+        run: |
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02276.zip -DestinationPath C:\temp\verify -Force
+          $m = Select-String -Path C:\temp\verify\_app\main.py -SimpleMatch 'ALIYVO_VERSION = "0.22.76"'
+          if (-not $m) { throw 'ZIP FINAL nao contem ALIYVO_VERSION 0.22.76' }
+          python -m py_compile C:\temp\verify\_app\main.py
+          Write-Host 'ZIP FINAL VALIDADO: 0.22.76'
+      - name: Testar ponte com motor antigo 0.22.72
+        shell: pwsh
+        run: |
+          Set-Content -Path C:\temp\sim\launch_test.pyw -Value "from pathlib import Path; Path(r'C:\temp\sim\bridge_started.txt').write_text('ok',encoding='utf-8')" -Encoding UTF8
+          $pending=@{
+            version='0.22.76'
+            download_url='C:\temp\ALIYVO_BETA_GRATIS_02276.zip'
+            sha256=''
+            install_root='C:\temp\sim'
+            launch_path='C:\temp\sim\launch_test.pyw'
+            pid=0
+          } | ConvertTo-Json -Depth 4
+          Set-Content C:\temp\pending.json $pending -Encoding UTF8
+          python C:\temp\old_updater.pyw C:\temp\pending.json
+          Start-Sleep -Seconds 2
+          $m = Select-String -Path C:\temp\sim\_app\main.py -SimpleMatch 'ALIYVO_VERSION = "0.22.76"'
+          if (-not $m) { throw 'motor antigo nao aplicou 0.22.76' }
+          if (-not (Test-Path C:\temp\sim\bridge_started.txt)) { throw 'motor antigo nao reiniciou launcher de teste' }
+          Write-Host 'PONTE 0.22.72 -> 0.22.76 VALIDADA'
+      - name: Publicar Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $d = Get-Content update-v71.json -Raw | ConvertFrom-Json
+          gh release create "v$($d.version)" C:\temp\ALIYVO_BETA_GRATIS_02276.zip --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis $($d.version)" --notes "$($d.notes)" --latest
