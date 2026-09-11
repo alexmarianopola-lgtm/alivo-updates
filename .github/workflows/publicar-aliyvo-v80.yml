@@ -35,6 +35,7 @@ jobs:
           Copy-Item C:\temp\build\_app\updater_worker.pyw (Join-Path $install '_app\updater_worker.pyw')
           Set-Content (Join-Path $install '_app\old.txt') 'OLD' -Encoding ascii
           Set-Content (Join-Path $payload '_app\old.txt') 'NEW' -Encoding ascii
+          Set-Content (Join-Path $payload '_app\main.py') 'ALIYVO_VERSION = "9.9.9"' -Encoding utf8
           @'
           from pathlib import Path
           Path(__file__).with_name('restart_ok.txt').write_text('OK',encoding='utf-8')
