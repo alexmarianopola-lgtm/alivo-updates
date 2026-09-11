@@ -1,0 +1,30 @@
+name: Inspecionar diagnostico v60
+on:
+  push:
+    paths:
+      - 'trigger-inspecao-v60.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.71 e listar metodos diagnostico
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.71 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02271.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02271.zip -d /tmp/app
+          python - <<'PY'
+          import ast,pathlib
+          p=pathlib.Path('/tmp/app/_app/main.py')
+          s=p.read_text(encoding='utf-8');t=ast.parse(s);lines=s.splitlines()
+          c=next(n for n in t.body if isinstance(n,ast.ClassDef) and n.name=='MainWindow')
+          for fn in c.body:
+              if isinstance(fn,ast.FunctionDef) and ('diagnostic' in fn.name.lower() or 'context' in fn.name.lower()):
+                  print('\n###',fn.name)
+                  if any(x in fn.name.lower() for x in ['tick','context','snapshot','process','scan']):
+                      print('\n'.join(lines[fn.lineno-1:min(fn.end_lineno,fn.lineno+120)]))
+          PY
