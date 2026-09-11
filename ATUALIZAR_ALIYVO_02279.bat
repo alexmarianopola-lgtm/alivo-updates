@@ -14,6 +14,7 @@ set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 "%PS%" -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
+  "Add-Type -AssemblyName System.Windows.Forms;" ^
   "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;" ^
   "$shell=New-Object -ComObject WScript.Shell;" ^
   "$links=@();" ^
@@ -36,8 +37,7 @@ set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
   "Copy-Item -Path (Join-Path $ext '*') -Destination $root -Recurse -Force;" ^
   "Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue;" ^
   "Start-Process -FilePath $target -ArgumentList $args -WorkingDirectory $appdir;" ^
-  "[System.Windows.Forms.MessageBox]::Show('ALIYVO atualizado para 0.22.79.','ALIYVO') | Out-Null;" ^
-  -ErrorVariable err
+  "[System.Windows.Forms.MessageBox]::Show('ALIYVO atualizado para 0.22.79.','ALIYVO') | Out-Null;"
 
 if errorlevel 1 (
   echo.
