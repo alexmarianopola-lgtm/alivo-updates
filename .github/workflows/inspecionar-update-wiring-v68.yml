@@ -1,0 +1,20 @@
+name: Inspecionar wiring atualizador 0.22.72
+on:
+  push:
+    paths:
+      - 'trigger-inspecionar-update-wiring-v68.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar e procurar wiring
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/app
+          grep -n -E 'on_check|on_install|check_for_updates|update_panel\.' /tmp/app/_app/main.py | head -n 220
