@@ -1,0 +1,5 @@
+{
+  "version": "0.22.69",
+  "asset_name": "ALIYVO_BETA_GRATIS_02269.zip",
+  "notes": "Adiciona duas evolucoes de CRM assistido: sugestao inteligente de lembrete durante conversas com acao futura, sempre exigindo confirmacao do usuario, e painel rapido Hoje dentro do ALIYVO com clientes esperando, lembretes vencidos, tarefas do dia e tres prioridades sugeridas. O detector roda localmente e nao chama a API a cada mensagem. Lembretes sugeridos abrem pre-preenchidos com cliente, contexto, descricao e horario inferido para revisao antes de salvar. Preserva WhatsApp, chamadas, Prazos, IA, CRM e dados locais existentes."
+}
