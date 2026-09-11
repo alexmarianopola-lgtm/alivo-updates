@@ -1,0 +1,34 @@
+name: Inspecionar lembrete sugestao v56
+on:
+  push:
+    paths:
+      - 'trigger-inspecionar-v56.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.68 e inspecionar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.68 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02268.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02268.zip -d /tmp/app
+          python - <<'PY'
+          import ast, pathlib
+          p=pathlib.Path('/tmp/app/_app/main.py')
+          s=p.read_text(encoding='utf-8')
+          t=ast.parse(s)
+          c=next(n for n in t.body if isinstance(n,ast.ClassDef) and n.name=='MainWindow')
+          names=['_reminder_tick','_reminder_add','_reminder_edit','_reminder_add_from_current','_reminder_show_dialog','_diagnostic_tick','_ai_crm_reminders_dialog']
+          lines=s.splitlines()
+          for name in names:
+              fn=next((n for n in c.body if isinstance(n,ast.FunctionDef) and n.name==name),None)
+              print('\n###',name)
+              if fn:
+                  print('\n'.join(lines[fn.lineno-1:fn.end_lineno]))
+              else: print('NOT FOUND')
+          PY
