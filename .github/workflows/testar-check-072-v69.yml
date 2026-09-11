@@ -1,0 +1,21 @@
+name: Testar checker 0.22.72 contra latest
+on:
+  push:
+    paths:
+      - 'trigger-testar-check-072-v69.txt'
+permissions:
+  contents: read
+jobs:
+  testar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rodar checker antigo contra latest real
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\app | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\app -Force
+          python C:\temp\app\_app\update_check_worker.py "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest" "0.22.72"
