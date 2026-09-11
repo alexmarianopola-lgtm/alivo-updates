@@ -1,0 +1,5 @@
+{
+  "version": "0.22.73",
+  "asset_name": "ALIYVO_BETA_GRATIS_02273.zip",
+  "notes": "Adiciona protecao de atualizacao com backup automatico dos arquivos que serao substituidos, verificacao real de inicializacao da nova versao e rollback automatico se a nova versao nao conseguir abrir. A area Atualizacoes tambem ganha Restaurar versao anterior para retorno manual. O backup preserva apenas uma versao anterior e nao toca nos dados locais do usuario, WhatsApp, IA, lembretes ou diagnosticos. Baseada na 0.22.72."
+}
