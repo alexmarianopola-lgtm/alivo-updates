@@ -1,0 +1,137 @@
+name: Publicar ALIYVO v73
+on:
+  push:
+    paths: ['trigger-v73.txt']
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar base 0.22.77
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build | Out-Null
+          gh release download v0.22.77 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02277.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02277.zip -DestinationPath C:\temp\build -Force
+      - name: Atualizar versao para 0.22.78
+        shell: pwsh
+        run: |
+          $p='C:\temp\build\_app\main.py'
+          $t=Get-Content $p -Raw
+          $t=[regex]::Replace($t,'ALIYVO_VERSION\s*=\s*"[^"]+"','ALIYVO_VERSION = "0.22.78"',1)
+          Set-Content $p $t -Encoding UTF8
+          python -m py_compile $p
+          Select-String -Path $p -Pattern 'ALIYVO_VERSION = "0.22.78"' | Out-Null
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\ALIYVO_BETA_GRATIS_02278.zip -Force
+      - name: Criar reparador robusto
+        shell: pwsh
+        run: |
+          @'
+          using System;
+          using System.IO;
+          using System.IO.Compression;
+          using System.Net;
+          using System.Diagnostics;
+          using System.Management;
+          using System.Windows.Forms;
+          using System.Collections.Generic;
+          using Microsoft.CSharp.RuntimeBinder;
+          class Program {
+            const string Url="https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.22.78/ALIYVO_BETA_GRATIS_02278.zip";
+            [STAThread]
+            static void Main(){
+              try{
+                ServicePointManager.SecurityProtocol=(SecurityProtocolType)3072;
+                string root=FindInstallRoot();
+                if(root==null){
+                  using(var dlg=new FolderBrowserDialog()){
+                    dlg.Description="Selecione a pasta principal do ALIYVO (a pasta que contem a subpasta _app)";
+                    dlg.ShowNewFolderButton=false;
+                    if(dlg.ShowDialog()!=DialogResult.OK)return;
+                    root=NormalizeRoot(dlg.SelectedPath);
+                  }
+                }
+                if(root==null || !File.Exists(Path.Combine(root,"_app","main.py"))) throw new Exception("A pasta escolhida nao parece ser a instalacao do ALIYVO. Ela precisa conter _app\\main.py.");
+                KillAliyvoPython();
+                string temp=Path.Combine(Path.GetTempPath(),"aliyvo_reparo_"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+                string zip=Path.Combine(temp,"aliyvo.zip");
+                using(var wc=new WebClient()){ wc.Headers.Add("User-Agent","ALIYVO-Repair/2.0"); wc.DownloadFile(Url,zip); }
+                string ext=Path.Combine(temp,"ext"); ZipFile.ExtractToDirectory(zip,ext);
+                if(!File.Exists(Path.Combine(ext,"_app","main.py"))) throw new Exception("Pacote baixado invalido.");
+                CopyDir(ext,root);
+                try{ Directory.Delete(temp,true);}catch{}
+                Launch(root);
+                MessageBox.Show("ALIYVO reparado e atualizado para 0.22.78.\n\nA partir de agora o botao Atualizacoes deve voltar a funcionar normalmente.","ALIYVO",MessageBoxButtons.OK,MessageBoxIcon.Information);
+              }catch(Exception ex){ MessageBox.Show("Nao consegui reparar automaticamente:\n\n"+ex.Message,"ALIYVO - Reparador",MessageBoxButtons.OK,MessageBoxIcon.Error); }
+            }
+            static string NormalizeRoot(string p){
+              try{
+                if(File.Exists(Path.Combine(p,"_app","main.py")))return p;
+                if(File.Exists(Path.Combine(p,"main.py")) && String.Equals(new DirectoryInfo(p).Name,"_app",StringComparison.OrdinalIgnoreCase))return Directory.GetParent(p).FullName;
+              }catch{}
+              return null;
+            }
+            static string FindInstallRoot(){
+              var roots=new List<string>();
+              try{roots.Add(AppDomain.CurrentDomain.BaseDirectory);}catch{}
+              try{roots.Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));}catch{}
+              try{roots.Add(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));}catch{}
+              try{roots.Add(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));}catch{}
+              try{roots.Add(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));}catch{}
+              foreach(string baseDir in roots){
+                if(String.IsNullOrWhiteSpace(baseDir)||!Directory.Exists(baseDir))continue;
+                string direct=NormalizeRoot(baseDir); if(direct!=null)return direct;
+                try{
+                  foreach(string d in Directory.GetDirectories(baseDir,"ALIYVO*",SearchOption.TopDirectoryOnly)){string n=NormalizeRoot(d);if(n!=null)return n;}
+                }catch{}
+              }
+              foreach(string link in FindShortcuts()){
+                try{
+                  Type t=Type.GetTypeFromProgID("WScript.Shell"); dynamic sh=Activator.CreateInstance(t); dynamic sc=sh.CreateShortcut(link);
+                  string work=(string)sc.WorkingDirectory;
+                  string n=NormalizeRoot(work); if(n!=null)return n;
+                  if(!String.IsNullOrWhiteSpace(work)){ var p=Directory.GetParent(work); if(p!=null){n=NormalizeRoot(p.FullName);if(n!=null)return n;} }
+                }catch{}
+              }
+              return null;
+            }
+            static IEnumerable<string> FindShortcuts(){
+              var dirs=new List<string>();
+              try{dirs.Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));}catch{}
+              try{dirs.Add(Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory));}catch{}
+              try{dirs.Add(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu));}catch{}
+              try{dirs.Add(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu));}catch{}
+              foreach(string d in dirs){
+                if(String.IsNullOrWhiteSpace(d)||!Directory.Exists(d))continue;
+                string[] files=new string[0]; try{files=Directory.GetFiles(d,"*.lnk",SearchOption.AllDirectories);}catch{}
+                foreach(string f in files){ if(Path.GetFileName(f).IndexOf("ALIYVO",StringComparison.OrdinalIgnoreCase)>=0)yield return f; }
+              }
+            }
+            static void KillAliyvoPython(){
+              try{ using(var s=new ManagementObjectSearcher("SELECT ProcessId,CommandLine FROM Win32_Process WHERE Name='pythonw.exe' OR Name='python.exe'")){ foreach(ManagementObject o in s.Get()){ string c=Convert.ToString(o["CommandLine"]); if(c.IndexOf("Aliyvo.pyw",StringComparison.OrdinalIgnoreCase)>=0 || c.IndexOf("main.py",StringComparison.OrdinalIgnoreCase)>=0){ try{Process.GetProcessById(Convert.ToInt32(o["ProcessId"])).Kill();}catch{} } } } System.Threading.Thread.Sleep(1200);}catch{}
+            }
+            static void CopyDir(string src,string dst){ foreach(string d in Directory.GetDirectories(src,"*",SearchOption.AllDirectories)){Directory.CreateDirectory(d.Replace(src,dst));} foreach(string f in Directory.GetFiles(src,"*",SearchOption.AllDirectories)){string to=f.Replace(src,dst);Directory.CreateDirectory(Path.GetDirectoryName(to));File.Copy(f,to,true);} }
+            static void Launch(string root){
+              string app=Path.Combine(root,"_app","Aliyvo.pyw");
+              string[] pys={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","Python","Python312","pythonw.exe"),"pythonw.exe"};
+              foreach(string py in pys){try{Process.Start(new ProcessStartInfo(py,"\""+app+"\""){WorkingDirectory=Path.Combine(root,"_app"),UseShellExecute=true});return;}catch{}}
+              Process.Start(new ProcessStartInfo(app){WorkingDirectory=Path.Combine(root,"_app"),UseShellExecute=true});
+            }
+          }
+          '@ | Set-Content C:\temp\RepairAliyvoV2.cs -Encoding UTF8
+          $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /out:C:\temp\ALIYVO_REPARAR_ATUALIZADOR_V2.exe /reference:System.Windows.Forms.dll /reference:System.Management.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll C:\temp\RepairAliyvoV2.cs
+          if(-not (Test-Path C:\temp\ALIYVO_REPARAR_ATUALIZADOR_V2.exe)){throw 'reparador nao compilado'}
+      - name: Publicar release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.22.78 C:\temp\ALIYVO_BETA_GRATIS_02278.zip C:\temp\ALIYVO_REPARAR_ATUALIZADOR_V2.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis 0.22.78" --notes "Corrige o reparador: força TLS 1.2 e não depende do atalho ALIYVO.lnk. Procura a instalação automaticamente e, se necessário, permite selecionar a pasta manualmente. Mantém a correção do encerramento completo do ALIYVO antes das próximas atualizações." --latest
