@@ -1,0 +1,5 @@
+{
+  "version": "0.22.66",
+  "asset_name": "ALIYVO_BETA_GRATIS_02266.zip",
+  "notes": "Melhora a hierarquia visual dos Lembretes/CRM sem adicionar peso: vencidos ficam em vermelho forte, tarefas para a proxima hora em laranja, tarefas de hoje em amarelo, futuras em azul e concluidas em verde. Cada lembrete recebe uma etiqueta visual VENCIDO, <1H, HOJE, FUTURO ou CONCLUIDO, com titulo em negrito e ordenacao priorizando urgencia. Preserva IA, CRM, WhatsApp, chamadas, Prazos e dados locais existentes."
+}
