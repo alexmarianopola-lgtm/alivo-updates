@@ -1,0 +1,5 @@
+{
+  "version": "0.22.67",
+  "asset_name": "ALIYVO_BETA_GRATIS_02267.zip",
+  "notes": "Melhora a leitura visual dos Lembretes: a descricao da tarefa passa a ser o elemento principal, em fonte maior e negrito forte; etiqueta de urgencia fica separada; data/hora e cliente aparecem menores e discretos na segunda linha. Mantem as cores por prioridade da 0.22.66 e continua leve, usando apenas widgets Qt. Preserva IA, CRM, WhatsApp, chamadas, Prazos e dados locais existentes."
+}
