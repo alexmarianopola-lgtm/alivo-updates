@@ -1,0 +1,26 @@
+name: Inspecionar startup v62
+on:
+  push:
+    paths:
+      - 'trigger-inspecionar-startup-v62.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.72 e mostrar startup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/app
+          python - <<'PY'
+          import pathlib
+          p=pathlib.Path('/tmp/app/_app/main.py')
+          lines=p.read_text(encoding='utf-8').splitlines()
+          print('TOTAL',len(lines))
+          print('\n'.join(f'{i+1}: {line}' for i,line in enumerate(lines[-260:], start=len(lines)-260)))
+          PY
