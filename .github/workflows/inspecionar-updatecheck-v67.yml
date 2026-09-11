@@ -1,0 +1,20 @@
+name: Inspecionar update_check_worker 0.22.72
+on:
+  push:
+    paths:
+      - 'trigger-inspecionar-updatecheck-v67.txt'
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar e mostrar worker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/app
+          cat /tmp/app/_app/update_check_worker.py
