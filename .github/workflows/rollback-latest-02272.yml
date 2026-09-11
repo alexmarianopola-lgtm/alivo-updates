@@ -1,0 +1,17 @@
+name: Restaurar canal estavel 0.22.72
+on:
+  push:
+    paths: ['trigger-rollback-02272.txt']
+permissions:
+  contents: write
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Marcar 0.22.72 como latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit v0.22.72 --repo "$GITHUB_REPOSITORY" --latest
+          echo "Canal oficial restaurado para 0.22.72"
