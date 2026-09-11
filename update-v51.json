@@ -1,5 +1,6 @@
 {
   "version": "0.22.65",
   "asset_name": "ALIYVO_BETA_GRATIS_02265.zip",
-  "notes": "Evolui o ALIYVO para teste em trabalho real: adiciona prioridade inteligente e dica comercial para o cliente atual, aprofunda a estrategia por cliente e conecta a IA Observadora aos lembretes como um CRM assistido. Reforma visual dos lembretes com cores leves e texto em negrito, separa data e hora para edicao simples, seleciona a hora inteira ao clicar e troca os adiamentos por +20 min, +1 hora e amanha 09:00. A IA passa a receber os lembretes abertos vinculados aos clientes e ganha CRM do dia, sem enviar mensagens ou criar/concluir lembretes automaticamente. Preserva WhatsApp, chamadas, Prazos, chave da IA e todos os dados locais existentes."
+  "notes": "Evolui o ALIYVO para teste em trabalho real: adiciona prioridade inteligente e dica comercial para o cliente atual, aprofunda a estrategia por cliente e conecta a IA Observadora aos lembretes como um CRM assistido. Reforma visual dos lembretes com cores leves e texto em negrito, separa data e hora para edicao simples, seleciona a hora inteira ao clicar e troca os adiamentos por +20 min, +1 hora e amanha 09:00. A IA passa a receber os lembretes abertos vinculados aos clientes e ganha CRM do dia, sem enviar mensagens ou criar/concluir lembretes automaticamente. Preserva WhatsApp, chamadas, Prazos, chave da IA e todos os dados locais existentes.",
+  "build": 1
 }
