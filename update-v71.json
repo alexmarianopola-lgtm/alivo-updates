@@ -1,0 +1,5 @@
+{
+  "version": "0.22.76",
+  "asset_name": "ALIYVO_BETA_GRATIS_02276.zip",
+  "notes": "Correcao da ponte de atualizacao. Base estavel 0.22.72 com numero interno corrigido para 0.22.76 e motor de atualizacao antigo conhecido, o mesmo fluxo que funcionou nas atualizacoes anteriores. Corrige o pacote 0.22.75 que foi publicado com main.py ainda identificado como 0.22.72."
+}
