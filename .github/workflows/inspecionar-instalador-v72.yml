@@ -1,0 +1,26 @@
+name: Inspecionar instalador 0.22.72
+on:
+  push:
+    paths: ['trigger-inspect-installer-v72.txt']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspecionar pacote
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/v72
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp
+          unzip -q /tmp/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/v72
+          echo '=== INSTALAR ==='
+          cat '/tmp/v72/INSTALAR ALIYVO.bat' || true
+          echo '=== VBS ==='
+          cat '/tmp/v72/_app/Abrir_Copiloto_A.vbs' || true
+          echo '=== PYLauncher ==='
+          cat '/tmp/v72/_app/Aliyvo.pyw' || true
+          echo '=== README ==='
+          head -120 '/tmp/v72/LEIA-ME-ALIYVO.txt' || true
