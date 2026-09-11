@@ -1,0 +1,5 @@
+{
+  "version": "0.22.74",
+  "asset_name": "ALIYVO_BETA_GRATIS_02274.zip",
+  "notes": "Corrige falso rollback na validacao de abertura. A atualizacao agora so restaura automaticamente a versao anterior quando o novo processo realmente encerra durante a inicializacao. Se o ALIYVO continuar aberto, a versao nova e mantida mesmo que a confirmacao de startup demore. Mantem backup automatico, restauracao manual e todos os dados locais fora da troca. Baseada na 0.22.73."
+}
