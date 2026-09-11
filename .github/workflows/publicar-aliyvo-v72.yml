@@ -1,7 +1,7 @@
 name: Publicar ALIYVO v72
 on:
   push:
-    paths: ['trigger-v72.txt']
+    paths: ['trigger-v72-safe.txt']
 permissions:
   contents: write
 jobs:
@@ -42,7 +42,6 @@ jobs:
           using System.Diagnostics;
           using System.Management;
           using System.Windows.Forms;
-          using Microsoft.CSharp.RuntimeBinder;
           class Program {
             const string Url="https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.22.77/ALIYVO_BETA_GRATIS_02277.zip";
             [STAThread]
@@ -77,11 +76,11 @@ jobs:
           }
           '@ | Set-Content C:\temp\RepairAliyvo.cs -Encoding UTF8
           $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-          & $csc /nologo /target:winexe /out:C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe /reference:System.Windows.Forms.dll /reference:System.Management.dll /reference:System.Net.Http.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll C:\temp\RepairAliyvo.cs
+          & $csc /nologo /target:winexe /out:C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe /reference:System.Windows.Forms.dll /reference:System.Management.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll C:\temp\RepairAliyvo.cs
           if(-not (Test-Path C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe)){throw 'reparador nao compilado'}
       - name: Publicar release 0.22.77
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.22.77 C:\temp\ALIYVO_BETA_GRATIS_02277.zip C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis 0.22.77" --notes "Corrige definitivamente o fluxo de atualizacao: ao clicar Atualizar, o ALIYVO agora encerra o processo inteiro antes da troca dos arquivos. Inclui reparador unico para instalacoes 0.22.72 que ficaram presas no atualizador antigo. O reparador preserva dados locais, WhatsApp, IA, lembretes e diagnosticos." --latest
+          gh release create v0.22.77 C:\temp\ALIYVO_BETA_GRATIS_02277.zip C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis 0.22.77" --notes "Corrige o fluxo de atualizacao: ao clicar Atualizar, o ALIYVO encerra o processo inteiro antes da troca dos arquivos. Inclui reparador unico para instalacoes 0.22.72 que ficaram presas no atualizador antigo. O reparador preserva dados locais, WhatsApp, IA, lembretes e diagnosticos." --latest
