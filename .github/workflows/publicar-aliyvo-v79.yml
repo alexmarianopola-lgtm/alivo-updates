@@ -1,0 +1,44 @@
+name: Publicar ALIYVO 0.22.79 base 0.22.72
+on:
+  push:
+    paths:
+      - 'trigger-v79.txt'
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar base estavel 0.22.72
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\build -Force
+      - name: Alterar somente o numero da versao
+        shell: pwsh
+        run: |
+          $p='C:\temp\build\_app\main.py'
+          $t=Get-Content $p -Raw
+          $t=[regex]::Replace($t,'ALIYVO_VERSION\s*=\s*"[^"]+"','ALIYVO_VERSION = "0.22.79"',1)
+          Set-Content $p $t -Encoding UTF8
+          python -m py_compile $p
+          Select-String -Path $p -Pattern 'ALIYVO_VERSION = "0.22.79"' | Out-Null
+      - name: Empacotar e validar ZIP final
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\ALIYVO_BETA_GRATIS_02279.zip -Force
+          Remove-Item -Recurse -Force C:\temp\verify -ErrorAction SilentlyContinue
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02279.zip -DestinationPath C:\temp\verify -Force
+          Select-String -Path C:\temp\verify\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.79"' | Out-Null
+          python -m py_compile C:\temp\verify\_app\main.py
+      - name: Publicar release estavel
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $d=Get-Content update-v79.json -Raw | ConvertFrom-Json
+          gh release create v0.22.79 C:\temp\ALIYVO_BETA_GRATIS_02279.zip --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis 0.22.79 - base estavel 0.22.72" --notes "$($d.notes)" --latest
