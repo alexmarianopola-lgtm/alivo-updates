@@ -1,0 +1,35 @@
+name: Comparar updater que funcionava
+on:
+  push:
+    paths:
+      - 'trigger-v70.txt'
+permissions:
+  contents: read
+jobs:
+  comparar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.71 0.22.72 0.22.75
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/v71 /tmp/v72 /tmp/v75 /tmp/z
+          gh release download v0.22.71 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02271.zip" --dir /tmp/z
+          gh release download v0.22.72 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir /tmp/z
+          gh release download v0.22.75 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02275.zip" --dir /tmp/z
+          unzip -q /tmp/z/ALIYVO_BETA_GRATIS_02271.zip -d /tmp/v71
+          unzip -q /tmp/z/ALIYVO_BETA_GRATIS_02272.zip -d /tmp/v72
+          unzip -q /tmp/z/ALIYVO_BETA_GRATIS_02275.zip -d /tmp/v75
+          echo '=== TOP LEVEL ==='
+          find /tmp/v71 -maxdepth 2 -type f | sed 's#/tmp/v71/##' | sort | head -80
+          echo '=== DIFF updater 71 -> 72 ==='
+          diff -u /tmp/v71/_app/updater_worker.pyw /tmp/v72/_app/updater_worker.pyw || true
+          echo '=== DIFF updater 72 -> 75 ==='
+          diff -u /tmp/v72/_app/updater_worker.pyw /tmp/v75/_app/updater_worker.pyw || true
+          echo '=== launchers ==='
+          find /tmp/v72 -maxdepth 2 -type f -iname '*aliyvo*' -o -iname '*.pyw' | sort
+          echo '=== versions ==='
+          grep -n 'ALIYVO_VERSION' /tmp/v71/_app/main.py | head -1
+          grep -n 'ALIYVO_VERSION' /tmp/v72/_app/main.py | head -1
+          grep -n 'ALIYVO_VERSION' /tmp/v75/_app/main.py | head -1
