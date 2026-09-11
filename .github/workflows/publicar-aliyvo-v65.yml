@@ -1,0 +1,71 @@
+name: Publicar ALIYVO v65
+on:
+  push:
+    paths:
+      - 'trigger-v65.txt'
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler versao
+        id: meta
+        shell: pwsh
+        run: |
+          $d = Get-Content update-v65.json -Raw | ConvertFrom-Json
+          "version=$($d.version)" >> $env:GITHUB_OUTPUT
+          "tag=v$($d.version)" >> $env:GITHUB_OUTPUT
+          "asset=$($d.asset_name)" >> $env:GITHUB_OUTPUT
+      - name: Baixar base 0.22.72
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+      - name: Montar ponte 0.22.75
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force C:\temp\build,C:\temp\sim -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path C:\temp\build,C:\temp\sim | Out-Null
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\build -Force
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\sim -Force
+          Copy-Item C:\temp\sim\_app\updater_worker.pyw C:\temp\old_updater.pyw -Force
+          python patch_script_v65.py C:\temp\build\_app\main.py
+          Copy-Item updater_worker_v62.pyw C:\temp\build\_app\updater_worker.pyw -Force
+          python patch_worker_v63.py C:\temp\build\_app\updater_worker.pyw
+          python -m py_compile C:\temp\build\_app\main.py
+          python -m py_compile C:\temp\build\_app\updater_worker.pyw
+          python C:\temp\build\_app\updater_worker.pyw --self-test
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.75"' | Out-Null
+      - name: Empacotar ponte
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath "C:\temp\${{ steps.meta.outputs.asset }}" -Force
+      - name: Testar atualizacao usando motor antigo da 0.22.72
+        shell: pwsh
+        run: |
+          Set-Content -Path C:\temp\sim\launch_test.pyw -Value "from pathlib import Path; Path(r'C:\temp\sim\bridge_started.txt').write_text('ok',encoding='utf-8')" -Encoding UTF8
+          $pending=@{
+            version='0.22.75'
+            download_url="C:\temp\${{ steps.meta.outputs.asset }}"
+            sha256=''
+            install_root='C:\temp\sim'
+            launch_path='C:\temp\sim\launch_test.pyw'
+            pid=0
+          } | ConvertTo-Json -Depth 4
+          Set-Content C:\temp\pending.json $pending -Encoding UTF8
+          python C:\temp\old_updater.pyw C:\temp\pending.json
+          Start-Sleep -Seconds 2
+          Select-String -Path C:\temp\sim\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.75"' | Out-Null
+          if (-not (Test-Path C:\temp\sim\bridge_started.txt)) { throw 'motor antigo nao reiniciou o launcher de teste' }
+          Write-Host 'PONTE 0.22.72 -> 0.22.75 VALIDADA'
+      - name: Publicar Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $d = Get-Content update-v65.json -Raw | ConvertFrom-Json
+          gh release create "${{ steps.meta.outputs.tag }}" "C:\temp\${{ steps.meta.outputs.asset }}" --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis ${{ steps.meta.outputs.version }}" --notes "$($d.notes)" --latest
