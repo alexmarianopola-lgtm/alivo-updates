@@ -1,0 +1,5 @@
+{
+  "version": "0.22.70",
+  "asset_name": "ALIYVO_BETA_GRATIS_02270.zip",
+  "notes": "Versao de recuperacao baseada na 0.22.68, removendo temporariamente a inicializacao nova do detector de lembretes da 0.22.69 que causou falha de abertura em alguns PCs. Mantem CRM do dia corrigido, IA, visual dos lembretes, WhatsApp, chamadas, Prazos e todos os dados locais."
+}
