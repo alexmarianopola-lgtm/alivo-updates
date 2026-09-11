@@ -1,0 +1,5 @@
+{
+  "version": "0.22.75",
+  "asset_name": "ALIYVO_BETA_GRATIS_02275.zip",
+  "notes": "Versao-ponte para atualizar automaticamente instalacoes 0.22.72 pelo canal oficial. Mantem todas as funcoes da 0.22.72/0.22.74, instala o novo motor de atualizacao e corrige o falso rollback. Pacote sem copia embutida da versao anterior para manter a transicao leve; a partir da proxima atualizacao o backup/rollback automatico passa a ser criado pelo novo atualizador."
+}
