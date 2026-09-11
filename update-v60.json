@@ -1,0 +1,5 @@
+{
+  "version": "0.22.72",
+  "asset_name": "ALIYVO_BETA_GRATIS_02272.zip",
+  "notes": "Melhora o painel Hoje para exibir aguardando agora, minutos e horas corretamente usando waiting_seconds. Adiciona sugestao de lembrete para tarefas futuras detectadas na conversa ativa, reaproveitando exclusivamente o ciclo de diagnostico ja existente, sem novo timer e sem alteracao do __init__. A primeira leitura de cada conversa apenas cria uma referencia e nao sugere mensagens antigas. Nenhum lembrete e criado sozinho: a sugestao abre o editor pre-preenchido para revisao e salvamento."
+}
