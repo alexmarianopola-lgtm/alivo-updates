@@ -1,0 +1,51 @@
+name: Publicar ALIYVO v63
+on:
+  push:
+    paths:
+      - 'trigger-v63.txt'
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler versao
+        id: meta
+        shell: pwsh
+        run: |
+          $d = Get-Content update-v63.json -Raw | ConvertFrom-Json
+          "version=$($d.version)" >> $env:GITHUB_OUTPUT
+          "tag=v$($d.version)" >> $env:GITHUB_OUTPUT
+          "asset=$($d.asset_name)" >> $env:GITHUB_OUTPUT
+      - name: Baixar base 0.22.73
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base | Out-Null
+          gh release download v0.22.73 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02273.zip" --dir C:\temp\base
+      - name: Montar versao 0.22.74
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force C:\temp\build -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path C:\temp\build | Out-Null
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02273.zip -DestinationPath C:\temp\build -Force
+          python patch_script_v63.py C:\temp\build\_app\main.py
+          python patch_worker_v63.py C:\temp\build\_app\updater_worker.pyw
+          python -m py_compile C:\temp\build\_app\main.py
+          python -m py_compile C:\temp\build\_app\updater_worker.pyw
+          python C:\temp\build\_app\updater_worker.pyw --self-test
+          Select-String -Path C:\temp\build\_app\updater_worker.pyw -Pattern "proc.poll\(\) is None" | Out-Null
+          Select-String -Path C:\temp\build\_app\updater_worker.pyw -Pattern "wait_startup_marker\(update_dir,args.version,proc,90\)" | Out-Null
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath "C:\temp\${{ steps.meta.outputs.asset }}" -Force
+      - name: Publicar Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $d = Get-Content update-v63.json -Raw | ConvertFrom-Json
+          gh release create "${{ steps.meta.outputs.tag }}" "C:\temp\${{ steps.meta.outputs.asset }}" --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis ${{ steps.meta.outputs.version }}" --notes "$($d.notes)" --latest
