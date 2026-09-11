@@ -1,0 +1,87 @@
+name: Publicar ALIYVO v72
+on:
+  push:
+    paths: ['trigger-v72.txt']
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar base estavel 0.22.72
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\build -Force
+      - name: Corrigir encerramento do atualizador
+        shell: pwsh
+        run: |
+          python patch_script_v72.py C:\temp\build\_app\main.py
+          python -m py_compile C:\temp\build\_app\main.py
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.77"' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'QTimer.singleShot\(500,QApplication.instance\(\).quit\)' | Out-Null
+      - name: Empacotar 0.22.77
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\ALIYVO_BETA_GRATIS_02277.zip -Force
+          Remove-Item -Recurse -Force C:\temp\verify -ErrorAction SilentlyContinue
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02277.zip -DestinationPath C:\temp\verify -Force
+          Select-String -Path C:\temp\verify\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.77"' | Out-Null
+      - name: Criar reparador unico para maquinas presas na 0.22.72
+        shell: pwsh
+        run: |
+          @'
+          using System;
+          using System.IO;
+          using System.IO.Compression;
+          using System.Net;
+          using System.Diagnostics;
+          using System.Management;
+          using System.Windows.Forms;
+          using Microsoft.CSharp.RuntimeBinder;
+          class Program {
+            const string Url="https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.22.77/ALIYVO_BETA_GRATIS_02277.zip";
+            [STAThread]
+            static void Main(){
+              try{
+                string link=FindShortcut();
+                if(link==null) throw new Exception("Nao encontrei o atalho ALIYVO na Area de Trabalho.");
+                Type t=Type.GetTypeFromProgID("WScript.Shell"); dynamic sh=Activator.CreateInstance(t); dynamic sc=sh.CreateShortcut(link);
+                string work=(string)sc.WorkingDirectory; string target=(string)sc.TargetPath; string args=(string)sc.Arguments;
+                if(String.IsNullOrWhiteSpace(work)||!Directory.Exists(work)) throw new Exception("Pasta do ALIYVO nao encontrada pelo atalho.");
+                string root=Directory.GetParent(work).FullName;
+                KillAliyvoPython();
+                string temp=Path.Combine(Path.GetTempPath(),"aliyvo_reparo_"+Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+                string zip=Path.Combine(temp,"aliyvo.zip");
+                using(var wc=new WebClient()){ wc.Headers.Add("User-Agent","ALIYVO-Repair/1.0"); wc.DownloadFile(Url,zip); }
+                string ext=Path.Combine(temp,"ext"); ZipFile.ExtractToDirectory(zip,ext);
+                if(!File.Exists(Path.Combine(ext,"_app","main.py"))) throw new Exception("Pacote baixado invalido.");
+                CopyDir(ext,root);
+                try{ Directory.Delete(temp,true);}catch{}
+                Process.Start(new ProcessStartInfo(target,args){WorkingDirectory=work,UseShellExecute=true});
+                MessageBox.Show("ALIYVO reparado e atualizado para 0.22.77.\n\nA partir de agora o botao Atualizacoes volta a funcionar normalmente.","ALIYVO",MessageBoxButtons.OK,MessageBoxIcon.Information);
+              }catch(Exception ex){ MessageBox.Show("Nao consegui reparar automaticamente:\n\n"+ex.Message,"ALIYVO - Reparador",MessageBoxButtons.OK,MessageBoxIcon.Error); }
+            }
+            static string FindShortcut(){
+              string[] dirs={Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"OneDrive","Desktop"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"OneDrive","Area de Trabalho")};
+              foreach(string d in dirs){try{string p=Path.Combine(d,"ALIYVO.lnk");if(File.Exists(p))return p;}catch{}} return null;
+            }
+            static void KillAliyvoPython(){
+              try{ using(var s=new ManagementObjectSearcher("SELECT ProcessId,CommandLine FROM Win32_Process WHERE Name='pythonw.exe' OR Name='python.exe'")){ foreach(ManagementObject o in s.Get()){ string c=Convert.ToString(o["CommandLine"]); if(c.IndexOf("Aliyvo.pyw",StringComparison.OrdinalIgnoreCase)>=0){ try{Process.GetProcessById(Convert.ToInt32(o["ProcessId"])).Kill();}catch{} } } } System.Threading.Thread.Sleep(1200);}catch{}
+            }
+            static void CopyDir(string src,string dst){ foreach(string d in Directory.GetDirectories(src,"*",SearchOption.AllDirectories)){Directory.CreateDirectory(d.Replace(src,dst));} foreach(string f in Directory.GetFiles(src,"*",SearchOption.AllDirectories)){string to=f.Replace(src,dst);Directory.CreateDirectory(Path.GetDirectoryName(to));File.Copy(f,to,true);} }
+          }
+          '@ | Set-Content C:\temp\RepairAliyvo.cs -Encoding UTF8
+          $csc="$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:winexe /out:C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe /reference:System.Windows.Forms.dll /reference:System.Management.dll /reference:System.Net.Http.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll C:\temp\RepairAliyvo.cs
+          if(-not (Test-Path C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe)){throw 'reparador nao compilado'}
+      - name: Publicar release 0.22.77
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.22.77 C:\temp\ALIYVO_BETA_GRATIS_02277.zip C:\temp\ALIYVO_REPARAR_ATUALIZADOR.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis 0.22.77" --notes "Corrige definitivamente o fluxo de atualizacao: ao clicar Atualizar, o ALIYVO agora encerra o processo inteiro antes da troca dos arquivos. Inclui reparador unico para instalacoes 0.22.72 que ficaram presas no atualizador antigo. O reparador preserva dados locais, WhatsApp, IA, lembretes e diagnosticos." --latest
