@@ -1,0 +1,65 @@
+name: Publicar ALIYVO v62
+on:
+  push:
+    paths:
+      - 'trigger-v62.txt'
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ler versao
+        id: meta
+        shell: pwsh
+        run: |
+          $d = Get-Content update-v62.json -Raw | ConvertFrom-Json
+          "version=$($d.version)" >> $env:GITHUB_OUTPUT
+          "tag=v$($d.version)" >> $env:GITHUB_OUTPUT
+          "asset=$($d.asset_name)" >> $env:GITHUB_OUTPUT
+      - name: Baixar base 0.22.72
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base | Out-Null
+          gh release download v0.22.72 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02272.zip" --dir C:\temp\base
+      - name: Montar versao protegida
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force C:\temp\build,C:\temp\old -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path C:\temp\build,C:\temp\old | Out-Null
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\build -Force
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02272.zip -DestinationPath C:\temp\old -Force
+          python patch_script_v62.py C:\temp\build\_app\main.py
+          Copy-Item updater_worker_v62.pyw C:\temp\build\_app\updater_worker.pyw -Force
+          python -m py_compile C:\temp\build\_app\main.py
+          python -m py_compile C:\temp\build\_app\updater_worker.pyw
+          python C:\temp\build\_app\updater_worker.pyw --self-test
+      - name: Incluir primeira versao anterior para restauracao manual
+        shell: pwsh
+        run: |
+          $prev='C:\temp\build\_rollback\previous'
+          New-Item -ItemType Directory -Force -Path $prev | Out-Null
+          $items=@()
+          Get-ChildItem C:\temp\build | Where-Object { $_.Name -notin @('_update','_rollback') } | ForEach-Object {
+            $items += @{name=$_.Name;existed=$true}
+          }
+          Get-ChildItem C:\temp\old | Where-Object { $_.Name -notin @('_update','_rollback') } | ForEach-Object {
+            Copy-Item $_.FullName (Join-Path $prev $_.Name) -Recurse -Force
+          }
+          $manifest=@{version='0.22.72';created_at=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds();items=$items} | ConvertTo-Json -Depth 5
+          Set-Content -Path (Join-Path $prev 'manifest.json') -Value $manifest -Encoding UTF8
+          python -c "import json,pathlib; p=pathlib.Path(r'C:\temp\build\_rollback\previous\manifest.json'); d=json.loads(p.read_text(encoding='utf-8-sig')); assert d['version']=='0.22.72' and d['items']; print('rollback seed OK',len(d['items']))"
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath "C:\temp\${{ steps.meta.outputs.asset }}" -Force
+      - name: Publicar Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $d = Get-Content update-v62.json -Raw | ConvertFrom-Json
+          gh release create "${{ steps.meta.outputs.tag }}" "C:\temp\${{ steps.meta.outputs.asset }}" --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO Beta Gratis ${{ steps.meta.outputs.version }}" --notes "$($d.notes)" --latest
