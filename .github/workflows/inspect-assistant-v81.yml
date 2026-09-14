@@ -17,22 +17,25 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build | Out-Null
           gh release download v0.22.81 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02281.zip" --dir C:\temp\base
           Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02281.zip -DestinationPath C:\temp\build -Force
-      - name: Mostrar WebView2 do WhatsApp
+      - name: Mostrar metodos WebView2
         shell: pwsh
         env:
           PYTHONIOENCODING: utf-8
         run: |
           @'
+          import ast
           from pathlib import Path
-          s=Path(r'C:\temp\build\_app\main.py').read_text(encoding='utf-8',errors='ignore').splitlines()
-          starts=[]
-          for key in ('class WhatsAppView','class _WebView2PageAdapter'):
-              for i,l in enumerate(s):
-                  if key in l:
-                      starts.append(i)
-          for start in sorted(starts):
-              end=min(len(s),start+180)
-              print(f'--- {start+1}:{end} ---')
-              for i in range(start,end):
-                  print(f'{i+1:05d}: '+s[i].encode('ascii','backslashreplace').decode('ascii'))
+          p=Path(r'C:\temp\build\_app\main.py')
+          s=p.read_text(encoding='utf-8',errors='ignore')
+          lines=s.splitlines()
+          tree=ast.parse(s)
+          for n in tree.body:
+              if isinstance(n,ast.ClassDef) and n.name in ('WhatsAppView','_WebView2PageAdapter'):
+                  print('CLASS',n.name,n.lineno,n.end_lineno)
+                  for m in n.body:
+                      if isinstance(m,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                          print('METHOD',m.name,m.lineno,m.end_lineno)
+                          if m.name in ('setUrl','url','back','reload','_on_dom_loaded','_on_wv2_initialized','navigate','load','load_url'):
+                              for i in range(m.lineno-1,m.end_lineno):
+                                  print(f'{i+1:05d}: '+lines[i].encode('ascii','backslashreplace').decode('ascii'))
           '@ | python -
