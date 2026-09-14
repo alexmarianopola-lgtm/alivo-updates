@@ -1,0 +1,23 @@
+name: Inspecionar Assistente v0.22.81
+on:
+  push:
+    paths: ['trigger-inspect-v81.txt']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar release 0.22.81
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build | Out-Null
+          gh release download v0.22.81 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02281.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02281.zip -DestinationPath C:\temp\build -Force
+      - name: Mostrar codigo do Assistente e WebEngine
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; p=Path(r'C:\temp\build\_app\main.py'); s=p.read_text(encoding='utf-8',errors='ignore').splitlines(); keys=('ChatGPT','chatgpt','Assistente','assistant','QWebEngine','WebEngine','downloadRequested','permissionRequested','mediaPlayback'); idx=sorted(set(i for i,l in enumerate(s) if any(k in l for k in keys))); shown=set(); [(print(f'--- {max(0,i-12)+1}:{min(len(s),i+25)} ---') or [print(f'{j+1:05d}: {s[j]}') for j in range(max(0,i-12),min(len(s),i+25)) if j not in shown and not shown.add(j)]) for i in idx]"
