@@ -1,0 +1,28 @@
+name: Exportar trechos chamadas v60 v86
+on:
+  push:
+    paths: ['trigger-export-call-sections.txt']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar e extrair
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v60,C:\temp\v86,C:\temp\out | Out-Null
+          gh release download v0.22.60 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r60
+          gh release download v0.22.86 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r86
+          Expand-Archive (Get-ChildItem C:\temp\r60\*.zip | Select-Object -First 1).FullName -DestinationPath C:\temp\v60 -Force
+          Expand-Archive (Get-ChildItem C:\temp\r86\*.zip | Select-Object -First 1).FullName -DestinationPath C:\temp\v86 -Force
+          Copy-Item C:\temp\v60\_app\main.py C:\temp\out\main_v60.py
+          Copy-Item C:\temp\v86\_app\main.py C:\temp\out\main_v86.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: call-sections-v60-v86
+          path: C:\temp\out
+          retention-days: 1
