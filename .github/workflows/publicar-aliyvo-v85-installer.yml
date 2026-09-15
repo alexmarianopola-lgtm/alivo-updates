@@ -20,7 +20,6 @@ jobs:
           Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02283.zip -DestinationPath C:\temp\build -Force
           if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.22.83 invalida' }
           if(-not (Test-Path 'C:\temp\build\INSTALAR ALIYVO.bat')){ throw 'Instalador BAT da base nao encontrado' }
-          Get-Content 'C:\temp\build\INSTALAR ALIYVO.bat' | Out-Host
           (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Out-File C:\temp\updater_sha.txt -Encoding ascii
 
       - name: Gerar 0.22.85 sem a alteracao 0.22.84
@@ -49,7 +48,7 @@ jobs:
         run: |
           $iss=@'
           [Setup]
-          AppId={{8B935A3E-ALIYVO-2285-RECOVERY-2026}}
+          AppId={{8B935A3E-2285-4E85-8A11-202609150001}}
           AppName=ALIYVO
           AppVersion=0.22.85
           AppPublisher=ALIYVO
@@ -71,7 +70,7 @@ jobs:
           Source: "C:\temp\build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
           [Run]
-          Filename: "{app}\INSTALAR ALIYVO.bat"; WorkingDir: "{app}"; Flags: waituntilterminated runhidden; Description: "Configurar ALIYVO"
+          Filename: "{app}\INSTALAR ALIYVO.bat"; WorkingDir: "{app}"; Flags: waituntilterminated runhidden skipifsilent; Description: "Configurar ALIYVO"
           '@
           Set-Content C:\temp\aliyvo.iss $iss -Encoding UTF8
           $iscc='C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
@@ -85,16 +84,27 @@ jobs:
         run: |
           $dest='C:\temp\install-test'
           Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
-          & C:\temp\out\ALIYVO_SETUP_02285.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=$dest
-          if($LASTEXITCODE -ne 0){ throw "Setup retornou codigo $LASTEXITCODE" }
+          $proc=Start-Process -FilePath C:\temp\out\ALIYVO_SETUP_02285.exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dest") -Wait -PassThru
+          if($proc.ExitCode -ne 0){ throw "Setup retornou codigo $($proc.ExitCode)" }
           if(-not (Test-Path "$dest\_app\main.py")){ throw 'Setup nao instalou main.py' }
           Select-String -Path "$dest\_app\main.py" -Pattern 'ALIYVO_VERSION = "0.22.85"' | Out-Null
           if(-not (Test-Path "$dest\_app\updater_worker.pyw")){ throw 'Updater ausente na instalacao' }
-          Write-Host 'TESTE DO INSTALADOR: OK'
+          Write-Host 'TESTE DE EXTRACAO DO INSTALADOR: OK'
+
+      - name: Testar bootstrap do ALIYVO
+        shell: pwsh
+        run: |
+          $dest='C:\temp\install-test'
+          $p=Start-Process -FilePath cmd.exe -ArgumentList @('/c','INSTALAR ALIYVO.bat') -WorkingDirectory $dest -Wait -PassThru -WindowStyle Hidden
+          if($p.ExitCode -ne 0){ throw "Bootstrap retornou codigo $($p.ExitCode)" }
+          $shortcut=Join-Path ([Environment]::GetFolderPath('Desktop')) 'ALIYVO.lnk'
+          if(-not (Test-Path $shortcut)){ throw 'Bootstrap nao criou atalho ALIYVO' }
+          Get-CimInstance Win32_Process | Where-Object { ($_.Name -in @('python.exe','pythonw.exe')) -and ($_.CommandLine -match 'install-test.*Aliyvo.pyw') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          Write-Host 'TESTE DO BOOTSTRAP: OK'
 
       - name: Publicar release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.22.85 C:\temp\out\ALIYVO_BETA_GRATIS_02285.zip C:\temp\out\ALIYVO_SETUP_02285.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.22.85 - reinstalacao de recuperacao" --notes "Versao de recuperacao baseada na 0.22.83, ultima base que estava abrindo antes da alteracao 0.22.84. Mantem o atualizador automatico corrigido. Inclui novo instalador EXE testado em uma pasta limpa no Windows. Os dados do usuario em LOCALAPPDATA\\ALIYVO nao sao apagados." --latest
+          gh release create v0.22.85 C:\temp\out\ALIYVO_BETA_GRATIS_02285.zip C:\temp\out\ALIYVO_SETUP_02285.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.22.85 - reinstalacao de recuperacao" --notes "Versao de recuperacao baseada na 0.22.83, ultima base que estava abrindo antes da alteracao 0.22.84. Mantem o atualizador automatico corrigido. O instalador EXE foi testado em uma pasta limpa no Windows e o bootstrap foi executado para validar dependencias e criacao do atalho. Os dados do usuario em LOCALAPPDATA\\ALIYVO nao sao apagados." --latest
