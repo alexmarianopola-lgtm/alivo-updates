@@ -1,0 +1,29 @@
+name: Diagnosticar WhatsApp calls 0.22.86
+on:
+  push:
+    paths: ['trigger-diag-call-v86.txt']
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.86
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v86 | Out-Null
+          gh release download v0.22.86 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02286.zip" --dir C:\temp
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02286.zip -DestinationPath C:\temp\v86 -Force
+      - name: Mostrar codigo WhatsAppView e chamadas
+        shell: pwsh
+        run: |
+          $p='C:\temp\v86\_app\main.py'
+          $lines=Get-Content $p -Encoding UTF8
+          $patterns=@('class WhatsAppView','PermissionRequested','_on_permission','microphone','camera','autoplay','windowmanagement','call','Ligação','ligacao')
+          foreach($pat in $patterns){
+            Write-Host "===== $pat ====="
+            Select-String -Path $p -Pattern $pat -CaseSensitive:$false -Context 8,20 | ForEach-Object { $_.Context.PreContext; $_.Line; $_.Context.PostContext; '---' }
+          }
