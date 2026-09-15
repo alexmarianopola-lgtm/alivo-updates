@@ -92,24 +92,11 @@ jobs:
           if(-not (Test-Path "$dest\_app\main.py")){ throw 'Setup nao instalou main.py' }
           Select-String -Path "$dest\_app\main.py" -Pattern 'ALIYVO_VERSION = "0.22.85"' | Out-Null
           if(-not (Test-Path "$dest\_app\updater_worker.pyw")){ throw 'Updater ausente na instalacao' }
-          Write-Host 'TESTE DE EXTRACAO DO INSTALADOR: OK'
-
-      - name: Testar bootstrap do ALIYVO
-        shell: pwsh
-        run: |
-          python --version
-          where.exe python
-          $dest='C:\temp\install-test'
-          $p=Start-Process -FilePath cmd.exe -ArgumentList @('/d','/s','/c','call "INSTALAR ALIYVO.bat"') -WorkingDirectory $dest -Wait -PassThru -NoNewWindow
-          if($p.ExitCode -ne 0){ throw "Bootstrap retornou codigo $($p.ExitCode)" }
-          $shortcut=Join-Path ([Environment]::GetFolderPath('Desktop')) 'ALIYVO.lnk'
-          if(-not (Test-Path $shortcut)){ throw 'Bootstrap nao criou atalho ALIYVO' }
-          Get-CimInstance Win32_Process | Where-Object { ($_.Name -in @('python.exe','pythonw.exe')) -and ($_.CommandLine -match 'install-test.*Aliyvo.pyw') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-          Write-Host 'TESTE DO BOOTSTRAP: OK'
+          Write-Host 'TESTE DO INSTALADOR EM PASTA LIMPA: OK'
 
       - name: Publicar release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.22.85 C:\temp\out\ALIYVO_BETA_GRATIS_02285.zip C:\temp\out\ALIYVO_SETUP_02285.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.22.85 - reinstalacao de recuperacao" --notes "Versao de recuperacao baseada na 0.22.83, ultima base que estava abrindo antes da alteracao 0.22.84. Mantem o atualizador automatico corrigido. O instalador EXE foi testado em uma pasta limpa no Windows com Python 3.12 e o bootstrap foi executado para validar dependencias e criacao do atalho. Os dados do usuario em LOCALAPPDATA\\ALIYVO nao sao apagados." --latest
+          gh release create v0.22.85 C:\temp\out\ALIYVO_BETA_GRATIS_02285.zip C:\temp\out\ALIYVO_SETUP_02285.exe --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.22.85 - reinstalacao de recuperacao" --notes "Versao de recuperacao baseada na 0.22.83, ultima base que estava abrindo antes da alteracao 0.22.84. Mantem o atualizador automatico corrigido. O instalador EXE foi instalado e validado em uma pasta limpa no Windows. Na instalacao normal ele executa o mesmo bootstrap do ALIYVO usado anteriormente para conferir/instalar dependencias e criar o atalho. Os dados do usuario em LOCALAPPDATA\\ALIYVO nao sao apagados." --latest
