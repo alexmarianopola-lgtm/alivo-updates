@@ -1,0 +1,37 @@
+name: Gravar diff chamadas v60 v86
+on:
+  push:
+    paths: ['trigger-write-call-diff.txt']
+permissions:
+  contents: write
+jobs:
+  diff:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar versoes e gerar resumo
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v60,C:\temp\v86 | Out-Null
+          gh release download v0.22.60 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r60
+          gh release download v0.22.86 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r86
+          Expand-Archive (Get-ChildItem C:\temp\r60\*.zip | Select-Object -First 1).FullName -DestinationPath C:\temp\v60 -Force
+          Expand-Archive (Get-ChildItem C:\temp\r86\*.zip | Select-Object -First 1).FullName -DestinationPath C:\temp\v86 -Force
+          $a='C:\temp\v60\_app\main.py'; $b='C:\temp\v86\_app\main.py'
+          $lines=@()
+          foreach($pair in @(@('V60',$a),@('V86',$b))){
+            $lines += "===== $($pair[0]) ====="
+            $m=Select-String -Path $pair[1] -Pattern 'class WhatsAppView|PermissionRequested|permission|microphone|camera|autoplay|new_window|NewWindow|window_features|CoreWebView2|user_data_folder|fullscreen|media|call|video' -CaseSensitive:$false -Context 5,15
+            foreach($x in $m){$lines += $x.Context.PreContext; $lines += $x.Line; $lines += $x.Context.PostContext; $lines += '---'}
+          }
+          $diff = git diff --no-index --unified=6 $a $b 2>$null
+          $lines += '===== DIFF FILTERED ====='
+          foreach($d in $diff){ if($d -match 'WhatsAppView|Permission|microphone|camera|autoplay|new.window|webview2|fullscreen|media|call|video|window'){ $lines += $d } }
+          $lines | Set-Content -Encoding UTF8 diagnostico_call_compare.txt
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add diagnostico_call_compare.txt
+          git commit -m "Save WhatsApp call comparison" || echo "no changes"
+          git push
