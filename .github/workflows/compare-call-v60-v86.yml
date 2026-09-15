@@ -1,0 +1,34 @@
+name: Comparar chamadas 0.22.60 x 0.22.86
+on:
+  push:
+    paths: ['trigger-compare-call-v60-v86.txt']
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar versoes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v60,C:\temp\v86 | Out-Null
+          gh release download v0.22.60 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r60
+          gh release download v0.22.86 --repo "$env:GITHUB_REPOSITORY" --pattern "*.zip" --dir C:\temp\r86
+          $z60=(Get-ChildItem C:\temp\r60\*.zip | Select-Object -First 1).FullName
+          $z86=(Get-ChildItem C:\temp\r86\*.zip | Select-Object -First 1).FullName
+          Expand-Archive $z60 -DestinationPath C:\temp\v60 -Force
+          Expand-Archive $z86 -DestinationPath C:\temp\v86 -Force
+      - name: Extrair trechos relevantes
+        shell: pwsh
+        run: |
+          $a='C:\temp\v60\_app\main.py'; $b='C:\temp\v86\_app\main.py'
+          foreach($p in @($a,$b)){
+            Write-Host "===== FILE $p ====="
+            Select-String -Path $p -Pattern 'class WhatsAppView|_configure_webview2_core|_on_permission_requested|deleteLater|setParent\(None\)|destroy|recreate|closeEvent|PermissionRequested|fullscreen_support|handle_new_window|user_data_folder|WebView2' -CaseSensitive:$false -Context 12,35 | ForEach-Object { $_.Context.PreContext; $_.Line; $_.Context.PostContext; '---' }
+          }
+          Write-Host '===== DIFF FILTERED ====='
+          git diff --no-index --unified=8 $a $b | Select-String -Pattern 'WhatsAppView|Permission|microphone|camera|autoplay|window|deleteLater|setParent|destroy|recreate|webview|closeEvent|fullscreen|profile|call' -CaseSensitive:$false -Context 5,12 | ForEach-Object { $_.Context.PreContext; $_.Line; $_.Context.PostContext; '---' }
+          exit 0
