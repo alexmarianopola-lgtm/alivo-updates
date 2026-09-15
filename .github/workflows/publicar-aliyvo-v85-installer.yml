@@ -100,7 +100,7 @@ jobs:
           python --version
           where.exe python
           $dest='C:\temp\install-test'
-          $p=Start-Process -FilePath cmd.exe -ArgumentList @('/c','INSTALAR ALIYVO.bat') -WorkingDirectory $dest -Wait -PassThru -NoNewWindow
+          $p=Start-Process -FilePath cmd.exe -ArgumentList @('/d','/s','/c','call "INSTALAR ALIYVO.bat"') -WorkingDirectory $dest -Wait -PassThru -NoNewWindow
           if($p.ExitCode -ne 0){ throw "Bootstrap retornou codigo $($p.ExitCode)" }
           $shortcut=Join-Path ([Environment]::GetFolderPath('Desktop')) 'ALIYVO.lnk'
           if(-not (Test-Path $shortcut)){ throw 'Bootstrap nao criou atalho ALIYVO' }
