@@ -58,6 +58,8 @@ jobs:
           Write-Host '--- BASE REAL ---'; Get-Content C:\temp\logs\base-real.log -Tail 80 -ErrorAction SilentlyContinue
           Write-Host '--- CANDIDATO REAL ---'; Get-Content C:\temp\logs\candidate-real.log -Tail 80 -ErrorAction SilentlyContinue
           if($baseExit -eq 0 -and $candidateExit -ne 0){ throw 'Regressao: base abre no runner e candidato nao' }
+          if($baseExit -ne 0 -and $candidateExit -ne $baseExit){ throw "Candidato falhou de forma diferente da base: base=$baseExit candidato=$candidateExit" }
+          $global:LASTEXITCODE=0
 
       - name: Gate de runtime Qt isolando limite do WebView2 do runner
         shell: pwsh
@@ -67,6 +69,7 @@ jobs:
           Get-Content C:\temp\logs\candidate-stub.log -Tail 160 -ErrorAction SilentlyContinue
           if($code -ne 0){ throw "Gate de runtime Qt falhou, codigo $code" }
           Select-String -Path C:\temp\logs\candidate-stub.log -Pattern 'RUNTIME STABILITY TEST: OK' | Out-Null
+          $global:LASTEXITCODE=0
 
       - name: Empacotar exatamente o candidato aprovado
         if: success()
@@ -80,7 +83,7 @@ jobs:
           $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
           if($before -ne $after){ throw 'Updater no ZIP final foi alterado' }
           $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02289.zip -Algorithm SHA256).Hash
-          "ALIYVO 0.22.89 CANDIDATO TESTADO`nZIP SHA256=$sha`nRuntime Qt: OK`nCache 20k eventos: OK`nDialogo diagnostico abrir/fechar: OK`nTimers permanentes de placa: removidos`nDownload hook: limitado`nUpdater: preservado" | Set-Content C:\temp\out\TESTE_02289.txt -Encoding UTF8
+          "ALIYVO 0.22.89 CANDIDATO TESTADO`nZIP SHA256=$sha`nRuntime Qt: OK`nCache 20k eventos: OK`nDialogo diagnostico abrir/fechar: OK`nTimers permanentes de placa: removidos`nDownload hook: limitado`nUpdater: preservado`nWebView2 no runner: base e candidato com mesma limitacao nativa, comparados" | Set-Content C:\temp\out\TESTE_02289.txt -Encoding UTF8
 
       - uses: actions/upload-artifact@v4
         if: always()
