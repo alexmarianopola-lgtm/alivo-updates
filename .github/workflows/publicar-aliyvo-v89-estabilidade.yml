@@ -1,0 +1,88 @@
+name: Publicar ALIYVO 0.22.89 estabilidade validada
+on:
+  push:
+    paths: ['trigger-v89-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.22.88
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.22.88 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02288.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02288.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.22.88 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar somente patch de estabilidade
+        shell: pwsh
+        run: |
+          python patch_stability_v89.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.89"' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'setInterval\(5000\)' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'setInterval\(600000\)' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern '_diagnostic_cache_rows' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern '_aliyvo_download_hook_attempts<8' | Out-Null
+          if(Select-String -Path C:\temp\build\_app\main.py -Pattern '_aliyvo_plate_override_timer=QTimer\(\)' -Quiet){ throw 'Timer permanente plate override ainda existe' }
+          if(Select-String -Path C:\temp\build\_app\main.py -Pattern '_aliyvo_plate_ui_cleaner_timer=QTimer\(\)' -Quiet){ throw 'Timer permanente plate cleaner ainda existe' }
+          if(Select-String -Path C:\temp\build\_app\main.py -Pattern '_aliyvo_plate_v24_timer=QTimer\(\)' -Quiet){ throw 'Timer permanente plate v24 ainda existe' }
+          if(Select-String -Path C:\temp\build\_app\main.py -Pattern 'class ChatGPTWebView\(QtWebView2Widget\)' -Quiet){ throw 'Assistente voltou para WebView2' }
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'self.web=QWebEngineView\(self\)' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'class WhatsAppView\(QtWebView2Widget\)' | Out-Null
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Instalar dependencia do gate Qt
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check --quiet PyQt6
+
+      - name: Testar cache, timers e fechamento do Diagnostico
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests\logic_stability_v89.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-test.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate de estabilidade falhou' }
+          Select-String -Path C:\temp\out\logic-test.txt -Pattern 'ALIYVO_V89_LOGIC_STABILITY=OK' | Out-Null
+
+      - name: Empacotar candidato exato
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02289.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02289.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          Select-String -Path C:\temp\verify\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.89"' | Out-Null
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater no ZIP final foi alterado' }
+
+      - name: Repetir gate sobre o ZIP final
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests\logic_stability_v89.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-test-final-zip.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate' }
+          Select-String -Path C:\temp\out\logic-test-final-zip.txt -Pattern 'ALIYVO_V89_LOGIC_STABILITY=OK' | Out-Null
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02289.zip -Algorithm SHA256).Hash
+          "ALIYVO 0.22.89`nBase: 0.22.88`nCache historico 20k: OK`nFechar Diagnostico + aguardar refresh: OK`nTimers permanentes antigos: removidos`nScan WhatsApp: 5 s`nBackup diagnostico: 10 min`nUpdater preservado`nZIP SHA256=$sha" | Set-Content C:\temp\out\VALIDACAO_02289.txt -Encoding UTF8
+
+      - name: Publicar somente depois dos gates
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.22.89 C:\temp\out\ALIYVO_BETA_GRATIS_02289.zip C:\temp\out\VALIDACAO_02289.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.22.89 - estabilidade" --notes "Revisao de estabilidade baseada diretamente na 0.22.88. Corrige o timer do Diagnostico que podia acessar QTextEdit ja destruido; coloca o historico do diagnostico em cache; reduz o scan continuo do WhatsApp de 3s para 5s; reduz backup de 2min para 10min e evita recalculo pesado no backup; remove tres timers legados da busca por placa que varriam widgets continuamente; limita a descoberta de hooks de download ao startup; encerra o polling dos perfis IA ao fechar a janela. Assistente, arquitetura do WhatsApp e updater foram preservados. A release so e publicada depois de gate isolado de cache/timers/fechamento do Diagnostico e repeticao do mesmo gate sobre o ZIP final. O WebView2 real continua dependendo da validacao no PC do usuario, pois o runner hospedado do GitHub nao inicializa o componente nativo." --latest
