@@ -62,7 +62,7 @@ def _aliyvo_webdiag_log(_event,**_data):
         _f=_aliyvo_webdiag_file()
         if _f is not None:
             with _f.open("a",encoding="utf-8") as _h:
-                _h.write(_json.dumps(_row,ensure_ascii=False,default=str)+"\n")
+                _h.write(_json.dumps(_row,ensure_ascii=False,default=str)+"\\n")
     except Exception:
         pass
 
