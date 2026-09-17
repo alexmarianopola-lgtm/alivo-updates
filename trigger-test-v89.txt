@@ -1,1 +1,1 @@
-test stability candidate v0.22.89 rerun 2 2026-09-17
+test stability candidate v0.22.89 rerun 3 2026-09-17
