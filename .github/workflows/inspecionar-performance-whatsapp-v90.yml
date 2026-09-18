@@ -1,0 +1,41 @@
+name: Inspecionar performance WhatsApp v0.22.90
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-performance-whatsapp-v90.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar base oficial 0.22.90 e localizar polling
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          rm -rf /tmp/base /tmp/app && mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.90 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02290.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02290.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          echo '=== VERSION ==='
+          grep -n 'ALIYVO_VERSION' "$P" | head -n 5 || true
+          echo '=== DIAGNOSTIC START / SCAN ==='
+          n=$(grep -n 'def _diagnostic_start' "$P" | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-20)),$((n+180))p" "$P"; fi
+          echo '=== DIAGNOSTIC TICK ==='
+          n=$(grep -n 'def _diagnostic_tick' "$P" | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-40)),$((n+260))p" "$P"; fi
+          echo '=== WHATSAPP VIEW ==='
+          n=$(grep -n 'class WhatsAppView' "$P" | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-20)),$((n+340))p" "$P"; fi
+          echo '=== TIMERS NEAR WHATSAPP/DIAGNOSTIC ==='
+          grep -nE 'QTimer|setInterval|singleShot|runJavaScript|execute_script|whatsapp|WhatsApp|_diagnostic_' "$P" | head -n 1500 || true
+          echo '=== ALL PERMANENT TIMER INTERVALS ==='
+          grep -nE 'setInterval\([0-9]+\)|\.start\([0-9]+\)' "$P" | head -n 800 || true
