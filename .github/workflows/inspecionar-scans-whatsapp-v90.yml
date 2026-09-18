@@ -1,0 +1,34 @@
+name: Inspecionar scans WhatsApp v90
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-scans-whatsapp-v90.yml"
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair somente os trechos criticos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.90 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02290.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02290.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          echo '=== ATTENDANCE INIT + EXTRACT + SCAN ==='
+          sed -n '6550,6860p' "$P"
+          echo '=== DIAGNOSTIC SCAN DONE ==='
+          sed -n '7380,7595p' "$P"
+          echo '=== AI SCHEDULE ==='
+          sed -n '8060,8135p' "$P"
+          echo '=== AI TICK ==='
+          sed -n '9095,9165p' "$P"
+          echo '=== REMINDER CHECK ==='
+          sed -n '9230,9440p' "$P"
+          echo '=== HEALTH CHECK + CALLERS ==='
+          sed -n '11080,11645p' "$P"
+          grep -n '_check_whatsapp_stuck' "$P" || true
