@@ -1,0 +1,38 @@
+name: Inspecionar detalhes performance WhatsApp v90
+on:
+  push:
+    paths:
+      - ".github/workflows/inspecionar-detalhes-whatsapp-v90.yml"
+permissions:
+  contents: read
+jobs:
+  inspecionar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspecionar funcoes que tocam WhatsApp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.90 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02290.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02290.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          for pat in "_attendance_extract_js" "_diagnostic_scan_done" "_reminder_start" "_reminder_tick" "_check_whatsapp_stuck" "_ai_observer_reschedule" "_ai_observer_tick"; do
+            echo "===== $pat ====="
+            grep -n "$pat" "$P" | head -n 10 || true
+          done
+          echo "===== ATTENDANCE EXTRACT ====="
+          n=$(grep -n 'def _attendance_extract_js' "$P" | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-10)),$((n+360))p" "$P"; fi
+          echo "===== SCAN DONE ====="
+          n=$(grep -n 'def _diagnostic_scan_done' "$P" | head -n1 | cut -d: -f1 || true)
+          if [ -n "$n" ]; then sed -n "$((n-20)),$((n+360))p" "$P"; fi
+          echo "===== REMINDER ====="
+          grep -nE '_reminder_(start|tick|timer)' "$P" -A160 -B20 | head -n 500 || true
+          echo "===== HEALTH CHECK ====="
+          grep -n '_check_whatsapp_stuck' "$P" -A180 -B50 | head -n 500 || true
+          echo "===== AI OBSERVER ====="
+          grep -nE '_ai_observer_(reschedule|tick|timer)' "$P" -A180 -B30 | head -n 700 || true
