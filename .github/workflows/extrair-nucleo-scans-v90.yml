@@ -1,0 +1,33 @@
+name: Extrair nucleo scans WhatsApp v90
+on:
+  push:
+    paths:
+      - ".github/workflows/extrair-nucleo-scans-v90.yml"
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mostrar nucleo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.90 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02290.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02290.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          echo '=== 6790-6865 ==='
+          sed -n '6790,6865p' "$P"
+          echo '=== 7120-7170 ==='
+          sed -n '7120,7170p' "$P"
+          echo '=== 7395-7570 ==='
+          sed -n '7395,7570p' "$P"
+          echo '=== 8075-8125 ==='
+          sed -n '8075,8125p' "$P"
+          echo '=== 9105-9145 ==='
+          sed -n '9105,9145p' "$P"
+          echo '=== 9390-9445 ==='
+          sed -n '9390,9445p' "$P"
