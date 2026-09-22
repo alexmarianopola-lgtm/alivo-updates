@@ -25,28 +25,30 @@ jobs:
           if(-not (Test-Path C:\temp\v91\_app\main.py)){ throw 'main.py ausente' }
       - name: Mostrar arquitetura relevante
         shell: pwsh
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           @'
           from pathlib import Path
-          import re
+          import re,sys
+          try: sys.stdout.reconfigure(encoding="utf-8",errors="replace")
+          except Exception: pass
           p=Path(r"C:\temp\v91\_app\main.py")
           s=p.read_text(encoding="utf-8")
           lines=s.splitlines()
           print("TOTAL_LINES",len(lines))
           print("VERSION",re.findall(r'ALIYVO_VERSION\s*=\s*["\']([^"\']+)',s)[:3])
-          def block(title, start, end):
+          def block(title, start1, end1):
               print("\n===== "+title+" =====")
-              for i in range(max(0,start),min(len(lines),end)):
-                  print(f"{i+1:05d}: {lines[i]}")
-          for i,l in enumerate(lines):
-              if re.match(r'class\s+MainWindow\b',l):
-                  block("MAINWINDOW_CLASS",i,i+240)
-                  break
-          for term in ["def __init__(self", "header", "statusBar", "QToolBar", "QHBoxLayout", "QStackedWidget", "QTabWidget", "Lembrete", "Diagnóstico", "Prazos"]:
+              for n in range(max(1,start1),min(len(lines),end1)+1):
+                  print(f"{n:05d}: {lines[n-1]}")
+          block("MAINWINDOW_UI_6150_6420",6150,6420)
+          block("MAINWINDOW_UI_6421_6620",6421,6620)
+          for term in ["self.setCentralWidget","nav_lay.addWidget","nav_lay.addStretch","self.brand_bar","QStackedWidget","QTabWidget","def closeEvent","def resizeEvent","def eventFilter","def _toggle_maximize_window"]:
               print("\n### MATCH",term)
-              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-              for i in hits[:12]:
-                  print(f"{i+1:05d}: {lines[i]}")
-          block("BOTTOM",max(0,len(lines)-260),len(lines))
+              hits=[i+1 for i,l in enumerate(lines) if term.lower() in l.lower()]
+              for n in hits[:20]:
+                  print(f"{n:05d}: {lines[n-1]}")
+          block("BOTTOM",max(1,len(lines)-220),len(lines))
           '@ | Set-Content C:\temp\inspect.py -Encoding UTF8
           python C:\temp\inspect.py
