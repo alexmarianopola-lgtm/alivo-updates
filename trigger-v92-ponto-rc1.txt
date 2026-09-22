@@ -1,1 +1,1 @@
-build-aliyvo-v0.22.92-rc1-ponto
+build-aliyvo-v0.22.92-rc1-ponto-pass2
