@@ -48,9 +48,27 @@
     });
   }
 
+  async function syncLocalFromApi(data){
+    if (!data || !Array.isArray(data.slots)) return;
+    const state = await getLocalState();
+    state.resolved = state.resolved || {};
+    for (const row of data.slots){
+      if (row && (row.status === "confirmed" || row.status === "missed")){
+        state.resolved[row.id] = {status:row.status,at:row.resolved_at || new Date().toISOString()};
+      }
+    }
+    await setLocalState(state);
+  }
+
   async function currentPending(){
+    const forced = await new Promise(resolve => chrome.storage.local.get(["aliyvoPontoForceTest"], r => resolve(r.aliyvoPontoForceTest || null)));
+    if (forced && Number(forced.until || 0) > Date.now()){
+      return {slot:{id:"__test__",time:"AGORA",label:"Teste do bloqueio"}, source:"test", bridge:false};
+    }
+
     const bridge = await askBackground({type:"ponto-status"});
     if (bridge.available && bridge.data && bridge.data.ok){
+      await syncLocalFromApi(bridge.data);
       return {slot:bridge.data.pending || null, source:"aliyvo", bridge:true};
     }
     return {slot:await fallbackPending(), source:"fallback", bridge:false};
@@ -91,15 +109,19 @@
       if (!ok) return;
     }
 
+    if (slot.id === "__test__"){
+      await chrome.storage.local.remove("aliyvoPontoForceTest");
+      removeOverlay();
+      return;
+    }
+
+    const localStatus = kind === "confirm" ? "confirmed" : "missed";
     if (bridgeAvailable){
       const type = kind === "confirm" ? "ponto-confirm" : "ponto-missed";
-      const result = await askBackground({type,slot_id:slot.id});
-      if (!result.available){
-        await resolveFallback(slot, kind === "confirm" ? "confirmed" : "missed");
-      }
-    } else {
-      await resolveFallback(slot, kind === "confirm" ? "confirmed" : "missed");
+      await askBackground({type,slot_id:slot.id});
     }
+    // Mantém contingência sincronizada mesmo quando o ALIYVO está disponível.
+    await resolveFallback(slot, localStatus);
 
     removeOverlay();
     setTimeout(checkNow, 400);
