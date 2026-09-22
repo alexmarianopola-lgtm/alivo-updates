@@ -1,0 +1,19 @@
+html.aliyvo-ponto-locked,html.aliyvo-ponto-locked body{overflow:hidden!important}
+#aliyvo-ponto-overlay{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(5,17,29,.93);backdrop-filter:blur(5px);font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
+#aliyvo-ponto-overlay *{box-sizing:border-box}
+.aliyvo-ponto-card{width:min(580px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#fff;color:#172033;border-radius:18px;padding:30px;box-shadow:0 24px 80px rgba(0,0,0,.38)}
+.aliyvo-ponto-badge{display:inline-block;padding:7px 11px;border-radius:999px;background:#fff0ee;color:#b42318;font-size:12px;font-weight:900;letter-spacing:.08em}
+.aliyvo-ponto-card h1{margin:16px 0 0;font-size:32px;line-height:1.1}
+.aliyvo-ponto-time{margin-top:5px;font-size:25px;font-weight:900;color:#1775d1}
+.aliyvo-ponto-lead{margin:18px 0;font-size:17px;line-height:1.45}
+.aliyvo-ponto-step{display:flex;gap:12px;align-items:flex-start;padding:13px;margin-top:9px;border:1px solid #dbe4ee;border-radius:11px;background:#f7f9fc}
+.aliyvo-ponto-step b{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#172033;color:#fff}
+.aliyvo-ponto-step span{font-size:14px;line-height:1.4;color:#4f5f73}
+.aliyvo-ponto-check{display:flex;gap:10px;align-items:flex-start;margin:19px 0 13px;font-size:15px;line-height:1.4}
+.aliyvo-ponto-check input{width:20px;height:20px;margin:0;flex:0 0 auto}
+.aliyvo-ponto-card button{width:100%;min-height:48px;border-radius:10px;font-weight:900;cursor:pointer}
+.aliyvo-primary{border:0;background:#1775d1;color:#fff;font-size:15px}
+.aliyvo-secondary{margin-top:9px;border:1px solid #d39a3d;background:#fff8e9;color:#7a4e08;font-size:12px}
+#aliyvo-ponto-msg{min-height:18px;margin:9px 0 0;color:#b42318;font-size:12px;font-weight:800;text-align:center}
+.aliyvo-ponto-source{margin-top:10px;color:#6b7687;font-size:11px;text-align:center}
+@media(max-width:600px){#aliyvo-ponto-overlay{padding:12px}.aliyvo-ponto-card{padding:21px}.aliyvo-ponto-card h1{font-size:27px}}
