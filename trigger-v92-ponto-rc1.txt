@@ -1,0 +1,1 @@
+build-aliyvo-v0.22.92-rc1-ponto
