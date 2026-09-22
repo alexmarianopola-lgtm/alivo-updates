@@ -20,7 +20,20 @@ one('ALIYVO_VERSION = "0.22.91"', 'ALIYVO_VERSION = "0.22.92"', "version")
 
 # Import isolado do módulo. Mantém WhatsApp, Assistente e updater intactos.
 anchor = 'ALIYVO_VERSION = "0.22.92"\n'
-one(anchor, anchor + 'from aliyvo_ponto import AliyvoPontoController\n', "point import")
+one(
+    anchor,
+    anchor + '''try:
+    from aliyvo_ponto import AliyvoPontoController
+except ModuleNotFoundError:
+    import sys as _aliyvo_ponto_sys
+    from pathlib import Path as _AliyvoPontoPath
+    _aliyvo_ponto_appdir=str(_AliyvoPontoPath(__file__).resolve().parent)
+    if _aliyvo_ponto_appdir not in _aliyvo_ponto_sys.path:
+        _aliyvo_ponto_sys.path.insert(0,_aliyvo_ponto_appdir)
+    from aliyvo_ponto import AliyvoPontoController
+''',
+    "point import",
+)
 
 one(
 '''        self.attendance_toggle=QPushButton("📊  Diagnóstico")
