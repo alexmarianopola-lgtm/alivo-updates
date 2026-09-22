@@ -1,0 +1,143 @@
+name: Build ALIYVO 0.22.93 RC2 - Ahgora Sync
+on:
+  push:
+    branches: ['feature/ahgora-sync-02293']
+    paths: ['trigger-v93-ahgora-rc2.txt']
+permissions:
+  contents: write
+
+jobs:
+  testar-e-publicar-rc:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base 0.22.92 RC1
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.22.92-rc1 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02292_RC1.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02292_RC1.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.22.92 RC1 invalida' }
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_VERSION = "0.22.92"' | Out-Null
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar sincronizacao Ahgora 0.22.93
+        shell: pwsh
+        run: |
+          python patch_ahgora_v93.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py C:\temp\build\_app\updater_worker.pyw
+          python tests\package_ahgora_v93.py C:\temp\build
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado indevidamente' }
+
+      - name: Validar extensao Chrome
+        shell: pwsh
+        run: |
+          python -m json.tool C:\temp\build\EXTENSAO_PONTO_SANKHYA\manifest.json | Out-Null
+          node --check C:\temp\build\EXTENSAO_PONTO_SANKHYA\background.js
+          node --check C:\temp\build\EXTENSAO_PONTO_SANKHYA\content.js
+          node --check C:\temp\build\EXTENSAO_PONTO_SANKHYA\popup.js
+          python tests\logic_ponto_extension_v92.py C:\temp\build
+
+      - name: Gate logico Ahgora
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6
+          python tests\logic_ahgora_v93.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-ahgora-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate Ahgora v93 falhou' }
+          Select-String -Path C:\temp\out\logic-ahgora-v93.txt -Pattern 'ALIYVO_V93_AHGORA_LOGIC=OK' | Out-Null
+
+      - name: Gate WhatsApp Turbo preservado
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $t=Get-Content tests\logic_whatsapp_turbo_v91.py -Raw
+          $t=$t.Replace("assert m.ALIYVO_VERSION=='0.22.91'","assert m.ALIYVO_VERSION=='0.22.93'")
+          $t=$t.Replace('ALIYVO_V91_WHATSAPP_TURBO=OK','ALIYVO_V93_WHATSAPP_TURBO=OK')
+          Set-Content C:\temp\logic_whatsapp_v93.py $t -Encoding UTF8
+          python C:\temp\logic_whatsapp_v93.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-whatsapp-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate WhatsApp Turbo herdado falhou' }
+          Select-String -Path C:\temp\out\logic-whatsapp-v93.txt -Pattern 'ALIYVO_V93_WHATSAPP_TURBO=OK' | Out-Null
+
+      - name: Gate historico de estabilidade
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $t=Get-Content tests\logic_stability_v89.py -Raw
+          $t=$t.Replace("assert m.ALIYVO_VERSION=='0.22.89'","assert m.ALIYVO_VERSION=='0.22.93'")
+          $t=$t.Replace('self._diagnostic_timer=QTimer(self); self._diagnostic_timer.setInterval(5000)','self._diagnostic_timer=QTimer(self); self._diagnostic_timer.setInterval(20000)')
+          $t=$t.Replace('ALIYVO_V89_LOGIC_STABILITY=OK','ALIYVO_V93_LOGIC_STABILITY=OK')
+          Set-Content C:\temp\logic_stability_v93.py $t -Encoding UTF8
+          python C:\temp\logic_stability_v93.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-stability-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate historico de estabilidade falhou' }
+          Select-String -Path C:\temp\out\logic-stability-v93.txt -Pattern 'ALIYVO_V93_LOGIC_STABILITY=OK' | Out-Null
+
+      - name: Guardas de seguranca e performance
+        shell: pwsh
+        run: |
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'self._timer.setSingleShot(True)' | Out-Null
+          if(Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'setInterval(' -Quiet){ throw 'Modulo de ponto ganhou polling Qt permanente' }
+          if(Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -Pattern 'runJavaScript|evaluate_js|document\.' -Quiet){ throw 'Modulo de ponto nao pode consultar DOM do WhatsApp' }
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'CryptProtectData' | Out-Null
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'CryptUnprotectData' | Out-Null
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'QMessageBox.question' | Out-Null
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'AHGORA_MIRROR_URL = "https://www.ahgora.com.br/externo/getApuracao"' | Out-Null
+          Select-String -Path C:\temp\build\_app\aliyvo_ponto.py -SimpleMatch 'AHGORA_PUNCH_URL = "https://www.ahgora.com.br/batidaonline/verifyIdentification"' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'self._diagnostic_timer=QTimer\(self\); self._diagnostic_timer.setInterval\(20000\)' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'class WhatsAppView\(QtWebView2Widget\)' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'self.web=QWebEngineView\(self\)' | Out-Null
+
+      - name: Empacotar RC2
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02293_RC2.zip -Force
+          Compress-Archive -Path C:\temp\build\EXTENSAO_PONTO_SANKHYA\* -DestinationPath C:\temp\out\ALIYVO_PONTO_EXTENSION_02293_RC2.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02293_RC2.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\aliyvo_ponto.py C:\temp\verify\_app\updater_worker.pyw
+          python tests\package_ahgora_v93.py C:\temp\verify
+          python tests\logic_ahgora_v93.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-ahgora-final-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate Ahgora' }
+          python C:\temp\logic_whatsapp_v93.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-whatsapp-final-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no WhatsApp Turbo' }
+          python C:\temp\logic_stability_v93.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-stability-final-v93.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate historico' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater do ZIP final foi alterado' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02293_RC2.zip -Algorithm SHA256).Hash
+          $extsha=(Get-FileHash C:\temp\out\ALIYVO_PONTO_EXTENSION_02293_RC2.zip -Algorithm SHA256).Hash
+          @(
+            'ALIYVO 0.22.93 RC2',
+            'Base: 0.22.92 RC1',
+            'Leitura do espelho Ahgora: implementada',
+            'Batidas reais reconciliadas por ordem: implementado',
+            'Registro direto: somente por clique + confirmacao',
+            'Credenciais: Windows DPAPI',
+            'Senha nao gravada em logs: gate estatico OK',
+            'WhatsApp Turbo: preservado',
+            'Estabilidade historica: preservada',
+            'Updater: preservado',
+            'VALIDACAO REAL DO ENDPOINT A PARTIR DA CONTA DO USUARIO: PENDENTE',
+            "ZIP SHA256=$sha",
+            "EXTENSION SHA256=$extsha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02293_RC2.txt -Encoding UTF8
+
+      - name: Publicar prerelease RC2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if(gh release view v0.22.93-rc2 --repo "$env:GITHUB_REPOSITORY" *> $null){ throw 'v0.22.93-rc2 ja existe' }
+          gh release create v0.22.93-rc2 C:\temp\out\ALIYVO_BETA_GRATIS_02293_RC2.zip C:\temp\out\ALIYVO_PONTO_EXTENSION_02293_RC2.zip C:\temp\out\VALIDACAO_02293_RC2.txt --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title "ALIYVO 0.22.93 RC2 - Ahgora sincronizado" --notes "Versao candidata baseada na 0.22.92 RC1. O Controle de Ponto passa a consultar o espelho real do Ahgora e reconciliar automaticamente as batidas do dia. Inclui opcao de registrar uma batida a partir do ALIYVO somente apos clique e confirmacao explicita. Credenciais sao protegidas com Windows DPAPI e nao sao gravadas nos logs. O endpoint usado pelo Ahgora nao e uma API publica oficialmente documentada para esta integracao, entao a validacao final depende do teste com a conta real do usuario. Nao promovida a latest." --prerelease
