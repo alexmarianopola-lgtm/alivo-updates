@@ -42,7 +42,7 @@ jobs:
               print("\n===== "+title+" =====")
               for n in range(max(1,start1),min(len(lines),end1)+1):
                   print(f"{n:05d}: {lines[n-1]}")
-          block("MAINWINDOW_UI_6150_6420",6150,6420)
+          block("IMPORTS",1,220)\n          block("MAINWINDOW_UI_6150_6420",6150,6420)
           block("MAINWINDOW_UI_6421_6620",6421,6620)
           for term in ["self.setCentralWidget","nav_lay.addWidget","nav_lay.addStretch","self.brand_bar","QStackedWidget","QTabWidget","def closeEvent","def resizeEvent","def eventFilter","def _toggle_maximize_window"]:
               print("\n### MATCH",term)
