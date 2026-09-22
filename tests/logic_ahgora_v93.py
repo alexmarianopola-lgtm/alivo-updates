@@ -41,7 +41,6 @@ assert state["slots"]["entrada"]["actual_time"] == "07:51"
 assert state["slots"]["entrada"]["source"] == "ahgora_sync"
 assert state["slots"]["saida_almoco"]["actual_time"] == "12:09"
 assert "volta_almoco" not in state["slots"]
-assert p.pending_slot_for(now, state)["id"] == "volta_almoco" or p.pending_slot_for(now, state) is None
 # 12:30 é antes de 13:30, então não existe pendência da volta.
 assert p.pending_slot_for(now, state) is None
 assert p.next_future_slot_for(now, state)["id"] == "volta_almoco"
