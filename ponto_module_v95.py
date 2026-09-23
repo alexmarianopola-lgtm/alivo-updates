@@ -395,7 +395,7 @@ def _new_ahgora_opener() -> urllib.request.OpenerDirector:
 
 
 def _login_and_fetch_modern_mirror(cfg: dict[str, str], now: datetime) -> dict[str, Any]:
-    """Login oficial web + API atual do espelho, substitui getApuracao deprecated."""
+    """Login oficial web + API atual do espelho Ahgora."""
     opener = _new_ahgora_opener()
 
     # Login legado continua sendo a porta de sessão usada pela interface atual.
