@@ -1323,6 +1323,10 @@ class AliyvoPontoController(QObject):
             user32 = ctypes.windll.user32
             user32.ShowWindow(hwnd, 9)  # SW_RESTORE
             user32.SetForegroundWindow(hwnd)
+            try:
+                ctypes.windll.kernel32.Sleep(180)
+            except Exception:
+                pass
 
             VK_CONTROL = 0x11
             VK_SHIFT = 0x10
