@@ -1,0 +1,39 @@
+name: DEV inspect black render 0.22.98
+on:
+  push:
+    branches: ['fix/black-render-02299']
+    paths: ['trigger-inspect-black-render.txt']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect latest package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v98 | Out-Null
+          gh release download v0.22.98 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02298.zip" --dir C:\temp
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02298.zip -DestinationPath C:\temp\v98 -Force
+          @'
+          from pathlib import Path
+          p=Path(r'C:\temp\v98\_app\main.py')
+          s=p.read_text(encoding='utf-8')
+          lines=s.splitlines()
+          terms=['Busca de Produtos','produtos','search','QWebEngineView','QtWebView2Widget','WebView2','gpu','disable-gpu','QTWEBENGINE_CHROMIUM_FLAGS','QWebEngineSettings']
+          for term in terms:
+              print('\n###',term)
+              for i,l in enumerate(lines):
+                  if term.lower() in l.lower():
+                      a=max(0,i-8); b=min(len(lines),i+30)
+                      for n in range(a,b): print(f'{n+1:05d}: {lines[n]}')
+                      print('---')
+          '@ | Set-Content C:\temp\inspect.py -Encoding UTF8
+          python C:\temp\inspect.py
