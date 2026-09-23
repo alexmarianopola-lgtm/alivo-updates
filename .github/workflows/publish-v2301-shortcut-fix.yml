@@ -1,0 +1,39 @@
+name: Publish ALIYVO 0.23.01 - Ahgora Shortcut Fix
+on:
+  push:
+    branches: ['fix/ahgora-shortcut-02301']
+    paths: ['trigger-v2301-official.txt']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Base 0.23.00
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\out | Out-Null
+          gh release download v0.23.00 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02300.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02300.zip -DestinationPath C:\temp\build -Force
+      - name: Aplicar e testar
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine
+          python patch_ponto_v2301.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py
+          python tests\logic_ponto_v2301.py C:\temp\build\_app
+      - name: Empacotar e publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02301.zip -Force
+          if(gh release view v0.23.01 --repo "$env:GITHUB_REPOSITORY" *> $null){ throw 'release ja existe' }
+          gh release create v0.23.01 C:\temp\out\ALIYVO_BETA_GRATIS_02301.zip --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title "ALIYVO 0.23.01 - Correção atalho Ahgora" --notes "Corrige o caso em que o Chrome era aberto/ativado, mas o atalho Ctrl+Shift+9 não chegava à extensão. A nova versão confirma o foco da janela e envia o atalho com SendInput do Windows." --latest
