@@ -67,7 +67,7 @@ jobs:
       - name: Guardas de arquitetura e seguranca
         shell: pwsh
         run: |
-          $m=C:\temp\build\_app\aliyvo_ponto.py
+          $m='C:\temp\build\_app\aliyvo_ponto.py'
           if(Select-String $m -SimpleMatch 'externo/getApuracao' -Quiet){ throw 'Endpoint deprecated ainda presente' }
           Select-String $m -SimpleMatch 'https://app.ahgora.com.br/api-espelho/apuracao/' | Out-Null
           Select-String $m -SimpleMatch 'activateDeviceOnLineByLoginAndPassword' | Out-Null
