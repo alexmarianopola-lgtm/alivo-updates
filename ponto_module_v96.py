@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 from PyQt6.QtCore import QObject, QTimer, Qt, QUrl, pyqtSignal
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import (
     QApplication,
@@ -683,7 +682,7 @@ class AliyvoPontoController(QObject):
         self._sync_busy = False
         self._punch_busy = False
         self._force_check_after_sync = False
-        self._ahgora_profile: QWebEngineProfile | None = None
+        self._ahgora_profile: Any = None
         self._ahgora_sync_view: QWebEngineView | None = None
         self._ahgora_link_dialog: QDialog | None = None
         self.apiCommand.connect(self._on_api_command)
@@ -926,9 +925,10 @@ class AliyvoPontoController(QObject):
 
     # ---------- Ahgora browser session ----------
 
-    def _ensure_ahgora_profile(self) -> QWebEngineProfile:
+    def _ensure_ahgora_profile(self):
         if self._ahgora_profile is not None:
             return self._ahgora_profile
+        from PyQt6.QtWebEngineCore import QWebEngineProfile
         root = _base_dir() / "ahgora_browser_profile"
         root.mkdir(parents=True, exist_ok=True)
         profile = QWebEngineProfile("ALIYVO_AHGORA", self)
@@ -944,6 +944,7 @@ class AliyvoPontoController(QObject):
         return profile
 
     def _new_ahgora_view(self, parent: QWidget | None = None) -> QWebEngineView:
+        from PyQt6.QtWebEngineCore import QWebEnginePage
         profile = self._ensure_ahgora_profile()
         view = QWebEngineView(parent)
         page = QWebEnginePage(profile, view)
