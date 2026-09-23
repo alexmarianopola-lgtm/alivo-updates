@@ -651,7 +651,6 @@ def _modern_punch(cfg: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
 
 
 class AliyvoPontoController(QObject):
-class AliyvoPontoController(QObject):
     """Controle de ponto com sincronização Ahgora.
 
     A batida nunca é automática: o POST de registro só ocorre após clique e
