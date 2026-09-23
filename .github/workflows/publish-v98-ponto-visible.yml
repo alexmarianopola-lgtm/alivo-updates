@@ -27,6 +27,7 @@ jobs:
       - name: Aplicar 0.22.98
         shell: pwsh
         run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine
           python patch_ponto_v98.py C:\temp\build
           python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py
           python tests\logic_ponto_v98.py C:\temp\build\_app
