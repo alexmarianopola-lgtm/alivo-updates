@@ -1,0 +1,24 @@
+name: DEV Inspect v94 updater wiring
+on:
+  push:
+    branches: ['feature/ahgora-sync-fix-02294']
+    paths: ['trigger-inspect-v94-updater.txt']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\v94 | Out-Null
+          gh release download v0.22.94-rc3 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02294_RC3.zip" --dir C:\temp
+          Expand-Archive C:\temp\ALIYVO_BETA_GRATIS_02294_RC3.zip -DestinationPath C:\temp\v94 -Force
+          Write-Host '=== update_check_worker.py ==='
+          if(Test-Path C:\temp\v94\_app\update_check_worker.py){ Get-Content C:\temp\v94\_app\update_check_worker.py }
+          Write-Host '=== main update wiring ==='
+          Select-String -Path C:\temp\v94\_app\main.py -Pattern 'release|update.json|update_check_worker|updater_worker|Atualizar agora|latest|asset_name|sha256|download_url' -Context 3,7
