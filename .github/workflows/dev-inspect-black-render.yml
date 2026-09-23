@@ -36,4 +36,5 @@ jobs:
                       for n in range(a,b): print(f'{n+1:05d}: {lines[n]}')
                       print('---')
           '@ | Set-Content C:\temp\inspect.py -Encoding UTF8
+          $env:PYTHONIOENCODING='utf-8'
           python C:\temp\inspect.py
