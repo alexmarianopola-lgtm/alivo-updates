@@ -68,14 +68,14 @@ jobs:
         shell: pwsh
         run: |
           $m='C:\temp\build\_app\aliyvo_ponto.py'
-          if(Select-String $m -SimpleMatch 'externo/getApuracao' -Quiet){ throw 'Endpoint deprecated ainda presente' }
-          Select-String $m -SimpleMatch 'https://app.ahgora.com.br/api-espelho/apuracao/' | Out-Null
-          Select-String $m -SimpleMatch 'activateDeviceOnLineByLoginAndPassword' | Out-Null
-          Select-String $m -SimpleMatch '_rsa_pkcs1_v15_encrypt_b64' | Out-Null
-          Select-String $m -SimpleMatch 'QMessageBox.question' | Out-Null
-          Select-String $m -SimpleMatch 'CryptProtectData' | Out-Null
-          if(Select-String $m -SimpleMatch 'setInterval(' -Quiet){ throw 'Polling Qt permanente no modulo de ponto' }
-          if(Select-String $m -Pattern 'runJavaScript|evaluate_js|document\.' -Quiet){ throw 'Modulo de ponto tocou no DOM do WhatsApp' }
+          if(Select-String -Path $m -Pattern 'externo/getApuracao' -SimpleMatch -Quiet){ throw 'Endpoint deprecated ainda presente' }
+          Select-String -Path $m -Pattern 'https://app.ahgora.com.br/api-espelho/apuracao/' -SimpleMatch | Out-Null
+          Select-String -Path $m -Pattern 'activateDeviceOnLineByLoginAndPassword' -SimpleMatch | Out-Null
+          Select-String -Path $m -Pattern '_rsa_pkcs1_v15_encrypt_b64' -SimpleMatch | Out-Null
+          Select-String -Path $m -Pattern 'QMessageBox.question' -SimpleMatch | Out-Null
+          Select-String -Path $m -Pattern 'CryptProtectData' -SimpleMatch | Out-Null
+          if(Select-String -Path $m -Pattern 'setInterval(' -SimpleMatch -Quiet){ throw 'Polling Qt permanente no modulo de ponto' }
+          if(Select-String -Path $m -Pattern 'runJavaScript|evaluate_js|document\.' -Quiet){ throw 'Modulo de ponto tocou no DOM do WhatsApp' }
           Select-String C:\temp\build\_app\main.py -Pattern 'class WhatsAppView\(QtWebView2Widget\)' | Out-Null
           Select-String C:\temp\build\_app\main.py -Pattern 'self.web=QWebEngineView\(self\)' | Out-Null
           Select-String C:\temp\build\_app\main.py -Pattern 'self._diagnostic_timer=QTimer\(self\); self._diagnostic_timer.setInterval\(20000\)' | Out-Null
