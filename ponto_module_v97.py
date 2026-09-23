@@ -1074,7 +1074,7 @@ class AliyvoPontoController(QObject):
     ) -> None:
         """Sincroniza navegando diretamente na API com a sessão do próprio Ahgora.
 
-        Em algumas contas o fetch() feito dentro da página é bloqueado pelo navegador
+        Em algumas contas a consulta interna feita pela página é bloqueada pelo navegador
         (CORS/CSP) mesmo com login válido. A navegação de primeiro nível não sofre
         esse bloqueio e continua usando os mesmos cookies persistentes.
         """
