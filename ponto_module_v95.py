@@ -227,8 +227,10 @@ def _normalize_punch_time(value: Any) -> str:
                 return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
             except Exception:
                 pass
+    if len(digits) == 6:
+        return f"{digits[0:2]}:{digits[2:4]}"
     if len(digits) >= 4:
-        return f"{digits[-4:-2]}:{digits[-2:]}"
+        return f"{digits[0:2]}:{digits[2:4]}"
     return s
 
 
@@ -1064,7 +1066,7 @@ class AliyvoPontoController(QObject):
             self._save_state()
 
         self._log("ahgora_punch_ok", returned_punches=len(punches))
-        time_txt = str(payload.get("time") or "").strip()
+        time_txt = _normalize_punch_time(payload.get("time"))
         QMessageBox.information(
             self.owner,
             "Ponto registrado",
