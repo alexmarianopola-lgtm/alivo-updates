@@ -1,0 +1,33 @@
+name: Extrair CRM core v91
+on:
+  push:
+    paths:
+      - ".github/workflows/extrair-crm-core-v91.yml"
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair nucleo CRM
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.91 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02291.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02291.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          {
+            echo "=== CRM 8650-9065 ==="
+            sed -n '8650,9065p' "$P"
+            echo
+            echo "=== REMINDERS 9270-9425 ==="
+            sed -n '9270,9425p' "$P"
+          } > crm_core_v91.txt
+          git config user.name "aliyvo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add crm_core_v91.txt
+          git commit -m "chore: extrair nucleo CRM da v91"
+          git push
