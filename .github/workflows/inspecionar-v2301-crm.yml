@@ -1,0 +1,31 @@
+name: Inspecionar base 0.23.01 para CRM
+on:
+  push:
+    paths: ['trigger-inspect-v2301-crm.txt']
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspecionar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/v2301 /tmp/app
+          gh release download v0.23.01 --repo "$GITHUB_REPOSITORY" --pattern "*.zip" --dir /tmp/v2301
+          ZIP=$(find /tmp/v2301 -name '*.zip' | head -1)
+          unzip -q "$ZIP" -d /tmp/app
+          P=/tmp/app/_app/main.py
+          {
+            grep -n 'ALIYVO_VERSION' "$P" | head -3 || true
+            echo '=== MARKERS ==='
+            grep -nE 'Ahgora|ahgora|_crm_detect_state|_smart_reminder_parse_message|_diagnostic_timer.*20000|_diagnostic_scan_guard_done|CRM do dia|_reminder_show_dialog' "$P" | head -200 || true
+          } > inspect_v2301_crm.txt
+          git config user.name "aliyvo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add inspect_v2301_crm.txt
+          git commit -m "chore: inspecionar base v0.23.01 para CRM"
+          git push
