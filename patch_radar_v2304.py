@@ -426,7 +426,7 @@ radar=r'''
         return {"text":label,"age":age,"state":state,"meta":meta}
 
     def _radar_show_dialog(self):
-        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QFrame,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QFrame,QTableWidget,QTableWidgetItem,QHeaderView,QMessageBox,QAbstractItemView
         from PyQt6.QtCore import Qt
         dlg=QDialog(self);dlg.setWindowTitle("🎯 Radar da Carteira — CRM automático");dlg.resize(1120,760)
         lay=QVBoxLayout(dlg)
