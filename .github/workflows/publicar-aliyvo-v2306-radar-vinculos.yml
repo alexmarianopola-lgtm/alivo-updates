@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.06 Radar Vinculos
+on:
+  push:
+    paths: ['trigger-v2306-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.05
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.05 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02305.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02305.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.05 invalida' }
+          if(-not (Test-Path C:\temp\build\_app\vendor\xlrd)){ throw 'Leitor XLS do Radar ausente' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar vinculo em massa + Radar comercial
+        shell: pwsh
+        run: |
+          python patch_radar_links_v2306.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_radar_links_v2306.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-radar-links-v2306.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate Radar v2306 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Empacotar e validar ZIP final
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02306.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02306.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          python tests\logic_radar_links_v2306.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-radar-links-final-v2306.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate Radar v2306' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater final foi alterado' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02306.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            "ALIYVO 0.23.06 - RADAR + VINCULO EM MASSA",
+            "Base oficial: 0.23.05",
+            "Vincular toda a carteira: OK",
+            "Auto-vinculo por nome com alta confianca: OK",
+            "Vinculo manual em massa: OK",
+            "Vinculos persistentes nas proximas importacoes: OK",
+            "Cartoes agora contam clientes, nao linhas de produtos: OK",
+            "Ranking sem inflar cliente por quantidade bruta de itens: OK",
+            "Detalhe com ate 5 melhores oportunidades: OK",
+            "Radar, CRM, WhatsApp Turbo e Ponto preservados: OK",
+            "Proveniencia preservada: OK",
+            "Updater preservado: OK",
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02306.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.06 C:\temp\out\ALIYVO_BETA_GRATIS_02306.zip C:\temp\out\VALIDACAO_02306.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.06 - Radar + Vinculo em Massa" --notes "Melhora o Radar para pensar por cliente e adiciona Vincular toda a carteira. O ALIYVO tenta memorizar automaticamente nomes iguais/muito confiaveis e oferece uma tela para vincular os restantes em massa. Os vínculos ficam salvos mesmo após novas planilhas. Cartões passam a contar clientes e o detalhe mostra as melhores oportunidades por cliente." --latest
