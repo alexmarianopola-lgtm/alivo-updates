@@ -1,0 +1,17 @@
+26:ALIYVO_VERSION = "0.23.01"
+4129:            "Versão instalada: "+ALIYVO_VERSION
+8028:                "aliyvo_version":ALIYVO_VERSION,
+=== MARKERS ===
+6536:        self.reminder_toggle.clicked.connect(self._reminder_show_dialog)
+7170:        self._diagnostic_timer=QTimer(self); self._diagnostic_timer.setInterval(20000)
+7192:                self.web.page().runJavaScript(guard,self._diagnostic_scan_guard_done)
+7194:                self._diagnostic_scan_guard_done({})
+7198:    def _diagnostic_scan_guard_done(self,result):
+8808:        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(820,620)
+8913:        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+8916:    def _smart_reminder_parse_message(self,message,client):
+8979:        parsed=self._smart_reminder_parse_message(msg,client)
+9061:            return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+9225:        bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+9301:    def _reminder_show_dialog(self):
+9309:        today_btn=QPushButton("📌 Hoje");top.addWidget(today_btn);crm=QPushButton("🧭 CRM do dia");top.addWidget(crm);lay.addLayout(top)
