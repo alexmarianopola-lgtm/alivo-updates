@@ -24,7 +24,7 @@ jobs:
           Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02301.zip -DestinationPath C:\temp\build -Force
           if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.01 invalida' }
           (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
-          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' } | ForEach-Object {
+          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' -and $_.Extension -ne '.pyc' -and $_.FullName -notmatch '\\__pycache__\\' } | ForEach-Object {
             $rel=$_.FullName.Substring('C:\temp\build\'.Length)
             $hash=(Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$rel|$hash"
@@ -48,7 +48,7 @@ jobs:
           $before=(Get-Content C:\temp\updater_before.txt).Trim()
           $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
           if($before -ne $after){ throw 'Updater da linha 0.23 foi alterado' }
-          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' } | ForEach-Object {
+          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' -and $_.Extension -ne '.pyc' -and $_.FullName -notmatch '\\__pycache__\\' } | ForEach-Object {
             $rel=$_.FullName.Substring('C:\temp\build\'.Length)
             $hash=(Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$rel|$hash"
