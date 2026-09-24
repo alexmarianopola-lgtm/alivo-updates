@@ -1,0 +1,50 @@
+name: Inspecionar base 0.23.03 para Radar
+on:
+  push:
+    paths: ['trigger-inspecao-radar-v2303.txt']
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base | Out-Null
+          gh release download v0.23.03 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02303.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02303.zip -DestinationPath C:\temp\base\app -Force
+      - name: Extrair pontos de integracao
+        shell: pwsh
+        run: |
+          $p='C:\temp\base\app\_app\main.py'
+          $lines=Get-Content $p
+          $patterns=@(
+            'QFileDialog','_reminders_dialog','_ai_crm_reminders_dialog','_attendance_open_chat',
+            '_diagnostic_active_name','_diagnostic_active_context','USER_DATA_DIR','QPushButton',
+            'menuBar','addAction','toolbar','Lembretes','Assistência','Assistencia','CRM',
+            'phone','telefone','whatsapp','WhatsApp','contact','client'
+          )
+          $out=@()
+          foreach($pat in $patterns){
+            $out+="===== $pat ====="
+            $m=Select-String -Path $p -Pattern $pat -CaseSensitive:$false
+            foreach($hit in ($m | Select-Object -First 30)){
+              $s=[Math]::Max(0,$hit.LineNumber-4);$e=[Math]::Min($lines.Count-1,$hit.LineNumber+5)
+              $out+=("---- linhas {0}-{1} ----" -f ($s+1),($e+1))
+              $out+=$lines[$s..$e]
+            }
+          }
+          $out | Set-Content inspecao_radar_v2303.txt -Encoding UTF8
+      - name: Commit
+        shell: pwsh
+        run: |
+          git config user.name "aliyvo-inspector"
+          git config user.email "actions@users.noreply.github.com"
+          git add inspecao_radar_v2303.txt
+          git commit -m "inspect: pontos de integracao Radar v2303"
+          git push
