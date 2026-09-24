@@ -1,0 +1,57 @@
+name: Inspecionar CRM v91
+on:
+  push:
+    paths: ['trigger-inspecao-crm-v91.txt']
+permissions:
+  contents: write
+jobs:
+  inspecionar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar 0.22.91
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\crm | Out-Null
+          gh release download v0.22.91 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02291.zip" --dir C:\temp\crm
+          Expand-Archive C:\temp\crm\ALIYVO_BETA_GRATIS_02291.zip -DestinationPath C:\temp\crm\build -Force
+      - name: Extrair pontos de integracao
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import re
+          p=Path(r"C:\temp\crm\build\_app\main.py")
+          s=p.read_text(encoding="utf-8")
+          lines=s.splitlines()
+          out=[]
+          out.append("ALIYVO CRM INSPECTION 0.22.91")
+          out.append("="*80)
+          kws=["remind","lemb","observer","observador","attendance","diagnostic_scan_done","diagnostic","crm","follow","pending","penden"]
+          for i,line in enumerate(lines):
+              low=line.lower()
+              if line.lstrip().startswith(("def ","class ")) and any(k in low for k in kws):
+                  out.append(f"\n### L{i+1}: {line}")
+                  a=max(0,i-3); b=min(len(lines),i+45)
+                  out.extend(f"{j+1:05d}: {lines[j]}" for j in range(a,b))
+          # Também inclui chamadas/atribuições relevantes fora de defs.
+          out.append("\n\n### MATCHES GERAIS")
+          count=0
+          for i,line in enumerate(lines):
+              low=line.lower()
+              if any(k in low for k in ["reminder","lembrete","observer","observador","_diagnostic_scan_done","attendance_"]):
+                  out.append(f"{i+1:05d}: {line}")
+                  count+=1
+                  if count>=400: break
+          Path("inspecao_crm_v91.txt").write_text("\n".join(out),encoding="utf-8")
+          '@ | python -
+      - name: Salvar inspecao no repositorio
+        shell: pwsh
+        run: |
+          git config user.name "aliyvo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add inspecao_crm_v91.txt
+          git commit -m "chore: inspecionar pontos de integracao CRM v91"
+          git push
