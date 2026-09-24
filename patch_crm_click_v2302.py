@@ -19,6 +19,40 @@ subprocess.check_call([sys.executable,str(repo/'patch_crm_assistido_v92.py'),str
 subprocess.check_call([sys.executable,str(repo/'patch_crm_visual_v93.py'),str(root)])
 
 text=main.read_text(encoding='utf-8')
+
+# 0) Os quatro indicadores do topo viram botoes de verdade.
+def one_pre(old,new,label):
+    global text
+    n=text.count(old)
+    if n!=1:
+        raise SystemExit(f'{label}: esperado 1, encontrado {n}')
+    text=text.replace(old,new,1)
+
+one_pre('''        cards=QHBoxLayout();cards.setSpacing(8)
+        card_over=QLabel();card_today=QLabel();card_wait=QLabel();card_ai=QLabel()
+        for c in (card_over,card_today,card_wait,card_ai):
+            c.setMinimumHeight(72);c.setWordWrap(True);c.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cards.addWidget(c,1)
+        lay.addLayout(cards)
+''','''        cards=QHBoxLayout();cards.setSpacing(8)
+        card_over=QPushButton();card_today=QPushButton();card_wait=QPushButton();card_ai=QPushButton()
+        for c in (card_over,card_today,card_wait,card_ai):
+            c.setMinimumHeight(72);c.setCursor(Qt.CursorShape.PointingHandCursor)
+            cards.addWidget(c,1)
+        lay.addLayout(cards)
+''','summary cards as buttons')
+
+one_pre('''        refresh();filt.currentIndexChanged.connect(refresh)
+        bar=QHBoxLayout();add_current=QPushButton("⏰ Desta conversa");add=QPushButton("＋ Novo");edit=QPushButton("✏ Editar");complete=QPushButton("✅ Concluir");reopen=QPushButton("↩ Reabrir");delete=QPushButton("🗑 Excluir");close=QPushButton("Fechar")
+''','''        refresh();filt.currentIndexChanged.connect(refresh)
+        card_over.clicked.connect(lambda:filt.setCurrentText("Vencidos"))
+        card_today.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_wait.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_ai.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        bar=QHBoxLayout();add_current=QPushButton("⏰ Desta conversa");add=QPushButton("＋ Novo");edit=QPushButton("✏ Editar");complete=QPushButton("✅ Concluir");reopen=QPushButton("↩ Reabrir");delete=QPushButton("🗑 Excluir");close=QPushButton("Fechar")
+''','summary card actions')
+
+text=main.read_text(encoding='utf-8') if False else text
 text=text.replace('ALIYVO_VERSION = "0.22.93"','ALIYVO_VERSION = "0.23.02"',1)
 text=text.replace('aliyvo_version="0.22.93"','aliyvo_version="0.23.02"')
 text=text.replace('aliyvo_version="0.23.01"','aliyvo_version="0.23.02"')
