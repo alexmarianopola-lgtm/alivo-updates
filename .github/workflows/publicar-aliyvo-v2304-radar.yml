@@ -1,0 +1,79 @@
+name: Publicar ALIYVO 0.23.04 Radar da Carteira
+on:
+  push:
+    paths: ['trigger-v2304-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.03
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.03 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02303.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02303.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.03 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+          $origin=(Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_ORIGIN_ID = "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"')
+          if(-not $origin){ throw 'Marcador de origem nao encontrado na base' }
+
+      - name: Embarcar leitor XLS e aplicar Radar
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\build\_app\vendor | Out-Null
+          python -m pip install --disable-pip-version-check --quiet xlrd==2.0.1 --target C:\temp\build\_app\vendor
+          python patch_radar_v2304.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_radar_v2304.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-radar-v2304.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate Radar falhou' }
+          Select-String -Path C:\temp\out\logic-radar-v2304.txt -Pattern 'ALIYVO_V2304_RADAR=OK' | Out-Null
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_ORIGIN_ID = "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"' | Out-Null
+
+      - name: Empacotar e repetir gate no ZIP final
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02304.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02304.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          python tests\logic_radar_v2304.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-radar-final-v2304.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no Radar' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater final foi alterado' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02304.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            "ALIYVO 0.23.04 - RADAR DA CARTEIRA BETA",
+            "Base oficial: 0.23.03",
+            "Historico 12 meses: importacao XLS + atualizacao mensal",
+            "Recorrencia/recompra: importacao XLS + atualizacao semanal",
+            "Indicadores de fonte desatualizada: OK",
+            "Queda/alta de faturamento: OK",
+            "Recompras atrasadas/proximas: OK",
+            "Vinculo conversa WhatsApp -> cadastro: OK",
+            "Assistencia atual enriquecida pelo Radar: OK",
+            "Copias locais das fontes + SHA256: OK",
+            "Dados comerciais nao enviados ao GitHub: OK",
+            "Proveniencia 0.23.03 preservada: OK",
+            "Updater preservado: OK",
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02304.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.04 C:\temp\out\ALIYVO_BETA_GRATIS_02304.zip C:\temp\out\VALIDACAO_02304.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.04 - Radar da Carteira BETA" --notes "Primeira versao do CRM automatico por carteira. Adiciona Radar da Carteira no topo, dois blocos bem visiveis para atualizar as planilhas XLS (Historico 12 meses mensal e Recorrencia/Recompra semanal), alerta de fonte desatualizada, tendencias de faturamento, recompra atrasada/proxima, vinculo da conversa atual ao codigo do cliente e dados do Radar dentro da Assistencia Rapida. Os arquivos comerciais ficam somente no computador do usuario. Preserva o marcador de origem da 0.23.03 e o updater." --latest
