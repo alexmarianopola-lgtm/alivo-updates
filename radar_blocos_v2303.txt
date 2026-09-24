@@ -1,0 +1,1082 @@
+===== MAIN 6150-6350 =====
+06150:                 line+="\n"+excerpt
+06151:             it=QListWidgetItem(line)
+06152:             it.setData(Qt.ItemDataRole.UserRole,name)
+06153:             try:
+06154:                 it.setForeground(QColor("#FFFFFF"))
+06155:                 f=it.font(); f.setBold(True)
+06156:                 if f.pointSize()<10: f.setPointSize(10)
+06157:                 it.setFont(f)
+06158:             except Exception:
+06159:                 pass
+06160:             self.list.addItem(it)
+06161:             if name==old_selected or (not old_selected and name==current):
+06162:                 self.list.setCurrentItem(it)
+06163:         if not self.list.currentItem() and self.list.count():
+06164:             self.list.setCurrentRow(0)
+06165: 
+06166: class MainWindow(QMainWindow):
+06167:     def __init__(self):
+06168:         super().__init__()
+06169:         try:
+06170:             import ctypes
+06171:             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+06172:                 "ALIYVO.Desktop.Comercial"
+06173:             )
+06174:         except Exception:
+06175:             pass
+06176: 
+06177:         icon_path=APP_DIR/"copiloto_a_icon.ico"
+06178:         if icon_path.exists():
+06179:             self.setWindowIcon(QIcon(str(icon_path)))
+06180: 
+06181:         self.setWindowTitle("ALIYVO")
+06182:         self.setWindowFlags(
+06183:             Qt.WindowType.FramelessWindowHint |
+06184:             Qt.WindowType.Window
+06185:         )
+06186:         self.resize(1650,950)
+06187:         self.last_chat_signature=""
+06188: 
+06189:         shell=QWidget()
+06190:         shell.setObjectName("aliyvoShell")
+06191:         shell.setStyleSheet(
+06192:             "QWidget#aliyvoShell{background:#061626;}"
+06193:         )
+06194:         shell_lay=QVBoxLayout(shell)
+06195:         shell_lay.setContentsMargins(0,0,0,0)
+06196:         shell_lay.setSpacing(0)
+06197: 
+06198:         # ========== CABEÇALHO EXATO ==========
+06199:         self.brand_bar=AliyvoReferenceHeader()
+06200:         self.brand_bar.minimizeRequested.connect(self.showMinimized)
+06201:         self.brand_bar.maximizeRequested.connect(self._toggle_maximize_window)
+06202:         self.brand_bar.closeRequested.connect(self.close)
+06203:         shell_lay.addWidget(self.brand_bar)
+06204: 
+06205:         # ========== SEGUNDA FAIXA DO MOCKUP ==========
+06206:         nav=QWidget()
+06207:         nav.setObjectName("aliyvoNav")
+06208:         nav.setFixedHeight(44)
+06209:         nav.setStyleSheet("""
+06210:             QWidget#aliyvoNav{
+06211:                 background:#061626;
+06212:                 border-bottom:1px solid #15364B;
+06213:             }
+06214:             QWidget#aliyvoNav QPushButton{
+06215:                 background:#071C2E;
+06216:                 color:#EFF8F5;
+06217:                 border:1px solid #12374D;
+06218:                 border-radius:6px;
+06219:                 padding:6px 15px;
+06220:                 min-height:25px;
+06221:                 font-size:11px;
+06222:                 font-weight:700;
+06223:             }
+06224:             QWidget#aliyvoNav QPushButton:hover{
+06225:                 background:#0B2E35;
+06226:                 border-color:#20E983;
+06227:             }
+06228:         """)
+06229:         nav_lay=QHBoxLayout(nav)
+06230:         nav_lay.setContentsMargins(14,5,14,5)
+06231:         nav_lay.setSpacing(14)
+06232: 
+06233:         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+06234:         self.prazo_toggle=QPushButton("▣  Prazos")
+06235:         self.chat_toggle=QPushButton("◉  Assistente")
+06236:         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+06237:         self.plate_toggle=QPushButton("🚚  Busca placa")
+06238:         self.attendance_toggle=QPushButton("📊  Diagnóstico")
+06239:         self.reminder_toggle=QPushButton("⏰  Lembretes")
+06240:         self.ponto_toggle=QPushButton("🕒  Ponto")
+06241:         self.ponto_toggle.setToolTip("Controle de ponto • 07:50 • 12:08 • 13:30 • 18:00")
+06242: 
+06243:         # Primeiro botão destacado como na referência
+06244:         self.campaign_toggle.setStyleSheet("""
+06245:             QPushButton{
+06246:                 background:#061E28;
+06247:                 color:#F3FBF8;
+06248:                 border:1px solid #0CCB72;
+06249:                 border-radius:6px;
+06250:                 padding:6px 15px;
+06251:                 min-height:25px;
+06252:                 font-size:11px;
+06253:                 font-weight:700;
+06254:             }
+06255:             QPushButton:hover{
+06256:                 background:#0A332D;
+06257:                 border-color:#20E983;
+06258:             }
+06259:         """)
+06260: 
+06261:         nav_lay.addWidget(self.campaign_toggle)
+06262:         nav_lay.addWidget(self.prazo_toggle)
+06263:         nav_lay.addWidget(self.chat_toggle)
+06264:         nav_lay.addWidget(self.nav_lens_toggle)
+06265:         nav_lay.addWidget(self.plate_toggle)
+06266:         nav_lay.addWidget(self.attendance_toggle)
+06267:         nav_lay.addWidget(self.reminder_toggle)
+06268:         nav_lay.addWidget(self.ponto_toggle)
+06269:         nav_lay.addStretch(1)
+06270:         shell_lay.addWidget(nav)
+06271: 
+06272:         # ========== CORPO ==========
+06273:         body=QWidget()
+06274:         body.setObjectName("aliyvoBody")
+06275:         body.setMinimumHeight(0)
+06276:         body.setSizePolicy(
+06277:             QSizePolicy.Policy.Expanding,
+06278:             QSizePolicy.Policy.Expanding
+06279:         )
+06280:         body.setStyleSheet(
+06281:             "QWidget#aliyvoBody{background:#061626;}"
+06282:         )
+06283:         body_lay=QHBoxLayout(body)
+06284:         body_lay.setContentsMargins(0,0,0,0)
+06285:         body_lay.setSpacing(0)
+06286: 
+06287:         self._aliyvo_shutting_down=False
+06288:         self._aliyvo_webviews_shutdown=False
+06289:         self._wa_recovery_attempts=0
+06290:         self._wa_recovery_scheduled=False
+06291:         self._wa_recovery_generation=0
+06292:         self.web=WhatsAppView()
+06293: 
+06294:         self.web_host=QWidget()
+06295:         self.web_host.setObjectName("webHost")
+06296:         self.web_host.setMinimumHeight(0)
+06297:         self.web_host.setSizePolicy(
+06298:             QSizePolicy.Policy.Expanding,
+06299:             QSizePolicy.Policy.Expanding
+06300:         )
+06301:         self.web.setMinimumHeight(0)
+06302:         self.web.setSizePolicy(
+06303:             QSizePolicy.Policy.Expanding,
+06304:             QSizePolicy.Policy.Expanding
+06305:         )
+06306:         self.web_host.setStyleSheet(
+06307:             "QWidget#webHost{background:#061626;border:none;}"
+06308:         )
+06309:         self.web_host_layout=QVBoxLayout(self.web_host)
+06310:         self.web_host_layout.setContentsMargins(0,0,0,0)
+06311:         self.web_host_layout.setSpacing(0)
+06312:         self.web_host_layout.addWidget(self.web)
+06313:         body_lay.addWidget(self.web_host,1)
+06314: 
+06315:         # Painel da direita como no mockup aprovado
+06316:         self.quick_panel=QWidget()
+06317:         self.quick_panel.setObjectName("quickPanel")
+06318:         self.quick_panel.setFixedWidth(225)
+06319:         self.quick_panel.setStyleSheet("""
+06320:             QWidget#quickPanel{
+06321:                 background:#071A2B;
+06322:                 border-left:1px solid #15364B;
+06323:             }
+06324:             QWidget#quickPanel QLabel{
+06325:                 color:#F4FAF8;
+06326:                 background:transparent;
+06327:             }
+06328:             QWidget#quickPanel QPushButton{
+06329:                 text-align:left;
+06330:                 background:#0A2236;
+06331:                 color:#F4FAF8;
+06332:                 border:1px solid #173B52;
+06333:                 border-radius:7px;
+06334:                 padding:9px 11px;
+06335:                 min-height:28px;
+06336:                 font-size:10px;
+06337:                 font-weight:700;
+06338:             }
+06339:             QWidget#quickPanel QPushButton:hover{
+06340:                 background:#0D303B;
+06341:                 border-color:#20E983;
+06342:             }
+06343:         """)
+06344:         q=QVBoxLayout(self.quick_panel)
+06345:         q.setContentsMargins(13,14,13,12)
+06346:         q.setSpacing(9)
+06347: 
+06348:         qtitle=QLabel("Ações rápidas")
+06349:         qtitle.setStyleSheet(
+06350:             "font-size:14px;font-weight:800;color:white;"
+===== MAIN 6351-6500 =====
+06351:         )
+06352:         qsub=QLabel("Ferramentas do ALIYVO")
+06353:         qsub.setStyleSheet(
+06354:             "font-size:9px;color:#69BBA4;"
+06355:         )
+06356: 
+06357:         self.quick_technical=QPushButton("🔎  Busca Somaforce")
+06358:         self.lens_toggle=QPushButton("🔎  Busca por imagem")
+06359:         self.audio_toggle=QPushButton("🎙  Áudio")
+06360:         self.quick_prazo=QPushButton("▣  Prazos")
+06361:         self.quick_chat=QPushButton("◉  Assistente")
+06362:         self.quick_campaign=QPushButton("➤  Disparo de mensagens")
+06363:         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+06364:         self.quick_update=QPushButton("⬆  Atualizações")
+06365:         self.quick_plate=QPushButton("🚚  Busca por placa")
+06366: 
+06367:         q.addWidget(qtitle)
+06368:         q.addWidget(qsub)
+06369:         q.addSpacing(5)
+06370:         q.addWidget(self.quick_technical)
+06371:         q.addWidget(self.lens_toggle)
+06372:         q.addWidget(self.audio_toggle)
+06373:         q.addWidget(self.quick_prazo)
+06374:         q.addWidget(self.quick_chat)
+06375:         q.addWidget(self.quick_campaign)
+06376:         q.addWidget(self.quick_diagnostic)
+06377:         q.addWidget(self.quick_update)
+06378:         q.addWidget(self.quick_plate)
+06379:         q.addStretch(1)
+06380: 
+06381:         # Host da direita: alterna entre Ações rápidas e a ferramenta escolhida.
+06382:         self.quick_host=QWidget()
+06383:         self.quick_host.setObjectName("quickHost")
+06384:         self.quick_host.setFixedWidth(225)
+06385:         self.quick_host.setMinimumHeight(0)
+06386:         self.quick_host.setSizePolicy(
+06387:             QSizePolicy.Policy.Fixed,
+06388:             QSizePolicy.Policy.Expanding
+06389:         )
+06390:         self.quick_host.setStyleSheet(
+06391:             "QWidget#quickHost{background:#071A2B;border-left:1px solid #15364B;}"
+06392:         )
+06393:         self.quick_host_layout=QVBoxLayout(self.quick_host)
+06394:         self.quick_host_layout.setContentsMargins(0,0,0,0)
+06395:         self.quick_host_layout.setSpacing(0)
+06396:         self.quick_host_layout.addWidget(self.quick_panel)
+06397:         self.attendance_panel=AliyvoAttendancePanel(self,self.quick_host)
+06398:         self.attendance_panel.hide()
+06399:         self.quick_host_layout.addWidget(self.attendance_panel,1)
+06400: 
+06401:         # Ferramentas abertas na lateral ficam confinadas à altura disponível.
+06402:         # Se uma ferramenta for mais alta (ex.: Disparo), ela própria ganha
+06403:         # rolagem; o WhatsApp não perde altura e o compositor continua visível.
+06404:         self.quick_scroll=QScrollArea(self.quick_host)
+06405:         self.quick_scroll.setObjectName("quickToolScroll")
+06406:         self.quick_scroll.setWidgetResizable(True)
+06407:         self.quick_scroll.setFrameShape(QFrame.Shape.NoFrame)
+06408:         self.quick_scroll.setHorizontalScrollBarPolicy(
+06409:             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+06410:         )
+06411:         self.quick_scroll.setVerticalScrollBarPolicy(
+06412:             Qt.ScrollBarPolicy.ScrollBarAsNeeded
+06413:         )
+06414:         self.quick_scroll.setMinimumHeight(0)
+06415:         self.quick_scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+06416:         self.quick_scroll.viewport().setFocusPolicy(Qt.FocusPolicy.NoFocus)
+06417:         self.quick_scroll.setSizePolicy(
+06418:             QSizePolicy.Policy.Expanding,
+06419:             QSizePolicy.Policy.Expanding
+06420:         )
+06421:         self.quick_scroll.setStyleSheet("""
+06422:             QScrollArea#quickToolScroll{
+06423:                 background:#FFFFFF;
+06424:                 border:none;
+06425:             }
+06426:             QScrollArea#quickToolScroll > QWidget > QWidget{
+06427:                 background:#FFFFFF;
+06428:             }
+06429:             QScrollBar:vertical{
+06430:                 width:8px;
+06431:                 background:#E2E8F0;
+06432:             }
+06433:             QScrollBar::handle:vertical{
+06434:                 background:#94A3B8;
+06435:                 min-height:28px;
+06436:                 border-radius:4px;
+06437:             }
+06438:         """)
+06439:         self.quick_scroll.hide()
+06440:         self.quick_host_layout.addWidget(self.quick_scroll,1)
+06441: 
+06442:         # Only the Qt tool area gets this filter; WhatsApp is never monitored.
+06443:         self.quick_host.installEventFilter(self)
+06444:         self.quick_scroll.viewport().installEventFilter(self)
+06445: 
+06446:         self._quick_mode_tool=None
+06447: 
+06448:         body_lay.addWidget(self.quick_host)
+06449:         shell_lay.addWidget(body,1)
+06450: 
+06451:         # ========== PAINÉIS EXISTENTES ==========
+06452:         self.copilot=ALIYVOPanel()
+06453: 
+06454:         self.technical_panel=SomaforceCatalogPanel(self.web_host)
+06455:         self.technical_panel.hide()
+06456:         self.technical_panel.raise_()
+06457:         self.technical_panel.on_analyze=self._technical_analyze_current
+06458: 
+06459:         self.lens_panel=LensPanel(self.web_host)
+06460:         self.lens_panel.hide()
+06461:         self.lens_panel.raise_()
+06462: 
+06463:         self.chat_panel=ChatGPTPanel(self.web_host)
+06464:         self.chat_panel.hide()
+06465:         self.chat_panel.raise_()
+06466: 
+06467:         self.prazo_panel=PrazoPanel(self.web_host)
+06468:         self.prazo_panel.hide()
+06469:         self.prazo_panel.raise_()
+06470: 
+06471:         self.audio_panel=AudioPanel(self.web_host)
+06472:         self.audio_panel.hide()
+06473:         self.audio_panel.raise_()
+06474: 
+06475:         self.campaign_panel=CampaignPanel(self.web_host)
+06476:         self.campaign_panel.on_test_one=self._campaign_test_one
+06477:         self.campaign_panel.on_search_whatsapp=self._campaign_search_whatsapp
+06478:         self.campaign_panel.on_add_current_chat=self._campaign_add_current_chat
+06479:         self.campaign_panel.hide()
+06480:         self.campaign_panel.raise_()
+06481:         self.campaign_panel.on_start_campaign=self._start_campaign_queue
+06482: 
+06483:         self.diagnostic_panel=DiagnosticPanel(self.web_host)
+06484:         self.diagnostic_panel.hide()
+06485:         self.diagnostic_panel.raise_()
+06486:         self.diagnostic_panel.on_refresh=self.refresh_diagnostics
+06487:         self.diagnostic_panel.on_open_folder=self.open_diagnostic_folder
+06488: 
+06489:         self.update_panel=UpdatePanel(self.web_host)
+06490:         self.update_panel.hide()
+06491:         self.update_panel.raise_()
+06492:         self.update_panel.on_check=self.check_for_updates
+06493:         self.update_panel.on_install=self.install_available_update
+06494:         self.update_panel.on_save_channel=self.save_update_channel
+06495:         self.update_panel.on_test=self.test_update_engine
+06496:         self.update_panel.on_backup=self.backup_user_data
+06497:         self.update_panel.on_restore=self.restore_user_data
+06498:         self._update_check_proc=None
+06499:         self._update_check_stdout=""
+06500:         self._update_check_stderr=""
+===== MAIN 6980-7085 =====
+06980:             if str(info.get("status") or "")!="reply":
+06981:                 info["status"]="reply"
+06982:                 info["updated_at"]=now
+06983:                 info["reply_since"]=now
+06984:             elif not info.get("reply_since"):
+06985:                 info["reply_since"]=float(info.get("updated_at") or now)
+06986:             items[n]=info
+06987: 
+06988:         self._attendance_data["last_scan_at"]=now
+06989:         self._attendance_save()
+06990:         try:self.attendance_panel.refresh()
+06991:         except Exception:pass
+06992: 
+06993:     def _attendance_mark(self,status):
+06994:         name=str(getattr(self,"_attendance_current_name","") or "").strip()
+06995:         if not name:
+06996:             QMessageBox.information(self,"Atendimentos","Abra a conversa do cliente no WhatsApp primeiro.")
+06997:             return
+06998:         import time
+06999:         now=time.time()
+07000:         items=self._attendance_data.setdefault("items",{})
+07001:         info=items.get(name) if isinstance(items.get(name),dict) else {}
+07002:         info["name"]=name; info["status"]=status; info["updated_at"]=now
+07003:         if status=="working":
+07004:             info["working_since"]=now
+07005:             if not str(info.get("note") or "").strip():
+07006:                 last=str(info.get("last_customer") or "").strip()
+07007:                 if last: info["note"]="Retomar: "+last[:180]
+07008:         elif status=="reply":
+07009:             info["reply_since"]=now
+07010:         elif status=="waiting":
+07011:             info["waiting_since"]=now
+07012:             info["priority"]=False
+07013:         elif status=="resolved":
+07014:             info["resolved_at"]=now
+07015:             info["priority"]=False
+07016:         items[name]=info
+07017:         self._attendance_save(); self.attendance_panel.refresh()
+07018: 
+07019:     def _attendance_edit_note(self):
+07020:         name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07021:         if not name:
+07022:             QMessageBox.information(self,"Atendimentos","Abra a conversa do cliente no WhatsApp primeiro.")
+07023:             return
+07024:         items=self._attendance_data.setdefault("items",{})
+07025:         info=items.get(name) if isinstance(items.get(name),dict) else {}
+07026:         current=str(info.get("note") or "")
+07027:         value,ok=QInputDialog.getText(self,"O que falta fazer?",f"Pendência de {name}:",text=current)
+07028:         if ok:
+07029:             import time
+07030:             info["note"]=str(value or "").strip(); info["updated_at"]=time.time()
+07031:             items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+07032: 
+07033:     def _attendance_open_chat(self,name):
+07034:         name=str(name or "").strip()
+07035:         if not name:return
+07036:         js=r"""
+07037:         ((wanted)=>{
+07038:           try{
+07039:             const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+07040:             const pane=document.querySelector('#pane-side');
+07041:             if(!pane)return false;
+07042:             for(const s of Array.from(pane.querySelectorAll('span[title]'))){
+07043:               const n=clean(s.getAttribute('title')||s.textContent||'');
+07044:               if(n===wanted){
+07045:                 const row=s.closest('[role="listitem"],[role="row"],[data-testid="cell-frame-container"]') || s.closest('div');
+07046:                 if(row){row.click();return true;}
+07047:               }
+07048:             }
+07049:             return false;
+07050:           }catch(e){return false;}
+07051:         })(__NAME__));
+07052:         """.replace('__NAME__',json.dumps(name,ensure_ascii=False))
+07053:         def done(ok):
+07054:             if not ok:
+07055:                 QMessageBox.information(self,"Atendimentos",f"{name} não está visível na lista do WhatsApp agora. Use a busca do próprio WhatsApp e abra a conversa.")
+07056:             else:
+07057:                 QTimer.singleShot(650,lambda:self._attendance_scan(force=True))
+07058:         try:self.web.page().runJavaScript(js,done)
+07059:         except Exception:pass
+07060: 
+07061:     def _attendance_open_tool(self,tool):
+07062:         labels={"technical":"Busca Somaforce","lens":"Busca por imagem","audio":"Áudio","plate":"Placa/chassi"}
+07063:         name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07064:         if name:
+07065:             try:
+07066:                 import time
+07067:                 items=self._attendance_data.setdefault("items",{})
+07068:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+07069:                 info["last_tool"]=str(tool)
+07070:                 info["last_tool_label"]=labels.get(str(tool),str(tool))
+07071:                 info["tool_opened_at"]=time.time()
+07072:                 items[name]=info
+07073:                 self._attendance_save()
+07074:                 self.attendance_panel.refresh()
+07075:             except Exception:
+07076:                 pass
+07077:         self._open_quick_tool(tool)
+07078: 
+07079:     def _attendance_open_plate(self):
+07080:         try:
+07081:             name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07082:             if name:
+07083:                 import time
+07084:                 items=self._attendance_data.setdefault("items",{})
+07085:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+===== MAIN 8700-9320 =====
+08700:             lines=[f"PERFIL COMERCIAL OBSERVADO — {p.get('client') or '-'}",f"Confiança: {p.get('confidence')} • interações aproximadas: {p.get('interaction_cases',0)}",""]
+08701:             lines.append("FATOS OBSERVADOS")
+08702:             pats=p.get("patterns") or []
+08703:             if pats:
+08704:                 for x in pats[:8]:lines.append(f"• {x.get('label')}: {x.get('count',0)} caso(s)")
+08705:             else:lines.append("• Ainda há pouca evidência comercial.")
+08706:             lines.append(f"• Áudios recebidos: {p.get('audio',0)} • ligações: {p.get('calls',0)}")
+08707:             lines += ["","DESFECHOS OBSERVÁVEIS"]
+08708:             outs=p.get("outcomes") or []
+08709:             if outs:
+08710:                 for x in outs[:6]:lines.append(f"• {x.get('label')}: {x.get('count',0)} caso(s)")
+08711:             else:lines.append("• Ainda não há desfecho com evidência suficiente.")
+08712:             lines += ["","GARGALOS DE ATENDIMENTO",f"• Espera acima de 5 min úteis: {p.get('wait_over_5m',0)} caso(s)",f"• Atendimento interrompido: {p.get('interruptions',0)} caso(s)","","SUGESTÕES BASEADAS NOS PADRÕES (não são fatos)"]
+08713:             keys={x.get("key"):int(x.get("count") or 0) for x in pats}
+08714:             sug=[]
+08715:             if keys.get("consulta_preco",0)>=2 and keys.get("prazo_pagamento",0)>=2:sug.append("Quando fizer sentido, pode valer responder preço + condição juntos para reduzir ida e volta.")
+08716:             if keys.get("codigo_aplicacao",0)>=2:sug.append("Deixar busca por código/original/aplicação pronta tende a economizar tempo com este cliente.")
+08717:             if keys.get("pre_venda",0)>=2:sug.append("Pré-venda/separação aparece repetidamente; um atalho específico pode ser útil.")
+08718:             if keys.get("negociacao",0)>=2:sug.append("Negociação aparece com frequência; pode valer chegar à conversa já com limite/margem disponível.")
+08719:             if int(p.get("audio") or 0)>=3:sug.append("Este cliente usa áudio com frequência; futura transcrição automática pode ajudar a IA a entender melhor os pedidos.")
+08720:             if not sug:sug.append("Continuar observando antes de criar uma estratégia específica.")
+08721:             for s in sug[:5]:lines.append("• "+s)
+08722:             lines += ["","Importante: o perfil usa somente evidências encontradas no diagnóstico local. 'Sinal de fechamento' não significa venda/faturamento confirmado."]
+08723:             txt.setPlainText("\n".join(lines))
+08724:         def ai_strategy():
+08725:             name=str(combo.currentText() or "").strip()
+08726:             if not name:return
+08727:             self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=status;self._ai_observer_analyze("client_profile",False)
+08728:         def force_refresh():
+08729:             status.setText("Atualizando perfis em segundo plano…");refresh.setEnabled(False);self._ai_profiles_cache_refresh_async(True)
+08730:         def poll():
+08731:             gen=int(getattr(self,"_ai_profiles_cache_generation",0) or 0)
+08732:             if gen!=state["generation"]:
+08733:                 state["generation"]=gen;refresh.setEnabled(True);load_cache(True)
+08734:             elif not bool(getattr(self,"_ai_profiles_refresh_busy",False)):
+08735:                 refresh.setEnabled(True)
+08736:         combo.currentTextChanged.connect(lambda _=None:render());refresh.clicked.connect(force_refresh);ai_btn.clicked.connect(ai_strategy);close.clicked.connect(dlg.accept)
+08737:         dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status))
+08738:         timer=QTimer(dlg);timer.setInterval(600);timer.timeout.connect(poll);timer.start()
+08739:         dlg.finished.connect(lambda _=0,t=timer:t.stop())
+08740:         load_cache(False);self._ai_profiles_cache_refresh_async(False);dlg.exec()
+08741:         try:timer.stop()
+08742:         except Exception:pass
+08743: 
+08744:     def _crm_open_reminders_payload(self,client_name=""):
+08745:         import time,datetime
+08746:         name=str(client_name or "").strip(); now=time.time(); out=[]
+08747:         for r in getattr(self,"_reminders",[]) or []:
+08748:             if not isinstance(r,dict) or r.get("done"):continue
+08749:             client=str(r.get("client") or "").strip()
+08750:             if name and client!=name:continue
+08751:             try:due=float(r.get("due_ts") or 0)
+08752:             except Exception:due=0
+08753:             out.append({"id":str(r.get("id") or ""),"text":str(r.get("text") or "")[:180],"client":client,"due_ts":due,"due":datetime.datetime.fromtimestamp(due).strftime("%d/%m %H:%M") if due else "sem data","overdue":bool(due and due<now),"context":str(r.get("context") or "")[-350:]})
+08754:         out.sort(key=lambda x:(not x["overdue"],x["due_ts"] or 9e18))
+08755:         return out[:30]
+08756: 
+08757:     def _ai_priority_for_client(self,client_name):
+08758:         import time
+08759:         name=str(client_name or "").strip()
+08760:         if not name:return {"level":"baixa","score":0,"reasons":[]}
+08761:         p=self._ai_client_profile_payload(name) or {}
+08762:         reasons=[];score=0
+08763:         # Espera atual pesa mais que historico.
+08764:         try:
+08765:             for w in self._diagnostic_waiting_snapshot() or []:
+08766:                 if str(w.get("client") or "").strip()!=name:continue
+08767:                 sec=float(w.get("wait_seconds") or w.get("business_wait_seconds") or w.get("total_wait_seconds") or 0)
+08768:                 if sec>=900:score+=45;reasons.append("aguardando há mais de 15 min úteis")
+08769:                 elif sec>=300:score+=30;reasons.append("aguardando há mais de 5 min úteis")
+08770:                 elif sec>0:score+=15;reasons.append("aguardando resposta agora")
+08771:         except Exception:pass
+08772:         rem=self._crm_open_reminders_payload(name)
+08773:         if any(x.get("overdue") for x in rem):score+=35;reasons.append("tem lembrete vencido")
+08774:         elif rem:score+=15;reasons.append("tem lembrete pendente")
+08775:         pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+08776:         if pats.get("consulta_preco",0)>=3:score+=8;reasons.append("cliente recorrente em preço/orçamento")
+08777:         if pats.get("pre_venda",0)>=2:score+=8;reasons.append("pré-venda/reserva aparece com frequência")
+08778:         if any(x.get("key")=="sinal_fechamento" for x in (p.get("outcomes") or [])):score+=10;reasons.append("há sinais observados de pedido/fechamento")
+08779:         if int(p.get("interaction_cases") or 0)>=10:score+=6;reasons.append("cliente com histórico frequente")
+08780:         level="alta" if score>=45 else ("média" if score>=22 else "baixa")
+08781:         return {"level":level,"score":score,"reasons":reasons[:4]}
+08782: 
+08783:     def _ai_current_assist_text(self,client_name=""):
+08784:         name=str(client_name or getattr(self,"_diagnostic_active_name","") or "").strip()
+08785:         if not name:return "Abra uma conversa individual no WhatsApp para ver a assistência rápida."
+08786:         p=self._ai_client_profile_payload(name) or {};pri=self._ai_priority_for_client(name);pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+08787:         lines=[f"ASSISTÊNCIA RÁPIDA — {name}",f"Prioridade agora: {pri['level'].upper()} • índice {pri['score']}"]
+08788:         if pri.get("reasons"):
+08789:             lines.append("Motivos: "+"; ".join(pri["reasons"]))
+08790:         crm_state=self._crm_state_for_client(name)
+08791:         lines += ["", "SITUAÇÃO CRM"]
+08792:         if crm_state:
+08793:             lines.append(f"• Status: {crm_state.get('status') or '-'}")
+08794:             lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+08795:             lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+08796:             if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+08797:         else:
+08798:             lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+08799:         lines += ["", "O QUE O HISTÓRICO SUGERE"]
+08800:         tips=[]
+08801:         if pats.get("consulta_preco",0)>=2 and pats.get("prazo_pagamento",0)>=2:tips.append("Preço e prazo aparecem juntos com frequência; quando couber, responda os dois de uma vez.")
+08802:         elif pats.get("consulta_preco",0)>=2:tips.append("Preço/orçamento é recorrente neste cliente.")
+08803:         if pats.get("codigo_aplicacao",0)>=2:tips.append("Código/original/aplicação aparece bastante; deixe essa busca pronta.")
+08804:         if pats.get("negociacao",0)>=2:tips.append("Negociação aparece com frequência; vale conferir seu limite antes de responder.")
+08805:         if pats.get("pre_venda",0)>=2:tips.append("Pré-venda/reserva é recorrente; confirme disponibilidade junto da resposta.")
+08806:         if int(p.get("audio") or 0)>=3:tips.append("Esse cliente usa bastante áudio.")
+08807:         if not tips:tips.append("Ainda não há padrão forte; observe a conversa atual antes de antecipar uma ação.")
+08808:         for x in tips[:4]:lines.append("• "+x)
+08809:         rem=self._crm_open_reminders_payload(name)
+08810:         lines += ["", "LEMBRETES DESTE CLIENTE"]
+08811:         if rem:
+08812:             for x in rem[:5]:lines.append(("⚠ " if x.get("overdue") else "• ")+f"{x.get('due')} — {x.get('text')}")
+08813:         else:lines.append("• Nenhum lembrete pendente vinculado.")
+08814:         lines += ["", "Essas dicas são regras locais baseadas no diagnóstico; não enviam mensagens nem alteram lembretes."]
+08815:         return "\n".join(lines)
+08816: 
+08817:     def _ai_current_assist_dialog(self,parent=None):
+08818:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout
+08819:         dlg=QDialog(parent or self);dlg.setWindowTitle("💡 Assistência rápida do cliente");dlg.resize(720,560)
+08820:         lay=QVBoxLayout(dlg);txt=QPlainTextEdit();txt.setReadOnly(True);txt.setPlainText(self._ai_current_assist_text());lay.addWidget(txt,1)
+08821:         row=QHBoxLayout();deep=QPushButton("🤖 Estratégia IA completa");refresh=QPushButton("↻ Atualizar");close=QPushButton("Fechar");row.addWidget(deep);row.addWidget(refresh);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+08822:         def do_ai():
+08823:             name=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+08824:             if not name:return
+08825:             self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+08826:         deep.clicked.connect(do_ai);refresh.clicked.connect(lambda:txt.setPlainText(self._ai_current_assist_text()));close.clicked.connect(dlg.accept);dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,None));dlg.exec()
+08827: 
+08828:     def _ai_crm_reminders_dialog(self,parent=None):
+08829:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+08830:         dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+08831:         lay=QVBoxLayout(dlg)
+08832:         status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+08833:         status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+08834: 
+08835:         active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+08836:         state=self._crm_state_for_client(active) if active else {}
+08837:         current=QLabel()
+08838:         current.setWordWrap(True)
+08839:         current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:9px;font-weight:800;")
+08840:         if active and state:
+08841:             current.setText(f"CONVERSA ATUAL: {active}\n{state.get('status') or '-'} → {state.get('next_action') or '-'}")
+08842:         elif active:current.setText(f"CONVERSA ATUAL: {active} — ainda sem classificação comercial.")
+08843:         else:current.setText("CONVERSA ATUAL: abra um cliente no WhatsApp para ver o estado comercial.")
+08844:         lay.addWidget(current)
+08845: 
+08846:         lay.addWidget(QLabel("🤖 PENDÊNCIAS DETECTADAS PELO OBSERVADOR"))
+08847:         pending_list=QListWidget();pending_list.setSpacing(4);pending_list.setMinimumHeight(180)
+08848:         live=self._crm_states_payload(30,True)
+08849:         for x in live:
+08850:             client=str(x.get('client') or '').strip()
+08851:             item=QListWidgetItem(f"{client}  •  {x.get('status') or '-'}\n→ {x.get('next_action') or '-'}")
+08852:             item.setData(Qt.ItemDataRole.UserRole,client)
+08853:             item.setData(Qt.ItemDataRole.UserRole+1,str(x.get('evidence') or ''))
+08854:             pending_list.addItem(item)
+08855:         if not live:
+08856:             item=QListWidgetItem("Nenhuma pendência comercial detectada nos últimos 7 dias.");item.setFlags(Qt.ItemFlag.NoItemFlags);pending_list.addItem(item)
+08857:         lay.addWidget(pending_list,1)
+08858: 
+08859:         lay.addWidget(QLabel("⏰ LEMBRETES ABERTOS"))
+08860:         reminder_list=QListWidget();reminder_list.setSpacing(3);reminder_list.setMinimumHeight(120)
+08861:         rem=self._crm_open_reminders_payload()
+08862:         for r in rem[:30]:
+08863:             client=str(r.get('client') or '').strip()
+08864:             prefix="⚠ " if r.get("overdue") else "• "
+08865:             item=QListWidgetItem(prefix+f"{r.get('due')}  •  {client or 'sem cliente'} — {r.get('text')}")
+08866:             item.setData(Qt.ItemDataRole.UserRole,client)
+08867:             item.setData(Qt.ItemDataRole.UserRole+1,str(r.get('context') or ''))
+08868:             reminder_list.addItem(item)
+08869:         if not rem:
+08870:             item=QListWidgetItem("Nenhum lembrete aberto.");item.setFlags(Qt.ItemFlag.NoItemFlags);reminder_list.addItem(item)
+08871:         lay.addWidget(reminder_list,1)
+08872: 
+08873:         ai_output=QPlainTextEdit();ai_output.setReadOnly(True);ai_output.setMaximumHeight(170)
+08874:         ai_output.setPlaceholderText("A análise da IA aparecerá aqui quando você clicar em Analisar meu CRM.")
+08875:         lay.addWidget(ai_output)
+08876: 
+08877:         def selected_payload():
+08878:             it=pending_list.currentItem()
+08879:             if it and str(it.data(Qt.ItemDataRole.UserRole) or '').strip():
+08880:                 return str(it.data(Qt.ItemDataRole.UserRole) or '').strip(),str(it.data(Qt.ItemDataRole.UserRole+1) or '')
+08881:             it=reminder_list.currentItem()
+08882:             if it and str(it.data(Qt.ItemDataRole.UserRole) or '').strip():
+08883:                 return str(it.data(Qt.ItemDataRole.UserRole) or '').strip(),str(it.data(Qt.ItemDataRole.UserRole+1) or '')
+08884:             return "",""
+08885: 
+08886:         def select_pending(_cur,_prev):
+08887:             if _cur is not None:reminder_list.clearSelection()
+08888:         def select_reminder(_cur,_prev):
+08889:             if _cur is not None:pending_list.clearSelection()
+08890:         pending_list.currentItemChanged.connect(select_pending)
+08891:         reminder_list.currentItemChanged.connect(select_reminder)
+08892: 
+08893:         def open_selected():
+08894:             client,_ctx=selected_payload()
+08895:             if not client:
+08896:                 QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+08897:             dlg.accept()
+08898:             QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+08899: 
+08900:         def remind_selected():
+08901:             client,ctx=selected_payload()
+08902:             if not client:
+08903:                 QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+08904:             st=self._crm_state_for_client(client) or {}
+08905:             title=str(st.get('next_action') or f"Retornar para {client}")
+08906:             evidence=str(st.get('evidence') or ctx or '')
+08907:             self._reminder_add(dlg,None,force_client=client,context=evidence,prefill_text=title)
+08908: 
+08909:         row=QHBoxLayout()
+08910:         open_btn=QPushButton("💬 Abrir conversa");remind_btn=QPushButton("⏰ Criar lembrete");an=QPushButton("🤖 Analisar meu CRM");close=QPushButton("Fechar")
+08911:         row.addWidget(open_btn);row.addWidget(remind_btn);row.addWidget(an);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+08912: 
+08913:         def run():
+08914:             self._ai_observer_text_widget=ai_output;self._ai_observer_status_widget=status;self._ai_observer_analyze("crm_reminders",False)
+08915:         open_btn.clicked.connect(open_selected);remind_btn.clicked.connect(remind_selected);an.clicked.connect(run);close.clicked.connect(dlg.accept)
+08916:         pending_list.itemDoubleClicked.connect(lambda _it:open_selected())
+08917:         reminder_list.itemDoubleClicked.connect(lambda _it:open_selected())
+08918:         dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(ai_output,status));dlg.exec()
+08919: 
+08920:     def _today_quick_panel(self,parent=None):
+08921:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QLabel,QHBoxLayout,QPushButton
+08922:         import datetime,time
+08923:         now=time.time();today=datetime.date.today()
+08924:         pending=[r for r in getattr(self,'_reminders',[]) or [] if isinstance(r,dict) and not r.get('done')]
+08925:         overdue=[];today_rows=[]
+08926:         for r in pending:
+08927:             try:due=float(r.get('due_ts') or 0)
+08928:             except Exception:due=0
+08929:             if due and due<now:overdue.append(r)
+08930:             if due:
+08931:                 try:
+08932:                     if datetime.datetime.fromtimestamp(due).date()==today:today_rows.append(r)
+08933:                 except Exception:pass
+08934:         overdue.sort(key=lambda r:float(r.get('due_ts') or 0));today_rows.sort(key=lambda r:float(r.get('due_ts') or 0))
+08935:         try:waiting=self._diagnostic_waiting_snapshot() or []
+08936:         except Exception:waiting=[]
+08937:         candidates=set()
+08938:         for w in waiting:
+08939:             n=str(w.get('client') or '').strip()
+08940:             if n:candidates.add(n)
+08941:         for r in pending:
+08942:             n=str(r.get('client') or '').strip()
+08943:             if n:candidates.add(n)
+08944:         priorities=[]
+08945:         for n in candidates:
+08946:             try:
+08947:                 pri=self._ai_priority_for_client(n) or {}
+08948:                 priorities.append((int(pri.get('score') or 0),n,pri))
+08949:             except Exception:pass
+08950:         priorities.sort(reverse=True,key=lambda x:x[0]);priorities=priorities[:3]
+08951:         dlg=QDialog(parent or self);dlg.setWindowTitle('📌 Hoje — painel rápido');dlg.resize(660,650)
+08952:         lay=QVBoxLayout(dlg)
+08953:         title=QLabel('HOJE NO ALIYVO');title.setStyleSheet('font-size:17px;font-weight:900;color:#07344a;padding:2px 2px 6px 2px;');lay.addWidget(title)
+08954:         def add_section(title_txt,items,bg,fg):
+08955:             h=QLabel(title_txt);h.setStyleSheet(f'font-size:12px;font-weight:900;color:{fg};margin-top:8px;');lay.addWidget(h)
+08956:             if not items:
+08957:                 x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x);return
+08958:             for txt in items:
+08959:                 x=QLabel(txt);x.setWordWrap(True);x.setStyleSheet(f'background:{bg};color:{fg};border-radius:7px;padding:8px 10px;font-weight:700;');lay.addWidget(x)
+08960:         # Clientes esperando: cartões clicáveis para conferir a conversa no WhatsApp.
+08961:         wait_head=QLabel(f'💬 CLIENTES ESPERANDO ({len(waiting)})')
+08962:         wait_head.setStyleSheet('font-size:12px;font-weight:900;color:#16558c;margin-top:8px;')
+08963:         lay.addWidget(wait_head)
+08964:         wait_hint=QLabel('Clique em um cliente para abrir a conversa e conferir se ainda precisa de resposta.')
+08965:         wait_hint.setStyleSheet('color:#64748b;font-size:11px;padding:0 2px 3px 2px;')
+08966:         wait_hint.setWordWrap(True)
+08967:         lay.addWidget(wait_hint)
+08968:         if not waiting:
+08969:             x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x)
+08970:         else:
+08971:             for w in waiting[:8]:
+08972:                 n=str(w.get('client') or 'Cliente')
+08973:                 try:sec=max(0,float(w.get('waiting_seconds') or w.get('work_waiting_seconds') or 0))
+08974:                 except Exception:sec=0
+08975:                 if sec < 60: wait_txt='aguardando agora'
+08976:                 elif sec < 3600: wait_txt=f'aguardando {int(sec//60)} min úteis'
+08977:                 else:
+08978:                     hh=int(sec//3600);mm=int((sec%3600)//60)
+08979:                     wait_txt=f'aguardando {hh}h{mm:02d} úteis' if mm else f'aguardando {hh}h úteis'
+08980:                 btn=QPushButton(f'{n}  •  {wait_txt}')
+08981:                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
+08982:                 btn.setToolTip(f'Abrir conversa de {n} no WhatsApp')
+08983:                 btn.setStyleSheet(
+08984:                     'QPushButton{text-align:left;background:#e7f3ff;color:#16558c;'
+08985:                     'border:1px solid #d0e7fa;border-radius:7px;padding:8px 10px;font-weight:700;}'
+08986:                     'QPushButton:hover{background:#d8ecff;border:1px solid #16558c;}'
+08987:                     'QPushButton:pressed{background:#cbe4fb;}'
+08988:                 )
+08989:                 def open_waiting(_checked=False,client=n):
+08990:                     dlg.accept()
+08991:                     QTimer.singleShot(150,lambda client=client:self._attendance_open_chat(client))
+08992:                 btn.clicked.connect(open_waiting)
+08993:                 lay.addWidget(btn)
+08994:         over_items=[]
+08995:         for r in overdue[:6]:
+08996:             try:hh=datetime.datetime.fromtimestamp(float(r.get('due_ts') or 0)).strftime('%H:%M')
+08997:             except Exception:hh='--:--'
+08998:             over_items.append(f"{hh}  •  {str(r.get('text') or '')}"+(f"  — {r.get('client')}" if r.get('client') else ''))
+08999:         add_section(f'🔴 VENCIDOS ({len(overdue)})',over_items,'#ffd9de','#9e1027')
+09000:         today_items=[]
+09001:         for r in today_rows:
+09002:             if r in overdue:continue
+09003:             try:hh=datetime.datetime.fromtimestamp(float(r.get('due_ts') or 0)).strftime('%H:%M')
+09004:             except Exception:hh='--:--'
+09005:             today_items.append(f"{hh}  •  {str(r.get('text') or '')}"+(f"  — {r.get('client')}" if r.get('client') else ''))
+09006:             if len(today_items)>=8:break
+09007:         add_section(f'🟡 TAREFAS DE HOJE ({len(today_rows)})',today_items,'#fff4bf','#715a00')
+09008:         pri_items=[]
+09009:         for score,n,pri in priorities:
+09010:             reasons='; '.join(pri.get('reasons') or []) or 'histórico e pendências atuais'
+09011:             pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+09012:         add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+09013:         row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+09014:         crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+09015: 
+09016:     def _crm_state_file(self):
+09017:         try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+09018:         except Exception:pass
+09019:         return USER_DATA_DIR/"crm_estados_beta.json"
+09020: 
+09021:     def _crm_states_load(self):
+09022:         cached=getattr(self,"_crm_states",None)
+09023:         if isinstance(cached,dict):return cached
+09024:         data={}
+09025:         try:
+09026:             f=self._crm_state_file()
+09027:             if f.exists():
+09028:                 x=json.loads(f.read_text(encoding="utf-8"))
+09029:                 if isinstance(x,dict):data=x
+09030:         except Exception:pass
+09031:         self._crm_states=data
+09032:         return data
+09033: 
+09034:     def _crm_states_save(self):
+09035:         try:
+09036:             self._crm_state_file().write_text(json.dumps(self._crm_states_load(),ensure_ascii=False,indent=2),encoding="utf-8")
+09037:         except Exception:pass
+09038: 
+09039:     def _crm_norm(self,value):
+09040:         import unicodedata
+09041:         s=str(value or "").lower()
+09042:         return "".join(c for c in unicodedata.normalize("NFD",s) if unicodedata.category(c)!="Mn")
+09043: 
+09044:     def _crm_detect_state(self,client,context):
+09045:         import re,time
+09046:         name=str(client or "").strip()
+09047:         msgs=[]
+09048:         for m in (context or [])[-12:]:
+09049:             if not isinstance(m,dict) or m.get("is_call"):continue
+09050:             txt=str(m.get("text") or "").strip()
+09051:             side=str(m.get("side") or "").strip()
+09052:             if txt and side in ("customer","seller"):msgs.append({"text":txt,"side":side})
+09053:         base={"client":name,"status_key":"sem_evidencia","status":"Sem pendência comercial clara","next_action":"Continuar observando","pending":False,"owner":"nenhum","confidence":"baixa","reason":"contexto insuficiente","evidence":"","updated_at":time.time()}
+09054:         if not msgs:return base
+09055:         last=msgs[-1];last_raw=last["text"];last_txt=self._crm_norm(last_raw)
+09056:         recent=self._crm_norm(" | ".join(x["text"] for x in msgs[-8:]))
+09057:         side=last["side"]
+09058: 
+09059:         courtesy=bool(re.fullmatch(r"\s*(ok|okay|show|obrigad[oa]?|valeu|beleza|blz|certo|perfeito|top|joia|jóia|fechou)[!. ]*\s*",last_txt))
+09060:         wait_customer=bool(re.search(r"\b(vou ver|vou conferir|vou analisar|vou pensar|vou falar|falo com|te aviso|depois te falo|vejo e te aviso|qualquer coisa te aviso)\b",last_txt))
+09061:         closing=bool(re.search(r"\b(pode separar|separa pra mim|separa para mim|pode faturar|pode fatura|fatura pra mim|fatura para mim|pode mandar|manda pra mim|manda para mim|fecha pra mim|fecha para mim|vou ficar com|pode fechar)\b",last_txt))
+09062:         ask_info=bool(re.search(r"\b(me passa|me manda|manda|envia|preciso)\b.{0,45}\b(placa|chassi|codigo|código|referencia|referência|foto|aplicacao|aplicação|quantidade|medida)\b",last_txt))
+09063:         no_stock=bool(re.search(r"\b(nao temos|não temos|nao tenho|não tenho|sem estoque|indisponivel|indisponível)\b",last_txt))
+09064:         quote=bool(re.search(r"\b(preco|preço|valor|orcamento|orçamento|cotacao|cotação|quanto|desconto|condicao|condição|prazo)\b",recent))
+09065:         stock=bool(re.search(r"\b(estoque|disponivel|disponível|tem esse|tem essa|temos sim|tenho sim)\b",recent))
+09066:         code=bool(re.search(r"\b(codigo|código|referencia|referência|aplicacao|aplicação|placa|chassi|original)\b",recent))
+09067:         commercial=bool(quote or stock or code or closing or no_stock or ask_info or wait_customer)
+09068: 
+09069:         def out(key,status,action,pending,owner,confidence,reason):
+09070:             x=dict(base);x.update({"status_key":key,"status":status,"next_action":action,"pending":bool(pending),"owner":owner,"confidence":confidence,"reason":reason,"evidence":last_raw[-220:],"last_side":side,"updated_at":time.time()});return x
+09071: 
+09072:         if side=="customer":
+09073:             if wait_customer:
+09074:                 return out("aguardando_cliente","Aguardando cliente","Não cobrar agora; acompanhar depois se a oportunidade continuar aberta",True,"cliente","alta","cliente disse que vai verificar/analisar e retornar")
+09075:             if closing:
+09076:                 return out("possivel_fechamento","Possível fechamento","Confirmar item, quantidade, condição e faturamento antes de concluir",True,"vendedor","alta","cliente usou frase compatível com avanço de pedido")
+09077:             if courtesy:
+09078:                 return out("sem_pendencia","Sem pendência clara","Nenhuma ação imediata",False,"nenhum","alta","última mensagem parece encerramento curto")
+09079:             if commercial:
+09080:                 return out("cliente_aguarda_resposta","Cliente aguardando resposta","Responder o cliente e definir o próximo passo",True,"vendedor","alta","última mensagem comercial veio do cliente")
+09081:             return out("cliente_aguarda_resposta","Cliente aguardando resposta","Conferir a mensagem e responder se necessário",True,"vendedor","média","última mensagem veio do cliente")
+09082: 
+09083:         # Última mensagem foi do vendedor.
+09084:         if ask_info:
+09085:             return out("aguardando_informacao","Aguardando informação do cliente","Aguardar placa/chassi/código/foto solicitado",True,"cliente","alta","vendedor pediu uma informação necessária")
+09086:         if no_stock:
+09087:             return out("sem_produto","Sem produto informado","Buscar alternativa/similar ou encerrar a oportunidade",True,"vendedor","alta","vendedor informou falta de produto/estoque")
+09088:         if quote:
+09089:             return out("cotacao_enviada","Cotação/condição enviada","Acompanhar se o cliente não retornar; criar lembrete se fizer sentido",True,"cliente","média","há preço/orçamento/condição no contexto e a última mensagem é do vendedor")
+09090:         if commercial:
+09091:             return out("aguardando_cliente","Aguardando cliente","Aguardar retorno e definir acompanhamento se a oportunidade ficar parada",True,"cliente","média","conversa comercial terminou com mensagem do vendedor")
+09092:         return out("sem_pendencia","Sem pendência comercial clara","Continuar observando",False,"nenhum","baixa","não há sinal comercial forte no contexto recente")
+09093: 
+09094:     def _crm_update_state_from_context(self,client,context):
+09095:         import time
+09096:         name=str(client or "").strip()
+09097:         if not name:return {}
+09098:         state=self._crm_detect_state(name,context)
+09099:         data=self._crm_states_load();old=data.get(name) if isinstance(data.get(name),dict) else {}
+09100:         changed=any(old.get(k)!=state.get(k) for k in ("status_key","next_action","pending","owner","evidence"))
+09101:         data[name]=state
+09102:         if changed:
+09103:             self._crm_states_save()
+09104:             try:self._diagnostic_log("crm_state_changed",client=name,status=state.get("status_key"),pending=state.get("pending"),owner=state.get("owner"),next_action=state.get("next_action"),confidence=state.get("confidence"))
+09105:             except Exception:pass
+09106:         return state
+09107: 
+09108:     def _crm_state_for_client(self,client):
+09109:         name=str(client or "").strip()
+09110:         if not name:return {}
+09111:         x=self._crm_states_load().get(name)
+09112:         return dict(x) if isinstance(x,dict) else {}
+09113: 
+09114:     def _crm_states_payload(self,limit=20,pending_only=False):
+09115:         import time
+09116:         now=time.time();rows=[]
+09117:         for name,x in self._crm_states_load().items():
+09118:             if not isinstance(x,dict):continue
+09119:             try:age=now-float(x.get("updated_at") or 0)
+09120:             except Exception:age=9e9
+09121:             if age>7*86400:continue
+09122:             if pending_only and not bool(x.get("pending")):continue
+09123:             row=dict(x);row["client"]=str(row.get("client") or name);rows.append(row)
+09124:         rows.sort(key=lambda x:(0 if x.get("owner")=="vendedor" else 1,-float(x.get("updated_at") or 0)))
+09125:         return rows[:max(1,int(limit or 20))]
+09126: 
+09127:     def _smart_reminder_parse_message(self,message,client):
+09128:         import re,datetime,unicodedata
+09129:         raw=str(message or '').strip()
+09130:         if not raw:return None
+09131:         low=''.join(c for c in unicodedata.normalize('NFD',raw.lower()) if unicodedata.category(c)!='Mn')
+09132:         action=bool(re.search(r'\b(me liga|me chama|me avisa|me lembra|te ligo|vou ligar|liga|ligar|chama|chamar|retorna|retornar|retorno|separa|separar|manda|mandar|te mando|vou mandar|envia|enviar|fatura|faturar|cobra|cobrar|confirma|confirmar)\b',low))
+09133:         future=bool(re.search(r'\b(amanha|depois|mais tarde|depois do almoco|apos o almoco|segunda|terca|quarta|quinta|sexta|sabado|domingo|daqui a|as\s+\d{1,2}|\d{1,2}:\d{2}|\d{1,2}h)\b',low))
+09134:         if not (action and future):return None
+09135:         now=datetime.datetime.now();due=None;base=now
+09136:         m=re.search(r'daqui a\s+(\d{1,3})\s*(min|minuto|minutos|h|hora|horas)',low)
+09137:         if m:
+09138:             n=int(m.group(1));due=now+datetime.timedelta(minutes=n if m.group(2).startswith('min') else n*60)
+09139:         if 'amanha' in low:base=now+datetime.timedelta(days=1)
+09140:         weekdays={'segunda':0,'terca':1,'quarta':2,'quinta':3,'sexta':4,'sabado':5,'domingo':6}
+09141:         chosen_weekday=False
+09142:         for word,wd in weekdays.items():
+09143:             if word in low:
+09144:                 add=(wd-now.weekday())%7
+09145:                 if add==0:add=7
+09146:                 base=now+datetime.timedelta(days=add);chosen_weekday=True;break
+09147:         hm=None
+09148:         for pat in (r'\b(?:as|pelas?)\s*(\d{1,2})(?::|h)?(\d{2})?\b',r'\b(\d{1,2}):(\d{2})\b',r'\b(\d{1,2})h(\d{2})?\b'):
+09149:             m=re.search(pat,low)
+09150:             if m:
+09151:                 try:
+09152:                     hh=int(m.group(1));mm=int(m.group(2) or 0)
+09153:                     if 0<=hh<=23 and 0<=mm<=59:hm=(hh,mm);break
+09154:                 except Exception:pass
+09155:         if hm:
+09156:             due=base.replace(hour=hm[0],minute=hm[1],second=0,microsecond=0)
+09157:             if due<=now and 'amanha' not in low and not chosen_weekday:due+=datetime.timedelta(days=1)
+09158:         elif due is None:
+09159:             if 'depois do almoco' in low or 'apos o almoco' in low:due=base.replace(hour=13,minute=30,second=0,microsecond=0)
+09160:             elif 'mais tarde' in low:due=now+datetime.timedelta(hours=2)
+09161:             elif 'amanha' in low or chosen_weekday:due=base.replace(hour=9,minute=0,second=0,microsecond=0)
+09162:         if due is None:return None
+09163:         c=str(client or 'cliente').strip()
+09164:         if re.search(r'\b(me liga|te ligo|vou ligar|liga|ligar)\b',low):title=f'Ligar para {c}'
+09165:         elif re.search(r'\b(separa|separar)\b',low):title=f'Separar / confirmar para {c}'
+09166:         elif re.search(r'\b(fatura|faturar)\b',low):title=f'Faturar pedido de {c}'
+09167:         elif re.search(r'\b(manda|mandar|te mando|vou mandar|envia|enviar)\b',low):title=f'Enviar retorno para {c}'
+09168:         elif re.search(r'\b(cobra|cobrar)\b',low):title=f'Cobrar retorno de {c}'
+09169:         else:title=f'Retornar para {c}'
+09170:         return {'title':title,'due_ts':due.timestamp(),'snippet':raw[-450:]}
+09171: 
+09172:     def _smart_reminder_from_diagnostic(self,name,context):
+09173:         import hashlib
+09174:         client=str(name or '').strip()
+09175:         if not client or not context:return
+09176:         try:
+09177:             # O conjunto ja fica em memoria; evita reler JSON do disco a cada scan.
+09178:             if client in set(getattr(self,"_diagnostic_groups",set()) or set()):return
+09179:         except Exception:pass
+09180:         last=context[-1] if isinstance(context[-1],dict) else {}
+09181:         if not isinstance(last,dict) or last.get('is_call'):return
+09182:         msg=str(last.get('text') or '').strip();side=str(last.get('side') or '').strip()
+09183:         if not msg or side not in ('customer','seller'):return
+09184:         sig=hashlib.sha1((side+'|'+msg).encode('utf-8','ignore')).hexdigest()
+09185:         baseline=getattr(self,'_smart_reminder_diag_baseline',None)
+09186:         if not isinstance(baseline,dict):
+09187:             baseline={};self._smart_reminder_diag_baseline=baseline
+09188:         old=baseline.get(client);baseline[client]=sig
+09189:         if old is None or old==sig:return
+09190:         parsed=self._smart_reminder_parse_message(msg,client)
+09191:         if not parsed:return
+09192:         seen=getattr(self,'_smart_reminder_diag_seen',None)
+09193:         if not isinstance(seen,set):
+09194:             seen=set();self._smart_reminder_diag_seen=seen
+09195:         key=hashlib.sha1((client+'|'+parsed['title']+'|'+str(int(parsed['due_ts']//300))+'|'+msg).encode('utf-8','ignore')).hexdigest()
+09196:         if key in seen:return
+09197:         for r in getattr(self,'_reminders',[]) or []:
+09198:             if not isinstance(r,dict) or r.get('done'):continue
+09199:             if str(r.get('client') or '').strip()!=client:continue
+09200:             try:
+09201:                 if abs(float(r.get('due_ts') or 0)-float(parsed['due_ts']))<1800 and parsed['title'].lower()[:12] in str(r.get('text') or '').lower():
+09202:                     seen.add(key);return
+09203:             except Exception:pass
+09204:         seen.add(key);self._smart_reminder_offer(client,msg,parsed)
+09205: 
+09206:     def _smart_reminder_offer(self,client,message,parsed):
+09207:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QLabel,QHBoxLayout,QPushButton
+09208:         from PyQt6.QtCore import Qt
+09209:         import datetime
+09210:         try:
+09211:             pop=getattr(self,'_smart_reminder_popup',None)
+09212:             if pop and pop.isVisible():return
+09213:         except Exception:pass
+09214:         dlg=QDialog(self);self._smart_reminder_popup=dlg;dlg.setWindowTitle('💡 Sugestão de lembrete');dlg.setModal(False);dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint,True);dlg.resize(520,215)
+09215:         lay=QVBoxLayout(dlg);head=QLabel('A conversa parece ter uma tarefa futura');head.setStyleSheet('font-size:14px;font-weight:900;color:#0b5d44;');lay.addWidget(head)
+09216:         when=datetime.datetime.fromtimestamp(float(parsed['due_ts'])).strftime('%d/%m/%Y às %H:%M')
+09217:         task=QLabel(f"<b>{parsed['title']}</b><br>{when}<br><span style='color:#61717f'>Cliente: {client}</span>");task.setWordWrap(True);lay.addWidget(task)
+09218:         snippet=QLabel('Trecho: “'+str(message or '')[-240:].replace('\n',' ')+'”');snippet.setWordWrap(True);snippet.setStyleSheet('color:#59636d;font-size:10px;');lay.addWidget(snippet)
+09219:         row=QHBoxLayout();create=QPushButton('⏰ Criar lembrete');ignore=QPushButton('Ignorar');row.addWidget(create);row.addStretch(1);row.addWidget(ignore);lay.addLayout(row)
+09220:         def do_create():
+09221:             dlg.accept();self._reminder_add(self,None,force_client=client,context=str(message or ''),prefill_text=parsed['title'],prefill_due=parsed['due_ts'])
+09222:         create.clicked.connect(do_create);ignore.clicked.connect(dlg.reject);dlg.finished.connect(lambda _=0:setattr(self,'_smart_reminder_popup',None));dlg.show();dlg.raise_();dlg.activateWindow()
+09223: 
+09224:     def _ai_build_context(self,mode="observer"):
+09225:         import datetime,time
+09226:         today=datetime.date.today().isoformat();groups=set(self._diagnostic_groups_load());rows=[]
+09227:         for x in self._diagnostic_read():
+09228:             if not isinstance(x,dict):continue
+09229:             if not str(x.get("time") or "").startswith(today):continue
+09230:             if str(x.get("client") or "").strip() in groups:continue
+09231:             rows.append(x)
+09232:         active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+09233:         target=str(getattr(self,"_ai_profile_target","") or "").strip() if mode=="client_profile" else active
+09234:         last_ai=float(getattr(self,"_ai_last_analyzed_event_ts",0) or 0)
+09235:         if mode in ("conversation","client_profile") and target:
+09236:             selected=[x for x in rows if str(x.get("client") or "").strip()==target][-90:]
+09237:         elif mode=="auto":
+09238:             selected=[]
+09239:             for x in rows:
+09240:                 try:ts=float(x.get("ts") or 0)
+09241:                 except Exception:ts=0
+09242:                 if ts>last_ai:selected.append(x)
+09243:             selected=selected[-90:]
+09244:         else:selected=rows[-140:]
+09245:         events=[self._ai_compact_event(x) for x in selected];events=[x for x in events if x]
+09246:         last_event_ts=max([float(x.get("ts") or 0) for x in rows] or [0])
+09247:         try:overview=self._diagnostic_whatsapp_overview_payload()
+09248:         except Exception:overview={}
+09249:         try:waiting=self._diagnostic_waiting_snapshot()[:25]
+09250:         except Exception:waiting=[]
+09251:         try:current_context=str((getattr(self,"_diagnostic_last_context_by_contact",{}) or {}).get(target) or "")[-1800:]
+09252:         except Exception:current_context=""
+09253:         learning=self._ai_learning_summary_payload(True)
+09254:         profile=self._ai_client_profile_payload(target) if target else {}
+09255:         reminders=self._crm_open_reminders_payload(target if mode in ("conversation","client_profile") else "")
+09256:         priority=self._ai_priority_for_client(target) if target else {}
+09257:         commercial_state=self._crm_state_for_client(target) if target else {}
+09258:         commercial_pending=self._crm_states_payload(20,True) if mode in ("observer","auto","crm_reminders") else []
+09259:         return {"generated_at":datetime.datetime.now().isoformat(timespec="seconds"),"mode":mode,"delta_only":bool(mode=="auto"),"active_contact":target,"active_recent_context":current_context,"client_profile":profile,"client_priority":priority,"commercial_state":commercial_state,"commercial_pending":commercial_pending,"open_reminders":reminders,"whatsapp_overview":overview,"waiting_now":waiting,"recent_events":events,"day_event_count":len(rows),"events_sent":len(events),"last_event_ts":last_event_ts,"accumulated_learning":learning,"working_hours":{"weekdays":"segunda a sexta","periods":["07:50-12:08","13:30-18:00"],"waiting_metrics_use_business_time":True},"goal":"atuar como copiloto/CRM assistido: priorizar clientes, usar status comercial + proxima acao + pendencia, aprofundar estrategia por cliente, conectar lembretes ao contexto comercial e sugerir proximas acoes sem enviar mensagens nem alterar lembretes automaticamente"}
+09260: 
+09261:     def _ai_prompt(self,mode):
+09262:         base=("Você é a IA Observadora do ALIYVO, um copiloto comercial para vendas de autopeças pesadas pelo WhatsApp. "
+09263:               "Analise somente os dados fornecidos. Não invente fatos, peças, preços, venda fechada ou intenção do cliente. "
+09264:               "O vendedor trabalha rápido e usa respostas curtas; não critique abreviações ou informalidade se não prejudicarem a venda. "
+09265:               "Mensagens de encerramento como ok, show, obrigado, valeu e equivalentes normalmente não exigem resposta. "
+09266:               "Diferencie sempre FATO OBSERVADO, INDÍCIO e SUGESTÃO. Um sinal textual de fechamento não prova faturamento. "
+09267:               "Gargalos de atendimento não são automações por si só. Lembretes são tarefas do usuário: você pode priorizar e sugerir, mas nunca afirmar que criou, adiou, concluiu ou enviou algo. "
+09268:               "Nunca envie nada ao cliente.")
+09269:         if mode=="conversation":
+09270:             return base+("\nAnalise a conversa atual e responda em português com: 1) PRIORIDADE AGORA e motivo; 2) SITUAÇÃO; 3) O QUE FALTA FAZER/RESPONDER; 4) RESPOSTA SUGERIDA curta, se couber; 5) AÇÃO/FERRAMENTA; 6) se existe lembrete relacionado; 7) oportunidade de automação. Seja objetivo.")
+09271:         if mode=="client_profile":
+09272:             return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+09273:         if mode=="crm_reminders":
+09274:             return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+09275:         return base+("\nFaça uma auditoria do fluxo recente com: 1) ATENÇÃO AGORA; 2) PADRÕES COMERCIAIS; 3) GARGALOS; 4) DESFECHOS OBSERVÁVEIS; 5) LEMBRETES/CRM; 6) TAREFAS REPETITIVAS; 7) FERRAMENTAS/ATALHOS; 8) AUTOMAÇÕES FUTURAS; 9) O QUE CONTINUAR OBSERVANDO.")
+09276: 
+09277:     def _ai_response_text(self,data):
+09278:         if not isinstance(data,dict):return ""
+09279:         direct=str(data.get("output_text") or "").strip()
+09280:         if direct:return direct
+09281:         parts=[]
+09282:         for item in data.get("output") or []:
+09283:             if not isinstance(item,dict):continue
+09284:             for c in item.get("content") or []:
+09285:                 if isinstance(c,dict) and c.get("type") in ("output_text","text"):
+09286:                     t=str(c.get("text") or "").strip()
+09287:                     if t:parts.append(t)
+09288:         return "\n".join(parts).strip()
+09289: 
+09290:     def _ai_observer_set_status(self,text):
+09291:         w=getattr(self,"_ai_observer_status_widget",None)
+09292:         try:
+09293:             if w is not None:w.setText(str(text))
+09294:         except Exception:pass
+09295: 
+09296:     def _ai_observer_set_text(self,text):
+09297:         w=getattr(self,"_ai_observer_text_widget",None)
+09298:         try:
+09299:             if w is not None:w.setPlainText(str(text))
+09300:         except Exception:pass
+09301: 
+09302:     def _ai_observer_analyze(self,mode="observer",silent=False):
+09303:         if bool(getattr(self,"_ai_observer_busy",False)):
+09304:             if not silent:self._ai_observer_set_status("A IA já está analisando…")
+09305:             return
+09306:         key=self._ai_api_key()
+09307:         if not key:
+09308:             if not silent:
+09309:                 from PyQt6.QtWidgets import QMessageBox
+09310:                 QMessageBox.information(self,"IA Observadora","Configure primeiro sua chave da API.\n\nA assinatura do ChatGPT e a API possuem cobranças separadas.")
+09311:                 self._ai_settings_dialog(self)
+09312:             return
+09313:         ctx=self._ai_build_context(mode)
+09314:         last_ts=float(ctx.get("last_event_ts") or 0)
+09315:         if mode=="auto" and last_ts<=float(getattr(self,"_ai_last_analyzed_event_ts",0) or 0):
+09316:             return
+09317:         cfg=self._ai_config_load(); model=str(cfg.get("model") or "gpt-5.6-luna")
+09318:         body={
+09319:             "model":model,
+09320:             "store":False,
