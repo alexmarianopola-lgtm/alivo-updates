@@ -6,6 +6,12 @@ appdir=Path(sys.argv[1])
 s=(appdir/'main.py').read_text(encoding='utf-8')
 
 assert 'ALIYVO_VERSION = "0.23.02"' in s
+assert 'card_over=QPushButton()' in s
+assert 'card_today=QPushButton()' in s
+assert 'card_wait=QPushButton()' in s
+assert 'card_ai=QPushButton()' in s
+assert 'card_over.clicked.connect' in s
+assert 'card_ai.clicked.connect' in s
 assert 'WA_TransparentForMouseEvents' in s
 assert 'card.sizeHint().height()+10' in s
 assert '💬 Abrir cliente' in s
