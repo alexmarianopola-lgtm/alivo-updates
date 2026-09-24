@@ -1,0 +1,102 @@
+name: Publicar ALIYVO 0.23.03 Proveniencia
+on:
+  push:
+    paths: ['trigger-v2303-release.txt']
+permissions:
+  contents: write
+jobs:
+  snapshot-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.02 e gerar impressao original
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.02 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02302.zip" --dir C:\temp\base
+          $zip="C:\temp\base\ALIYVO_BETA_GRATIS_02302.zip"
+          $zipSha=(Get-FileHash $zip -Algorithm SHA512).Hash.ToLower()
+          Expand-Archive $zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.02 invalida' }
+          $mainSha=(Get-FileHash C:\temp\build\_app\main.py -Algorithm SHA512).Hash.ToLower()
+          $zipSha | Set-Content C:\temp\base_zip_sha512.txt
+          $mainSha | Set-Content C:\temp\base_main_sha512.txt
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar marcador de proveniencia
+        shell: pwsh
+        run: |
+          $z=(Get-Content C:\temp\base_zip_sha512.txt).Trim()
+          $m=(Get-Content C:\temp\base_main_sha512.txt).Trim()
+          python patch_provenance_v2303.py C:\temp\build "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C" $z $m
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_provenance_v2303.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-provenance-v2303.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate de proveniencia falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Empacotar snapshot e gerar hashes finais
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02303.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02303.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_provenance_v2303.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-provenance-final-v2303.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate de proveniencia' }
+          $finalZip=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02303.zip -Algorithm SHA512).Hash.ToLower()
+          $finalMain=(Get-FileHash C:\temp\verify\_app\main.py -Algorithm SHA512).Hash.ToLower()
+          $baseZip=(Get-Content C:\temp\base_zip_sha512.txt).Trim()
+          $baseMain=(Get-Content C:\temp\base_main_sha512.txt).Trim()
+          @(
+            "ALIYVO PROVENIENCIA TECNICA",
+            "ORIGIN_ID=ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C",
+            "SNAPSHOT_DATE=2026-09-24",
+            "REPOSITORY=alexmarianopola-lgtm/alivo-updates",
+            "BASE_RELEASE=v0.23.02",
+            "BASE_ZIP_SHA512=$baseZip",
+            "BASE_MAIN_SHA512=$baseMain",
+            "FINAL_ZIP_SHA512=$finalZip",
+            "FINAL_MAIN_SHA512=$finalMain",
+            "OBS=Registro tecnico de proveniencia; nao substitui registro formal de propriedade intelectual."
+          ) | Set-Content C:\temp\out\ALIYVO_PROVENIENCIA_2026-09-24.txt -Encoding UTF8
+
+          New-Item -ItemType Directory -Force -Path provenance | Out-Null
+          @"
+{
+  "schema": "aliyvo-provenance-v1",
+  "origin_id": "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C",
+  "snapshot_date": "2026-09-24",
+  "repository": "alexmarianopola-lgtm/alivo-updates",
+  "base_release": "v0.23.02",
+  "base_zip_sha512": "$baseZip",
+  "base_main_sha512": "$baseMain",
+  "final_release": "v0.23.03",
+  "final_zip_sha512": "$finalZip",
+  "final_main_sha512": "$finalMain",
+  "note": "Technical provenance record; not a substitute for formal IP registration."
+}
+"@ | Set-Content provenance\ALIYVO_ORIGIN_2026-09-24.json -Encoding UTF8
+
+      - name: Fixar rastro no historico Git
+        shell: pwsh
+        run: |
+          git config user.name "aliyvo-provenance-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add provenance\ALIYVO_ORIGIN_2026-09-24.json
+          git commit -m "provenance: fixar snapshot de origem ALIYVO ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"
+          git push
+
+      - name: Publicar snapshot oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.03 C:\temp\out\ALIYVO_BETA_GRATIS_02303.zip C:\temp\out\ALIYVO_PROVENIENCIA_2026-09-24.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.03 - Snapshot de Origem" --notes "Snapshot tecnico de proveniencia do ALIYVO. Inclui identificador persistente de origem, manifesto local e hashes SHA-512 do pacote/base e da versao final. Nenhuma funcao comercial, CRM, WhatsApp Turbo, Ahgora ou updater foi alterada alem da versao e dos metadados de proveniencia." --latest
