@@ -69,21 +69,20 @@ jobs:
           ) | Set-Content C:\temp\out\ALIYVO_PROVENIENCIA_2026-09-24.txt -Encoding UTF8
 
           New-Item -ItemType Directory -Force -Path provenance | Out-Null
-          @"
-{
-  "schema": "aliyvo-provenance-v1",
-  "origin_id": "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C",
-  "snapshot_date": "2026-09-24",
-  "repository": "alexmarianopola-lgtm/alivo-updates",
-  "base_release": "v0.23.02",
-  "base_zip_sha512": "$baseZip",
-  "base_main_sha512": "$baseMain",
-  "final_release": "v0.23.03",
-  "final_zip_sha512": "$finalZip",
-  "final_main_sha512": "$finalMain",
-  "note": "Technical provenance record; not a substitute for formal IP registration."
-}
-"@ | Set-Content provenance\ALIYVO_ORIGIN_2026-09-24.json -Encoding UTF8
+          $prov=[ordered]@{
+            schema="aliyvo-provenance-v1"
+            origin_id="ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"
+            snapshot_date="2026-09-24"
+            repository="alexmarianopola-lgtm/alivo-updates"
+            base_release="v0.23.02"
+            base_zip_sha512=$baseZip
+            base_main_sha512=$baseMain
+            final_release="v0.23.03"
+            final_zip_sha512=$finalZip
+            final_main_sha512=$finalMain
+            note="Technical provenance record; not a substitute for formal IP registration."
+          }
+          $prov | ConvertTo-Json -Depth 4 | Set-Content provenance\ALIYVO_ORIGIN_2026-09-24.json -Encoding UTF8
 
       - name: Fixar rastro no historico Git
         shell: pwsh
