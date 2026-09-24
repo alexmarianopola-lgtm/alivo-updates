@@ -77,7 +77,7 @@ new='''        def make_card(r,now):
                     owner=str(state.get('owner') or '-')
                     st=str(state.get('status') or 'Sem classificação')
                     action=str(state.get('next_action') or '')
-                    crm_lab=QLabel(f"CRM: {st}   •   responsável: {owner}" + (f"\nPróxima ação: {action}" if action else ""))
+                    crm_lab=QLabel(f"CRM: {st}   •   responsável: {owner}" + (f"\\nPróxima ação: {action}" if action else ""))
                     crm_lab.setWordWrap(True)
                     crm_lab.setStyleSheet("font-size:10px;font-weight:800;color:#173B52;background:rgba(255,255,255,0.55);border-radius:6px;padding:5px 7px;")
                     vl.addWidget(crm_lab)
@@ -101,13 +101,13 @@ new='''        def refresh():
             except Exception:waiting_count=0
             try:ai_pending=len(self._crm_states_payload(100,True) or [])
             except Exception:ai_pending=0
-            card_over.setText(f"🔴\n{len(overdue)}\nVENCIDOS")
+            card_over.setText(f"🔴\\n{len(overdue)}\\nVENCIDOS")
             card_over.setStyleSheet("background:#FFD9DE;color:#9E1027;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
-            card_today.setText(f"🟡\n{today_count}\nHOJE")
+            card_today.setText(f"🟡\\n{today_count}\\nHOJE")
             card_today.setStyleSheet("background:#FFF2B7;color:#6A5600;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
-            card_wait.setText(f"💬\n{waiting_count}\nESPERANDO")
+            card_wait.setText(f"💬\\n{waiting_count}\\nESPERANDO")
             card_wait.setStyleSheet("background:#DDEEFF;color:#155B8A;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
-            card_ai.setText(f"🤖\n{ai_pending}\nPENDÊNCIAS IA")
+            card_ai.setText(f"🤖\\n{ai_pending}\\nPENDÊNCIAS IA")
             card_ai.setStyleSheet("background:#DFF5E8;color:#176B3A;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
             counts.setText(f"A fazer: {len(pending)}   •   Concluídos: {len(done_rows)}")
 '''
