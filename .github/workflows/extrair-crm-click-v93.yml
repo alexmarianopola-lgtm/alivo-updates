@@ -1,0 +1,39 @@
+name: Extrair CRM clicavel v93
+on:
+  push:
+    paths: ['trigger-extract-click-v93.txt']
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair trechos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/app
+          gh release download v0.22.93 --repo "$GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02293.zip" --dir /tmp/base
+          unzip -q /tmp/base/ALIYVO_BETA_GRATIS_02293.zip -d /tmp/app
+          P=/tmp/app/_app/main.py
+          {
+            echo "=== CRM DIALOG ==="
+            sed -n '8780,8835p' "$P"
+            echo
+            echo "=== REMINDER DIALOG ==="
+            sed -n '9410,9555p' "$P"
+            echo
+            echo "=== OPEN CHAT ==="
+            grep -n "def _attendance_open_chat" "$P" || true
+            line=$(grep -n "def _attendance_open_chat" "$P" | head -1 | cut -d: -f1 || true)
+            if [ -n "$line" ]; then
+              start=$((line-5)); end=$((line+45)); sed -n "${start},${end}p" "$P"
+            fi
+          } > crm_click_v93.txt
+          git config user.name "aliyvo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add crm_click_v93.txt
+          git commit -m "chore: extrair CRM clicavel da v93"
+          git push
