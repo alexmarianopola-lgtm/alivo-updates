@@ -1,0 +1,129 @@
+name: Publicar ALIYVO 0.23.02 CRM Clicavel
+on:
+  push:
+    paths: ['trigger-v2302-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.01
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.01 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02301.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02301.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.01 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' } | ForEach-Object {
+            $rel=$_.FullName.Substring('C:\temp\build\'.Length)
+            $hash=(Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$rel|$hash"
+          } | Sort-Object | Set-Content C:\temp\tree_before.txt
+
+      - name: Aplicar CRM Assistido + Visual + Clique
+        shell: pwsh
+        run: |
+          python patch_crm_click_v2302.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'ALIYVO_VERSION = "0.23.02"' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'WA_TransparentForMouseEvents' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern '💬 Abrir cliente' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern '💬 Abrir conversa' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'def _crm_detect_state' | Out-Null
+          Select-String -Path C:\temp\build\_app\main.py -Pattern 'setInterval\(20000\)' | Out-Null
+
+      - name: Garantir arquivos da 0.23.01 preservados
+        shell: pwsh
+        run: |
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater da linha 0.23 foi alterado' }
+          Get-ChildItem C:\temp\build -Recurse -File | Where-Object { $_.FullName -ne 'C:\temp\build\_app\main.py' } | ForEach-Object {
+            $rel=$_.FullName.Substring('C:\temp\build\'.Length)
+            $hash=(Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$rel|$hash"
+          } | Sort-Object | Set-Content C:\temp\tree_after.txt
+          if((Compare-Object (Get-Content C:\temp\tree_before.txt) (Get-Content C:\temp\tree_after.txt)).Count -ne 0){ throw 'Arquivos fora do main.py mudaram' }
+
+      - name: Gate de clique real do CRM
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6
+          python tests\logic_crm_click_v2302.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-click-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate de clique CRM falhou' }
+          Select-String -Path C:\temp\out\logic-click-v2302.txt -Pattern 'ALIYVO_V2302_CRM_CLICK=OK' | Out-Null
+
+      - name: Gate de classificacao CRM
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $t=Get-Content tests\logic_crm_assistido_v92.py -Raw
+          $t=$t.Replace("assert m.ALIYVO_VERSION=='0.22.92'","assert m.ALIYVO_VERSION=='0.23.02'")
+          $t=$t.Replace('ALIYVO_V92_CRM_ASSISTIDO=OK','ALIYVO_V2302_CRM_ASSISTIDO=OK')
+          Set-Content C:\temp\logic_crm_v2302.py $t -Encoding UTF8
+          python C:\temp\logic_crm_v2302.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-crm-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate CRM Assistido falhou' }
+          Select-String -Path C:\temp\out\logic-crm-v2302.txt -Pattern 'ALIYVO_V2302_CRM_ASSISTIDO=OK' | Out-Null
+
+      - name: Gate WhatsApp Turbo
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $t=Get-Content tests\logic_whatsapp_turbo_v91.py -Raw
+          $t=$t.Replace("assert m.ALIYVO_VERSION=='0.22.91'","assert m.ALIYVO_VERSION=='0.23.02'")
+          $t=$t.Replace('ALIYVO_V91_WHATSAPP_TURBO=OK','ALIYVO_V2302_WHATSAPP_TURBO=OK')
+          Set-Content C:\temp\logic_whatsapp_v2302.py $t -Encoding UTF8
+          python C:\temp\logic_whatsapp_v2302.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-wa-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate WhatsApp Turbo falhou' }
+          Select-String -Path C:\temp\out\logic-wa-v2302.txt -Pattern 'ALIYVO_V2302_WHATSAPP_TURBO=OK' | Out-Null
+
+      - name: Empacotar e repetir gates no ZIP final
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02302.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02302.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          python tests\logic_crm_click_v2302.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-click-final-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no clique CRM' }
+          python C:\temp\logic_crm_v2302.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-crm-final-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no CRM Assistido' }
+          python C:\temp\logic_whatsapp_v2302.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-wa-final-v2302.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no WhatsApp Turbo' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02302.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            "ALIYVO 0.23.02",
+            "Base oficial: 0.23.01",
+            "CRM Assistido: OK",
+            "CRM Visual: OK",
+            "Clique real nos cards: OK",
+            "Altura dinamica dos cards: OK",
+            "Abrir cliente direto: OK",
+            "CRM do dia interativo: OK",
+            "WhatsApp Turbo: preservado",
+            "Arquivos da linha 0.23.01 fora do main.py: preservados",
+            "Updater: preservado",
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02302.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.02 C:\temp\out\ALIYVO_BETA_GRATIS_02302.zip C:\temp\out\VALIDACAO_02302.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.02 - CRM Clicável" --notes "Baseada na linha oficial 0.23.01. Corrige os cards do CRM que bloqueavam o clique, ajusta a altura automaticamente para não cortar o status comercial, adiciona Abrir cliente na tela de lembretes e transforma CRM do dia em painel interativo com seleção de pendências, Abrir conversa, Criar lembrete e análise por IA. Mantém o WhatsApp Turbo e preserva os demais arquivos da 0.23.01." --latest
