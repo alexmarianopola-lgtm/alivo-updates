@@ -203,5 +203,164 @@ if text.count(old)!=1:
     raise SystemExit('bloco de botoes Radar nao encontrado')
 text=text.replace(old,new,1)
 
+
+# ===== Melhoria de leitura comercial do Radar =====
+# Ranking por cliente: evita que um cliente com centenas de itens domine a prioridade.
+start=text.index('    def _radar_priorities(self):\n')
+end=text.index('    def _radar_source_status(self,kind):\n',start)
+better_priorities=r'''    def _radar_priorities(self):
+        data=self._radar_load();clients=self._radar_all_clients();rows={}
+        def row_for(key):
+            if key not in rows:
+                cc=clients.get(key,{})
+                rows[key]={"key":key,"code":str(cc.get("code") or ""),"name":str(cc.get("name") or ""),"score":0,"reasons":[],"trend":None,"due":[]}
+            return rows[key]
+
+        for key,h in (data.get("history",{}).get("clients",{}) or {}).items():
+            if not isinstance(h,dict):continue
+            r=row_for(str(key));tr=h.get("trend_pct");r["trend"]=tr
+            if tr is not None and tr<=-40:r["score"]+=45;r["reasons"].append(f"compras caíram {abs(tr):.0f}%")
+            elif tr is not None and tr<=-25:r["score"]+=30;r["reasons"].append(f"compras caíram {abs(tr):.0f}%")
+            elif tr is not None and tr<=-15:r["score"]+=18;r["reasons"].append(f"compras caíram {abs(tr):.0f}%")
+
+        by_client={}
+        for it in (data.get("recurrence",{}).get("items",[]) or []):
+            if not isinstance(it,dict):continue
+            code=str(it.get("client_code") or "");key=code or ("NOME:"+self._radar_norm(it.get("client_name")))
+            by_client.setdefault(key,[]).append(it)
+
+        for key,items in by_client.items():
+            r=row_for(key)
+            relevant=[]
+            for it in items:
+                d=it.get("days_to_next")
+                if bool(it.get("overdue")) or (d is not None and int(d)<=7) or bool(it.get("alert")):
+                    relevant.append(it)
+            relevant.sort(key=lambda x:(0 if x.get("overdue") else 1,x.get("days_to_next") if x.get("days_to_next") is not None else 99999,-int(x.get("score") or 0)))
+            r["due"]=relevant[:5]
+            overdue=[x for x in relevant if x.get("overdue")]
+            soon=[x for x in relevant if not x.get("overdue") and x.get("days_to_next") is not None and int(x.get("days_to_next"))<=7]
+            # Pontuação por situação do cliente, não pela quantidade bruta de linhas.
+            if overdue:
+                r["score"]+=55+min(20,len(overdue)*4)
+                r["reasons"].append(f"{len(overdue)} recompra(s) atrasada(s)")
+            elif soon:
+                r["score"]+=32+min(12,len(soon)*3)
+                r["reasons"].append(f"{len(soon)} recompra(s) nos próximos 7 dias")
+            elif relevant:
+                r["score"]+=18
+                r["reasons"].append(f"{len(relevant)} produto(s) em alerta")
+            # Expõe no máximo 3 peças para a linha ficar legível.
+            for it in relevant[:3]:
+                prod=str(it.get("product") or it.get("product_code") or "produto")
+                d=it.get("days_to_next")
+                if it.get("overdue"):
+                    label=f"{prod} atrasado {abs(int(d or 0))}d" if d is not None else f"{prod} atrasado"
+                elif d is not None:
+                    label=f"{prod} em {int(d)}d"
+                else:
+                    label=f"{prod} em alerta"
+                r["reasons"].append(label)
+
+        out=[x for x in rows.values() if x.get("score",0)>0]
+        out.sort(key=lambda x:(-int(x.get("score") or 0),str(x.get("name") or "").lower()))
+        return out
+
+'''
+text=text[:start]+better_priorities+text[end:]
+
+# Cartões passam a mostrar quantidade de CLIENTES, não linhas de produto.
+old_cards='''            overdue=sum(1 for x in (data.get("recurrence",{}).get("items",[]) or []) if x.get("overdue"))
+            upcoming=sum(1 for x in (data.get("recurrence",{}).get("items",[]) or []) if x.get("days_to_next") is not None and 0<int(x.get("days_to_next"))<=7)
+            falling=sum(1 for x in (data.get("history",{}).get("clients",{}) or {}).values() if isinstance(x,dict) and x.get("trend_pct") is not None and x.get("trend_pct")<=-15)
+            linked=len(data.get("links",{}) or {})
+            over.setText(f"🔴 {overdue}\\nRECOMPRAS ATRASADAS");soon.setText(f"🟡 {upcoming}\\nPRÓXIMOS 7 DIAS");drop.setText(f"📉 {falling}\\nCLIENTES EM QUEDA");links.setText(f"🔗 {linked}\\nVÍNCULOS WHATSAPP")
+'''
+new_cards='''            recitems=(data.get("recurrence",{}).get("items",[]) or [])
+            overdue_clients=set()
+            upcoming_clients=set()
+            for x in recitems:
+                if not isinstance(x,dict):continue
+                key=str(x.get("client_code") or ("NOME:"+self._radar_norm(x.get("client_name"))))
+                d=x.get("days_to_next")
+                if x.get("overdue"):overdue_clients.add(key)
+                elif d is not None and 0<int(d)<=7:upcoming_clients.add(key)
+            falling=sum(1 for x in (data.get("history",{}).get("clients",{}) or {}).values() if isinstance(x,dict) and x.get("trend_pct") is not None and x.get("trend_pct")<=-15)
+            linked=len(set(str(v) for v in (data.get("links",{}) or {}).values() if v))
+            over.setText(f"🔴 {len(overdue_clients)}\\nCLIENTES PARA CHAMAR");soon.setText(f"🟡 {len(upcoming_clients)}\\nRECOMPRA EM ATÉ 7 DIAS");drop.setText(f"📉 {falling}\\nCLIENTES EM QUEDA");links.setText(f"🔗 {linked}\\nCLIENTES VINCULADOS")
+'''
+if text.count(old_cards)!=1:raise SystemExit('cards Radar nao encontrados')
+text=text.replace(old_cards,new_cards,1)
+
+# Nomes das colunas mais comerciais.
+text=text.replace('table.setHorizontalHeaderLabels(["Prioridade","Cliente","Motivo","Tendência","Recompras","Vínculo WhatsApp"])',
+                  'table.setHorizontalHeaderLabels(["Prioridade","Cliente","Por que chamar","Tendência","Oportunidades","WhatsApp"])',1)
+
+# Coluna de oportunidades conta só itens relevantes exibíveis (máximo 5).
+text=text.replace('due=len(r.get("due") or []);key=str(r.get("key") or "")',
+                  'due=len(r.get("due") or []);key=str(r.get("key") or "")',1)
+
+# Painel de detalhes do cliente selecionado.
+needle='''        current=QLabel("");current.setWordWrap(True);current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:8px;font-weight:700;");lay.addWidget(current)
+'''
+replacement='''        detail=QLabel("Selecione um cliente para ver as melhores oportunidades.");detail.setWordWrap(True);detail.setMinimumHeight(92);detail.setStyleSheet("background:#FFF9E8;color:#4D4300;border-radius:8px;padding:9px;font-weight:700;");lay.addWidget(detail)
+        current=QLabel("");current.setWordWrap(True);current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:8px;font-weight:700;");lay.addWidget(current)
+'''
+if text.count(needle)!=1:raise SystemExit('painel current Radar nao encontrado')
+text=text.replace(needle,replacement,1)
+
+# Atualiza detalhe ao selecionar uma linha.
+needle2='''        def selected_key():
+            row=table.currentRow()
+            it=table.item(row,0) if row>=0 else None
+            return str(it.data(Qt.ItemDataRole.UserRole) or "") if it else ""
+
+        def link_current():
+'''
+replacement2='''        def selected_key():
+            row=table.currentRow()
+            it=table.item(row,0) if row>=0 else None
+            return str(it.data(Qt.ItemDataRole.UserRole) or "") if it else ""
+
+        def update_detail():
+            key=selected_key()
+            if not key:
+                detail.setText("Selecione um cliente para ver as melhores oportunidades.");return
+            prof=self._radar_profile_by_code(key);h=prof.get("history") or {};rec=prof.get("recurrence") or []
+            cli=self._radar_all_clients().get(key) or {}
+            lines=[str(cli.get("name") or key)]
+            tr=h.get("trend_pct")
+            if tr is not None:lines.append(f"Faturamento: {tr:+.1f}% nos últimos 3 meses vs. 3 anteriores")
+            hot=[]
+            for x in rec:
+                d=x.get("days_to_next")
+                if x.get("overdue") or (d is not None and int(d)<=7) or x.get("alert"):hot.append(x)
+            if hot:
+                lines.append("Melhores oportunidades:")
+                for x in hot[:5]:
+                    prod=str(x.get("product") or x.get("product_code") or "produto")
+                    d=x.get("days_to_next")
+                    if x.get("overdue"):when=f"ATRASADO {abs(int(d or 0))} dia(s)" if d is not None else "ATRASADO"
+                    elif d is not None:when=f"previsto em {int(d)} dia(s)"
+                    else:when="em alerta"
+                    lines.append(f"• {prod} — {when}")
+            else:lines.append("Nenhuma recompra urgente detectada.")
+            detail.setText("\\n".join(lines))
+
+        def link_current():
+'''
+if text.count(needle2)!=1:raise SystemExit('selected_key Radar nao encontrado')
+text=text.replace(needle2,replacement2,1)
+
+needle3='''        openb.clicked.connect(open_selected);bulklink.clicked.connect(lambda:self._radar_bulk_link_dialog(dlg,refresh));linkb.clicked.connect(link_current);reloadb.clicked.connect(refresh);close.clicked.connect(dlg.accept);table.cellDoubleClicked.connect(lambda _r,_c:open_selected())
+        refresh();dlg.exec()
+'''
+replacement3='''        openb.clicked.connect(open_selected);bulklink.clicked.connect(lambda:self._radar_bulk_link_dialog(dlg,refresh));linkb.clicked.connect(link_current);reloadb.clicked.connect(refresh);close.clicked.connect(dlg.accept);table.cellDoubleClicked.connect(lambda _r,_c:open_selected())
+        table.itemSelectionChanged.connect(update_detail)
+        refresh();dlg.exec()
+'''
+if text.count(needle3)!=1:raise SystemExit('connect Radar nao encontrado')
+text=text.replace(needle3,replacement3,1)
+
 main.write_text(text,encoding='utf-8')
 print('PATCH_RADAR_LINKS_V2306=OK')
