@@ -1,0 +1,72 @@
+name: Publicar ALIYVO 0.23.07 Carteira Multi Ofertas
+on:
+  push:
+    paths: ['trigger-v2307-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.06
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.06 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02306.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02306.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.06 invalida' }
+          if(-not (Test-Path C:\temp\build\_app\vendor\xlrd)){ throw 'Leitor XLS ausente' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar Radar 0.23.07
+        shell: pwsh
+        run: |
+          python patch_radar_portfolio_multi_offer_v2307.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_radar_v2307.py C:\temp\build\_app | Tee-Object C:\temp\out\logic-radar-v2307.txt
+          if($LASTEXITCODE -ne 0){ throw 'Gate v2307 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Empacotar e validar ZIP final
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02307.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02307.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          python tests\logic_radar_v2307.py C:\temp\verify\_app | Tee-Object C:\temp\out\logic-radar-final-v2307.txt
+          if($LASTEXITCODE -ne 0){ throw 'ZIP final falhou no gate v2307' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\verify\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater final foi alterado' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02307.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            "ALIYVO 0.23.07 - CARTEIRA OFICIAL + MULTI WHATSAPP + OFERTAS",
+            "Base oficial: 0.23.06",
+            "Carteira vem somente do Historico 12 meses: OK",
+            "Recorrencia nao cria clientes externos: OK",
+            "Varios contatos WhatsApp por cliente: OK",
+            "Vinculos persistentes: OK",
+            "Painel lateral O QUE OFERECER AGORA: OK",
+            "Detalhe de produto, ultima compra, ciclo e atraso: OK",
+            "Radar/CRM/WhatsApp Turbo/Ponto preservados: OK",
+            "Proveniencia preservada: OK",
+            "Updater preservado: OK",
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02307.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.07 C:\temp\out\ALIYVO_BETA_GRATIS_02307.zip C:\temp\out\VALIDACAO_02307.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.07 - Carteira Real + Multi WhatsApp + Ofertas" --notes "Corrige o Radar para usar somente o Histórico 12 meses como carteira oficial. A planilha de recorrência passa a apenas enriquecer clientes que já pertencem à carteira. Um cliente pode ter vários compradores/contatos do WhatsApp vinculados. Adiciona no painel lateral o bloco O QUE OFERECER AGORA, atualizado conforme a conversa ativa, com produtos recorrentes, atraso, ciclo médio e histórico de compra." --latest
