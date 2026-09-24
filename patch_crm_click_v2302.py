@@ -102,7 +102,7 @@ new_method='''    def _ai_crm_reminders_dialog(self,parent=None):
         current.setWordWrap(True)
         current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:9px;font-weight:800;")
         if active and state:
-            current.setText(f"CONVERSA ATUAL: {active}\n{state.get('status') or '-'} → {state.get('next_action') or '-'}")
+            current.setText(f"CONVERSA ATUAL: {active}\\n{state.get('status') or '-'} → {state.get('next_action') or '-'}")
         elif active:current.setText(f"CONVERSA ATUAL: {active} — ainda sem classificação comercial.")
         else:current.setText("CONVERSA ATUAL: abra um cliente no WhatsApp para ver o estado comercial.")
         lay.addWidget(current)
@@ -112,7 +112,7 @@ new_method='''    def _ai_crm_reminders_dialog(self,parent=None):
         live=self._crm_states_payload(30,True)
         for x in live:
             client=str(x.get('client') or '').strip()
-            item=QListWidgetItem(f"{client}  •  {x.get('status') or '-'}\n→ {x.get('next_action') or '-'}")
+            item=QListWidgetItem(f"{client}  •  {x.get('status') or '-'}\\n→ {x.get('next_action') or '-'}")
             item.setData(Qt.ItemDataRole.UserRole,client)
             item.setData(Qt.ItemDataRole.UserRole+1,str(x.get('evidence') or ''))
             pending_list.addItem(item)
