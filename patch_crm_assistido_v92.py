@@ -110,7 +110,7 @@ crm_methods=r'''    def _crm_state_file(self):
             return out("cotacao_enviada","Cotação/condição enviada","Acompanhar se o cliente não retornar; criar lembrete se fizer sentido",True,"cliente","média","há preço/orçamento/condição no contexto e a última mensagem é do vendedor")
         if commercial:
             return out("aguardando_cliente","Aguardando cliente","Aguardar retorno e definir acompanhamento se a oportunidade ficar parada",True,"cliente","média","conversa comercial terminou com mensagem do vendedor")
-        return out("sem_pendencia","Sem pendência comercial clara","Continuar observando","False"=="True","nenhum","baixa","não há sinal comercial forte no contexto recente")
+        return out("sem_pendencia","Sem pendência comercial clara","Continuar observando",False,"nenhum","baixa","não há sinal comercial forte no contexto recente")
 
     def _crm_update_state_from_context(self,client,context):
         import time
