@@ -1,0 +1,3651 @@
+===== QFileDialog =====
+---- linhas 12-21 ----
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLineEdit,
+    QPushButton, QLabel, QTextEdit, QTableWidget, QTableWidgetItem, QSplitter,
+    QMessageBox, QHeaderView, QTabWidget, QCheckBox, QFileDialog, QSpinBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QComboBox,
+    QInputDialog, QScrollArea, QSizePolicy, QFrame)
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from qtwebview2 import QtWebView2Widget
+from PyQt6.QtWidgets import QDialog, QComboBox, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QApplication
+from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QObject, pyqtSignal
+---- linhas 944-953 ----
+            self.status.setText("ORT02 — "+str(e))
+
+    def choose_image(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,
+            "Escolher imagem da campanha",
+            "",
+            "Imagens (*.png *.jpg *.jpeg *.webp)"
+        )
+        if not path:
+---- linhas 3069-3078 ----
+
+
+    def select_campaign_image(self):
+        p,_=QFileDialog.getOpenFileName(self,"Selecionar imagem","","Imagens (*.jpg *.jpeg *.png *.webp)")
+        if p:
+            self.camp_img_path=p
+            self.camp_img_lbl.setText(Path(p).name)
+
+    def import_contacts_csv(self):
+        p,_=QFileDialog.getOpenFileName(self,"Importar CSV","","CSV (*.csv)")
+---- linhas 3075-3084 ----
+            self.camp_img_lbl.setText(Path(p).name)
+
+    def import_contacts_csv(self):
+        p,_=QFileDialog.getOpenFileName(self,"Importar CSV","","CSV (*.csv)")
+        if not p:
+            return
+        import csv
+        con=self.db(); cur=con.cursor(); n=0
+        with open(p,"r",encoding="utf-8-sig",newline="") as f:
+            sample=f.read(2048); f.seek(0)
+---- linhas 9446-9455 ----
+        if getattr(self,"_ai_observer_status_widget",None) is status:self._ai_observer_status_widget=None
+
+    def _diagnostic_show_dialog(self):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QTextEdit,QPushButton,QFileDialog,QMessageBox,QLabel
+        import datetime
+        dlg=QDialog(self); dlg.setWindowTitle("📊 Diagnóstico do atendimento"); dlg.resize(850,700)
+        lay=QVBoxLayout(dlg); info=QLabel(""); info.setStyleSheet("font-weight:700;"); lay.addWidget(info)
+        txt=QTextEdit(); txt.setReadOnly(True); txt.setStyleSheet("font-size:12px;font-weight:600;"); lay.addWidget(txt,1)
+        def filtered_rows():
+            groups=set(self._diagnostic_groups_load()); rows=self._diagnostic_read()
+---- linhas 9469-9478 ----
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        history.clicked.connect(lambda:self._diagnostic_contact_history_dialog(dlg)); daily.clicked.connect(lambda:self._diagnostic_show_daily_summary(dlg)); ai_btn.clicked.connect(lambda:self._ai_observer_dialog(dlg)); folder_btn.clicked.connect(lambda:self._diagnostic_open_backup_folder(dlg)); refresh_btn.clicked.connect(refresh)
+        def do_export():
+            fn=f"ALIYVO_diagnostico_{datetime.date.today().isoformat()}.json"; path,_=QFileDialog.getSaveFileName(dlg,"Exportar diagnóstico",fn,"Arquivo JSON (*.json)")
+            if not path:return
+            try:
+                current=filtered_rows(); ignored=sorted(self._diagnostic_groups_load(),key=str.lower)
+                payload={"aliyvo_version":ALIYVO_VERSION,"exported_at":datetime.datetime.now().isoformat(timespec="seconds"),"mode":"contatos_individuais","ignored_groups":ignored,"summary":self._diagnostic_enhanced_text(current),"daily_summary":self._diagnostic_daily_summary_text(current),"waiting_now":self._diagnostic_waiting_snapshot(),"events":current,"attendance_snapshot":getattr(self,"_attendance_data",{})}
+                Path(path).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8"); QMessageBox.information(dlg,"Diagnóstico","Arquivo exportado com histórico, resumo do dia e contatos aguardando.")
+            except Exception as e:QMessageBox.warning(dlg,"Diagnóstico",f"Não consegui exportar: {e}")
+---- linhas 10842-10851 ----
+            ".zip"
+        )
+
+        path,_=QFileDialog.getSaveFileName(
+            self,
+            "Backup dos meus dados",
+            str(Path.home()/"Downloads"/default_name),
+            "Backup ALIYVO (*.zip)"
+        )
+        if not path:
+---- linhas 10903-10912 ----
+            )
+
+    def restore_user_data(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,
+            "Restaurar backup do ALIYVO",
+            str(Path.home()/"Downloads"),
+            "Backup ALIYVO (*.zip)"
+        )
+        if not path:
+---- linhas 12150-12159 ----
+            )
+
+    def choose_image_file(self):
+        path,_=QFileDialog.getOpenFileName(
+            self,
+            "Escolher foto",
+            "",
+            "Imagens (*.png *.jpg *.jpeg *.webp *.bmp)"
+        )
+        if not path:
+===== _reminders_dialog =====
+---- linhas 8825-8834 ----
+            self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+        deep.clicked.connect(do_ai);refresh.clicked.connect(lambda:txt.setPlainText(self._ai_current_assist_text()));close.clicked.connect(dlg.accept);dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,None));dlg.exec()
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+        lay=QVBoxLayout(dlg)
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+---- linhas 9011-9020 ----
+            pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+        add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+---- linhas 9438-9447 ----
+        bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+        for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+        dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+
+    def _ai_observer_dialog_closed(self,txt,status):
+        if getattr(self,"_ai_observer_text_widget",None) is txt:self._ai_observer_text_widget=None
+        if getattr(self,"_ai_observer_status_widget",None) is status:self._ai_observer_status_widget=None
+
+---- linhas 9605-9614 ----
+        card_over.clicked.connect(lambda:filt.setCurrentText("Vencidos"))
+        card_today.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_wait.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_ai.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        bar=QHBoxLayout();add_current=QPushButton("⏰ Desta conversa");add=QPushButton("＋ Novo");open_client=QPushButton("💬 Abrir cliente");edit=QPushButton("✏ Editar");complete=QPushButton("✅ Concluir");reopen=QPushButton("↩ Reabrir");delete=QPushButton("🗑 Excluir");close=QPushButton("Fechar")
+        for b in (add_current,add,open_client,edit,complete,reopen,delete):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        def selected():
+            it=lst.currentItem();return str(it.data(Qt.ItemDataRole.UserRole) or '') if it else ''
+        def finish():
+---- linhas 9643-9652 ----
+            QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+        add_current.clicked.connect(lambda:self._reminder_add_from_current(dlg,refresh));add.clicked.connect(lambda:self._reminder_add(dlg,refresh));open_client.clicked.connect(do_open_client);edit.clicked.connect(do_edit);complete.clicked.connect(finish);reopen.clicked.connect(do_reopen);delete.clicked.connect(remove);close.clicked.connect(dlg.accept);lst.itemDoubleClicked.connect(lambda _it:do_edit())
+        today_btn.clicked.connect(lambda:self._today_quick_panel(dlg))
+        try:crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        except Exception:crm.setEnabled(False)
+        dlg.exec()
+
+    def _reminder_edit(self,rid,parent=None,refresh=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QDateEdit,QHBoxLayout,QPushButton,QMessageBox
+        from PyQt6.QtCore import QDate,QTimer
+===== _ai_crm_reminders_dialog =====
+---- linhas 8825-8834 ----
+            self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+        deep.clicked.connect(do_ai);refresh.clicked.connect(lambda:txt.setPlainText(self._ai_current_assist_text()));close.clicked.connect(dlg.accept);dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,None));dlg.exec()
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+        lay=QVBoxLayout(dlg)
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+---- linhas 9011-9020 ----
+            pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+        add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+---- linhas 9438-9447 ----
+        bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+        for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+        dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+
+    def _ai_observer_dialog_closed(self,txt,status):
+        if getattr(self,"_ai_observer_text_widget",None) is txt:self._ai_observer_text_widget=None
+        if getattr(self,"_ai_observer_status_widget",None) is status:self._ai_observer_status_widget=None
+
+---- linhas 9605-9614 ----
+        card_over.clicked.connect(lambda:filt.setCurrentText("Vencidos"))
+        card_today.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_wait.clicked.connect(lambda:self._today_quick_panel(dlg))
+        card_ai.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        bar=QHBoxLayout();add_current=QPushButton("⏰ Desta conversa");add=QPushButton("＋ Novo");open_client=QPushButton("💬 Abrir cliente");edit=QPushButton("✏ Editar");complete=QPushButton("✅ Concluir");reopen=QPushButton("↩ Reabrir");delete=QPushButton("🗑 Excluir");close=QPushButton("Fechar")
+        for b in (add_current,add,open_client,edit,complete,reopen,delete):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        def selected():
+            it=lst.currentItem();return str(it.data(Qt.ItemDataRole.UserRole) or '') if it else ''
+        def finish():
+---- linhas 9643-9652 ----
+            QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+        add_current.clicked.connect(lambda:self._reminder_add_from_current(dlg,refresh));add.clicked.connect(lambda:self._reminder_add(dlg,refresh));open_client.clicked.connect(do_open_client);edit.clicked.connect(do_edit);complete.clicked.connect(finish);reopen.clicked.connect(do_reopen);delete.clicked.connect(remove);close.clicked.connect(dlg.accept);lst.itemDoubleClicked.connect(lambda _it:do_edit())
+        today_btn.clicked.connect(lambda:self._today_quick_panel(dlg))
+        try:crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        except Exception:crm.setEnabled(False)
+        dlg.exec()
+
+    def _reminder_edit(self,rid,parent=None,refresh=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QDateEdit,QHBoxLayout,QPushButton,QMessageBox
+        from PyQt6.QtCore import QDate,QTimer
+===== _attendance_open_chat =====
+---- linhas 6015-6024 ----
+    def _open_selected(self):
+        name=self.selected_name or getattr(self.owner,"_attendance_current_name","")
+        if name:
+            self.owner._attendance_open_chat(name)
+
+    def _age(self,ts):
+        try:
+            import time
+            secs=max(0,int(time.time()-float(ts or 0)))
+            if secs<60: return "agora"
+---- linhas 7030-7039 ----
+            info["note"]=str(value or "").strip(); info["updated_at"]=time.time()
+            items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+
+    def _attendance_open_chat(self,name):
+        name=str(name or "").strip()
+        if not name:return
+        js=r"""
+        ((wanted)=>{
+          try{
+            const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+---- linhas 8895-8904 ----
+            if not client:
+                QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+            dlg.accept()
+            QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+
+        def remind_selected():
+            client,ctx=selected_payload()
+            if not client:
+                QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+            st=self._crm_state_for_client(client) or {}
+---- linhas 8988-8997 ----
+                )
+                def open_waiting(_checked=False,client=n):
+                    dlg.accept()
+                    QTimer.singleShot(150,lambda client=client:self._attendance_open_chat(client))
+                btn.clicked.connect(open_waiting)
+                lay.addWidget(btn)
+        over_items=[]
+        for r in overdue[:6]:
+            try:hh=datetime.datetime.fromtimestamp(float(r.get('due_ts') or 0)).strftime('%H:%M')
+            except Exception:hh='--:--'
+---- linhas 9640-9649 ----
+            if not client:
+                QMessageBox.information(dlg,"CRM","Este lembrete não está vinculado a um cliente.");return
+            dlg.accept()
+            QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+        add_current.clicked.connect(lambda:self._reminder_add_from_current(dlg,refresh));add.clicked.connect(lambda:self._reminder_add(dlg,refresh));open_client.clicked.connect(do_open_client);edit.clicked.connect(do_edit);complete.clicked.connect(finish);reopen.clicked.connect(do_reopen);delete.clicked.connect(remove);close.clicked.connect(dlg.accept);lst.itemDoubleClicked.connect(lambda _it:do_edit())
+        today_btn.clicked.connect(lambda:self._today_quick_panel(dlg))
+        try:crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+        except Exception:crm.setEnabled(False)
+        dlg.exec()
+
+---- linhas 9729-9738 ----
+            box.exec();clicked=box.clickedButton()
+            if clicked==done:r["done"]=True;self._diagnostic_log("reminder_done",client=client,text=r.get("text",""))
+            elif openb is not None and clicked==openb:
+                try:self._attendance_open_chat(client)
+                except Exception:pass
+            elif clicked==m20:r["due_ts"]=now+1200;r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),minutes=20)
+            elif clicked==h1:r["due_ts"]=now+3600;r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),minutes=60)
+            elif clicked==tom:
+                d=datetime.datetime.now()+datetime.timedelta(days=1);d=d.replace(hour=9,minute=0,second=0,microsecond=0);r["due_ts"]=d.timestamp();r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),until="tomorrow_0900")
+        if changed:self._reminder_save();self._reminder_update_button()
+===== _diagnostic_active_name =====
+---- linhas 7118-7127 ----
+        # Novos eventos sao acrescentados ao cache em _diagnostic_log.
+        self._diagnostic_cache_rows=None
+        self._diagnostic_busy=False
+        self._diagnostic_active_name=""
+        self._diagnostic_last_active=""
+        self._diagnostic_signatures={}
+        self._diagnostic_pending={}
+        self._diagnostic_unread=set()
+        self._diagnostic_seen_calls=set()
+        self._diagnostic_groups=set(self._diagnostic_groups_load())
+---- linhas 7187-7196 ----
+        try:
+            for attr,tool in (("plate_toggle","plate"),("lens_toggle","image")):
+                b=getattr(self,attr,None)
+                if b:b.clicked.connect(lambda _=False,t=tool:self._diagnostic_log("tool_opened",client=getattr(self,"_diagnostic_active_name","") or "",tool=t))
+        except Exception: pass
+
+    def _diagnostic_scan(self):
+        if getattr(self,"_diagnostic_busy",False): return
+        try:
+            self._diagnostic_busy=True
+---- linhas 7471-7480 ----
+        if not isinstance(result,dict) or not result.get("ok"): return
+        import time
+        now=time.time(); active=result.get("active") or {}; name=str(active.get("name") or "").strip(); context=active.get("context") or []
+        self._diagnostic_active_name=name
+        try:self._diagnostic_live_call_update(result.get("live_call"),now,name)
+        except Exception:pass
+        if name and context:
+            try:
+                _parts=[]
+                for _m in context[-6:]:
+---- linhas 7571-7580 ----
+                            _pd["calls_during_wait"]=int(_pd.get("calls_during_wait") or 0)+1
+                            _pd["call_seconds_during_wait"]=int(_pd.get("call_seconds_during_wait") or 0)+max(0,_call_duration)
+                if direction=="incoming" and bool(x.get("missed")) and name not in self._diagnostic_pending:
+                    self._diagnostic_pending[name]={"received_ts":now,"opened_ts":now if name==self._diagnostic_active_name else None,"source":"missed_call"}
+            self._diagnostic_seen_calls=seen
+
+            last=context[-1] if isinstance(context[-1],dict) else {}; side=str(last.get("side") or ""); msg=str(last.get("text") or "").strip(); mts=float(last.get("message_ts") or 0)
+            closing=bool(side=="customer" and not last.get("is_call") and self._diagnostic_is_closing_message(msg))
+
+            if side=="customer" and not last.get("is_call") and not closing:
+---- linhas 7738-7747 ----
+
+    def _contact_classify_current(self,parent=None,on_done=None):
+        from PyQt6.QtWidgets import QInputDialog,QMessageBox
+        name=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        if not name:
+            QMessageBox.information(parent or self,"Classificar","Abra primeiro a conversa que deseja classificar no WhatsApp."); return
+        opts=["Cliente","Interno","Pessoal","Grupo"]
+        current=self._contact_category(name); idx=opts.index(current) if current in opts else 0
+        val,ok=QInputDialog.getItem(parent or self,"Classificar conversa",f"{name}\n\nTipo:",opts,idx,False)
+        if not ok:return
+---- linhas 7919-7928 ----
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QComboBox,QTextEdit,QPushButton,QLabel
+        groups=set(self._diagnostic_groups_load()); rows=self._diagnostic_read()
+        names=sorted(set(str(x.get("client") or "").strip() for x in rows if isinstance(x,dict) and x.get("client") and str(x.get("client") or "").strip() not in groups),key=str.lower)
+        current=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        if current and current not in groups and current not in names:names.insert(0,current)
+        dlg=QDialog(parent or self); dlg.setWindowTitle("👤 Histórico por contato"); dlg.resize(720,590)
+        lay=QVBoxLayout(dlg); top=QHBoxLayout(); top.addWidget(QLabel("Contato:"))
+        combo=QComboBox(); combo.setEditable(True); combo.addItems(names); top.addWidget(combo,1); lay.addLayout(top)
+        if current and current in names:combo.setCurrentText(current)
+        txt=QTextEdit(); txt.setReadOnly(True); txt.setStyleSheet("font-size:12px;font-weight:600;"); lay.addWidget(txt,1)
+---- linhas 8003-8012 ----
+
+    def _reminder_add_from_current(self,parent=None,refresh=None):
+        from PyQt6.QtWidgets import QMessageBox
+        name=str(getattr(self,"_diagnostic_active_name","") or "").strip(); groups=set(self._diagnostic_groups_load())
+        if not name or name in groups:
+            QMessageBox.information(parent or self,"Lembrete","Abra primeiro uma conversa individual no WhatsApp.");return
+        context=str(getattr(self,"_diagnostic_last_context_by_contact",{}).get(name) or "").strip()
+        self._reminder_add(parent,refresh,force_client=name,context=context)
+
+    def _diagnostic_backup_folder(self):
+---- linhas 8781-8790 ----
+        return {"level":level,"score":score,"reasons":reasons[:4]}
+
+    def _ai_current_assist_text(self,client_name=""):
+        name=str(client_name or getattr(self,"_diagnostic_active_name","") or "").strip()
+        if not name:return "Abra uma conversa individual no WhatsApp para ver a assistência rápida."
+        p=self._ai_client_profile_payload(name) or {};pri=self._ai_priority_for_client(name);pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+        lines=[f"ASSISTÊNCIA RÁPIDA — {name}",f"Prioridade agora: {pri['level'].upper()} • índice {pri['score']}"]
+        if pri.get("reasons"):
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+---- linhas 8820-8829 ----
+        lay=QVBoxLayout(dlg);txt=QPlainTextEdit();txt.setReadOnly(True);txt.setPlainText(self._ai_current_assist_text());lay.addWidget(txt,1)
+        row=QHBoxLayout();deep=QPushButton("🤖 Estratégia IA completa");refresh=QPushButton("↻ Atualizar");close=QPushButton("Fechar");row.addWidget(deep);row.addWidget(refresh);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        def do_ai():
+            name=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+            if not name:return
+            self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+        deep.clicked.connect(do_ai);refresh.clicked.connect(lambda:txt.setPlainText(self._ai_current_assist_text()));close.clicked.connect(dlg.accept);dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,None));dlg.exec()
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+---- linhas 8832-8841 ----
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+        active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        state=self._crm_state_for_client(active) if active else {}
+        current=QLabel()
+        current.setWordWrap(True)
+        current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:9px;font-weight:800;")
+        if active and state:
+            current.setText(f"CONVERSA ATUAL: {active}\n{state.get('status') or '-'} → {state.get('next_action') or '-'}")
+---- linhas 9229-9238 ----
+            if not str(x.get("time") or "").startswith(today):continue
+            if str(x.get("client") or "").strip() in groups:continue
+            rows.append(x)
+        active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        target=str(getattr(self,"_ai_profile_target","") or "").strip() if mode=="client_profile" else active
+        last_ai=float(getattr(self,"_ai_last_analyzed_event_ts",0) or 0)
+        if mode in ("conversation","client_profile") and target:
+            selected=[x for x in rows if str(x.get("client") or "").strip()==target][-90:]
+        elif mode=="auto":
+            selected=[]
+---- linhas 9382-9391 ----
+        self._ai_observer_set_text(full)
+        self._ai_last_analyzed_event_ts=float(meta.get("last_event_ts") or self._ai_last_analyzed_event_ts or 0)
+        self._ai_history_append({"time":datetime.datetime.now().isoformat(timespec="seconds"),"mode":meta.get("mode"),"model":meta.get("model"),"ok":True,"input_tokens":inp,"output_tokens":outtok,"analysis":out,"last_event_ts":self._ai_last_analyzed_event_ts})
+        try:self._diagnostic_log("ai_analysis",client=str(getattr(self,"_diagnostic_active_name","") or ""),mode=str(meta.get("mode") or ""),model=str(meta.get("model") or ""),input_tokens=inp,output_tokens=outtok)
+        except Exception:pass
+
+    def _ai_observer_tick(self):
+        import datetime
+        cfg=self._ai_config_load()
+        if not bool(cfg.get("enabled")) or not self._ai_api_key():return
+---- linhas 9694-9703 ----
+        if prefill_text:textw.setText(str(prefill_text))
+        datew=QDateEdit(QDate(initial.year,initial.month,initial.day));datew.setDisplayFormat("dd/MM/yyyy");datew.setCalendarPopup(True)
+        timew=TimeEdit(initial.strftime("%H:%M"));timew.setInputMask("00:00");timew.setMaximumWidth(100);timew.setToolTip("Clique uma vez e digite a hora inteira")
+        current=str(force_client or getattr(self,"_diagnostic_active_name","") or "").strip();link=QCheckBox("Vincular ao contato atual");link.setChecked(bool(current));form.addRow("Lembrete:",textw);form.addRow("Data:",datew);form.addRow("Hora:",timew)
+        if current:form.addRow("Contato:",QLabel(current));form.addRow("",link)
+        ctx=str(context or "").strip()
+        if ctx:
+            lab=QLabel(ctx[-500:]);lab.setWordWrap(True);lab.setStyleSheet("color:#526777;font-size:10px;");form.addRow("Contexto salvo:",lab)
+        lay.addLayout(form);bar=QHBoxLayout();save=QPushButton("Salvar lembrete");cancel=QPushButton("Cancelar");bar.addStretch(1);bar.addWidget(save);bar.addWidget(cancel);lay.addLayout(bar)
+        def do_save():
+---- linhas 10317-10326 ----
+        self._reset_tool_button_texts()
+
+    def _open_quick_tool(self, tool):
+        try: self._diagnostic_log("tool_opened", client=getattr(self,"_diagnostic_active_name","") or "", tool=str(tool))
+        except Exception: pass
+        panel=self._tool_panel(tool)
+        if panel is None:
+            return
+
+        try:self._set_prazo_focus_guard(tool=="prazo")
+===== _diagnostic_active_context =====
+===== USER_DATA_DIR =====
+---- linhas 95-104 ----
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+def _prepare_persistent_user_data():
+    """
+---- linhas 97-106 ----
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+def _prepare_persistent_user_data():
+    """
+    Dados criados pelo usuário nunca ficam dentro da pasta do programa.
+    Na primeira execução tenta migrar listas de versões antigas.
+---- linhas 106-115 ----
+    Na primeira execução tenta migrar listas de versões antigas.
+    """
+    try:
+        USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        USER_CACHE_DIR.mkdir(parents=True,exist_ok=True)
+
+        marker=USER_DATA_DIR/"migration_v1.done"
+        if marker.exists():
+            return
+
+---- linhas 109-118 ----
+        USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        USER_CACHE_DIR.mkdir(parents=True,exist_ok=True)
+
+        marker=USER_DATA_DIR/"migration_v1.done"
+        if marker.exists():
+            return
+
+        # Se já existe lista persistente, apenas consolida.
+        if CAMPAIGN_LISTS_FILE.exists():
+            marker.write_text("ok",encoding="utf-8")
+---- linhas 180-189 ----
+        marker.write_text("ok",encoding="utf-8")
+    except Exception:
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:
+            pass
+
+_prepare_persistent_user_data()
+
+def _prepare_webview2_whatsapp_profile():
+---- linhas 6593-6602 ----
+
+    def _attendance_file(self):
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:
+            pass
+        return USER_DATA_DIR/"atendimentos_beta.json"
+
+    def _attendance_load(self):
+        data={"enabled":True,"items":{}}
+---- linhas 6596-6605 ----
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:
+            pass
+        return USER_DATA_DIR/"atendimentos_beta.json"
+
+    def _attendance_load(self):
+        data={"enabled":True,"items":{}}
+        try:
+            f=self._attendance_file()
+            if f.exists():
+---- linhas 7095-7104 ----
+            except Exception:pass
+
+    def _diagnostic_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"diagnostico_eventos.jsonl"
+
+    def _diagnostic_log(self,event,**payload):
+        try:
+            import time,datetime
+---- linhas 7097-7106 ----
+    def _diagnostic_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"diagnostico_eventos.jsonl"
+
+    def _diagnostic_log(self,event,**payload):
+        try:
+            import time,datetime
+            row={"ts":time.time(),"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":str(event)}
+            for k,v in payload.items():
+---- linhas 7714-7723 ----
+                "Medição: mensagem do cliente → abertura da conversa → sua resposta. Quando o WhatsApp expõe o horário da mensagem, o ALIYVO usa esse horário; caso contrário usa o primeiro instante em que detectou o não lido.")
+
+    def _contact_categories_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"categorias_contatos.json"
+
+    def _contact_categories_load(self):
+        try:
+            f=self._contact_categories_file()
+---- linhas 7716-7725 ----
+    def _contact_categories_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"categorias_contatos.json"
+
+    def _contact_categories_load(self):
+        try:
+            f=self._contact_categories_file()
+            if f.exists():
+                x=json.loads(f.read_text(encoding="utf-8"))
+---- linhas 7751-7760 ----
+        if callable(on_done):on_done()
+
+    def _diagnostic_groups_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"grupos_diagnostico.json"
+
+    def _diagnostic_groups_load(self):
+        try:
+            f=self._diagnostic_groups_file()
+---- linhas 7753-7762 ----
+    def _diagnostic_groups_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"grupos_diagnostico.json"
+
+    def _diagnostic_groups_load(self):
+        try:
+            f=self._diagnostic_groups_file()
+            if f.exists():
+                x=json.loads(f.read_text(encoding="utf-8"))
+---- linhas 7983-7992 ----
+        box=QMessageBox(parent or self); box.setWindowTitle("📅 Resumo do dia ALIYVO"); box.setIcon(QMessageBox.Icon.Information); box.setText(self._diagnostic_daily_summary_text(rows)); box.addButton("Fechar",QMessageBox.ButtonRole.AcceptRole); box.exec()
+
+    def _diagnostic_daily_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"resumo_diario_estado.json"
+
+    def _diagnostic_daily_check(self):
+        import datetime
+        now=datetime.datetime.now()
+---- linhas 7985-7994 ----
+    def _diagnostic_daily_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"resumo_diario_estado.json"
+
+    def _diagnostic_daily_check(self):
+        import datetime
+        now=datetime.datetime.now()
+        if (now.hour,now.minute)<(17,55) or now.hour>=23:return
+        today=now.date().isoformat(); last=""
+---- linhas 8020-8029 ----
+            folder.mkdir(parents=True,exist_ok=True)
+            return folder
+        except Exception:
+            folder=USER_DATA_DIR/"Diagnósticos"
+            try:folder.mkdir(parents=True,exist_ok=True)
+            except Exception:pass
+            return folder
+
+    def _diagnostic_daily_backup(self):
+        import datetime
+---- linhas 8082-8091 ----
+            except Exception:pass
+
+    def _ai_config_path(self):
+        return USER_DATA_DIR/"ia_observadora_config.json"
+
+    def _ai_history_path(self):
+        return USER_DATA_DIR/"ia_observadora_historico.jsonl"
+
+    def _ai_dpapi_encrypt(self,value):
+        import base64,ctypes,sys
+---- linhas 8085-8094 ----
+        return USER_DATA_DIR/"ia_observadora_config.json"
+
+    def _ai_history_path(self):
+        return USER_DATA_DIR/"ia_observadora_historico.jsonl"
+
+    def _ai_dpapi_encrypt(self,value):
+        import base64,ctypes,sys
+        if not value:return ""
+        if sys.platform!="win32":return ""
+        from ctypes import wintypes
+---- linhas 8138-8147 ----
+
+    def _ai_config_save(self,cfg):
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+            self._ai_config_path().write_text(json.dumps(cfg,ensure_ascii=False,indent=2),encoding="utf-8")
+            return True
+        except Exception:return False
+
+    def _ai_api_key(self):
+        cfg=self._ai_config_load()
+---- linhas 8163-8172 ----
+
+    def _ai_history_append(self,row):
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+            with self._ai_history_path().open("a",encoding="utf-8") as f:
+                f.write(json.dumps(row,ensure_ascii=False)+"\n")
+        except Exception:pass
+
+    def _ai_history_latest(self):
+        try:
+---- linhas 8192-8201 ----
+        return keep or None
+
+    def _ai_learning_path(self):
+        return USER_DATA_DIR/"ia_observadora_aprendizado.json"
+
+    def _ai_learning_empty(self):
+        return {"version":2,"last_processed_ts":0.0,"patterns":{},"seller_phrases":{},"seen_cases":{},"seen_phrase_cases":{},"updated_at":""}
+
+    def _ai_learning_load(self):
+        data=self._ai_learning_empty()
+---- linhas 8217-8226 ----
+    def _ai_learning_save(self,data):
+        try:
+            import datetime
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+            data["updated_at"]=datetime.datetime.now().isoformat(timespec="seconds")
+            self._ai_learning_path().write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
+            return True
+        except Exception:return False
+
+    def _ai_learning_norm(self,value):
+---- linhas 8503-8512 ----
+        return out
+
+    def _ai_profiles_cache_path(self):
+        return USER_DATA_DIR/"ia_perfis_clientes_cache.json"
+
+    def _ai_profiles_cache_load(self):
+        try:
+            p=self._ai_profiles_cache_path()
+            if not p.exists():return {"version":1,"built_at_ts":0.0,"profiles":{}}
+            d=json.loads(p.read_text(encoding="utf-8"))
+---- linhas 8517-8526 ----
+    def _ai_profiles_cache_save(self,profiles):
+        import time
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+            payload={"version":1,"built_at_ts":time.time(),"profiles":profiles or {}}
+            tmp=self._ai_profiles_cache_path().with_suffix(".tmp")
+            tmp.write_text(json.dumps(payload,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+            tmp.replace(self._ai_profiles_cache_path())
+            self._ai_profiles_cache_generation=int(getattr(self,"_ai_profiles_cache_generation",0) or 0)+1
+            return True
+---- linhas 9014-9023 ----
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+    def _crm_states_load(self):
+        cached=getattr(self,"_crm_states",None)
+        if isinstance(cached,dict):return cached
+---- linhas 9016-9025 ----
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+    def _crm_states_load(self):
+        cached=getattr(self,"_crm_states",None)
+        if isinstance(cached,dict):return cached
+        data={}
+        try:
+---- linhas 9481-9490 ----
+        except Exception:pass
+
+    def _reminder_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"lembretes.json"
+
+    def _reminder_load(self):
+        try:
+            f=self._reminder_file()
+---- linhas 9483-9492 ----
+    def _reminder_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"lembretes.json"
+
+    def _reminder_load(self):
+        try:
+            f=self._reminder_file()
+            if f.exists():
+                x=json.loads(f.read_text(encoding="utf-8"))
+---- linhas 10595-10604 ----
+
+        # Dados persistentes do usuário
+        try:
+            USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+            lists_count=0
+            if CAMPAIGN_LISTS_FILE.exists():
+                data=json.loads(
+                    CAMPAIGN_LISTS_FILE.read_text(encoding="utf-8")
+                )
+                if isinstance(data,dict):
+---- linhas 10606-10615 ----
+            item(
+                True,
+                "Meus dados persistentes",
+                f"{lists_count} lista(s) • "+str(USER_DATA_DIR)
+            )
+        except Exception as e:
+            item(False,"Meus dados persistentes",str(e))
+
+        # Atualizador
+        try:
+===== QPushButton =====
+---- linhas 11-20 ----
+from PyQt6.QtGui import QPixmap, QImage, QKeyEvent, QDragEnterEvent, QDropEvent, QPalette, QColor, QPainter, QIcon, QGuiApplication, QMouseEvent, QPen, QPainterPath, QLinearGradient
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLineEdit,
+    QPushButton, QLabel, QTextEdit, QTableWidget, QTableWidgetItem, QSplitter,
+    QMessageBox, QHeaderView, QTabWidget, QCheckBox, QFileDialog, QSpinBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QComboBox,
+    QInputDialog, QScrollArea, QSizePolicy, QFrame)
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from qtwebview2 import QtWebView2Widget
+from PyQt6.QtWidgets import QDialog, QComboBox, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QApplication
+from PyQt6.QtCore import QTimer
+---- linhas 16-25 ----
+    QInputDialog, QScrollArea, QSizePolicy, QFrame)
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from qtwebview2 import QtWebView2Widget
+from PyQt6.QtWidgets import QDialog, QComboBox, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QApplication
+from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QObject, pyqtSignal
+
+
+
+APP_DIR = Path(__file__).parent
+---- linhas 553-562 ----
+        head.addWidget(title)
+        head.addStretch(1)
+
+        self.expand_btn=QPushButton("⛶")
+        self.expand_btn.setToolTip("Expandir campanhas")
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher campanhas")
+---- linhas 558-567 ----
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher campanhas")
+        self.close_btn.setFixedWidth(34)
+        head.addWidget(self.close_btn)
+        lay.addWidget(self.title_bar)
+
+        # LISTA
+---- linhas 570-579 ----
+        lay.addWidget(list_title)
+
+        row=QHBoxLayout()
+        self.new_list_btn=QPushButton("➕ Nova lista")
+        self.saved_combo=QComboBox()
+        self.use_list_btn=QPushButton("Usar lista")
+        self.save_current_btn=QPushButton("💾 Salvar")
+        row.addWidget(self.new_list_btn)
+        row.addWidget(self.saved_combo,1)
+        row.addWidget(self.use_list_btn)
+---- linhas 572-581 ----
+        row=QHBoxLayout()
+        self.new_list_btn=QPushButton("➕ Nova lista")
+        self.saved_combo=QComboBox()
+        self.use_list_btn=QPushButton("Usar lista")
+        self.save_current_btn=QPushButton("💾 Salvar")
+        row.addWidget(self.new_list_btn)
+        row.addWidget(self.saved_combo,1)
+        row.addWidget(self.use_list_btn)
+        row.addWidget(self.save_current_btn)
+        lay.addLayout(row)
+---- linhas 573-582 ----
+        self.new_list_btn=QPushButton("➕ Nova lista")
+        self.saved_combo=QComboBox()
+        self.use_list_btn=QPushButton("Usar lista")
+        self.save_current_btn=QPushButton("💾 Salvar")
+        row.addWidget(self.new_list_btn)
+        row.addWidget(self.saved_combo,1)
+        row.addWidget(self.use_list_btn)
+        row.addWidget(self.save_current_btn)
+        lay.addLayout(row)
+
+---- linhas 593-602 ----
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+---- linhas 595-604 ----
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+---- linhas 617-626 ----
+        lay.addWidget(self.current_list)
+
+        row3=QHBoxLayout()
+        self.remove_selected_btn=QPushButton("➖ Remover")
+        self.clear_contacts_btn=QPushButton("🗑 Limpar lista")
+        row3.addWidget(self.remove_selected_btn)
+        row3.addWidget(self.clear_contacts_btn)
+        row3.addStretch(1)
+        lay.addLayout(row3)
+
+---- linhas 618-627 ----
+
+        row3=QHBoxLayout()
+        self.remove_selected_btn=QPushButton("➖ Remover")
+        self.clear_contacts_btn=QPushButton("🗑 Limpar lista")
+        row3.addWidget(self.remove_selected_btn)
+        row3.addWidget(self.clear_contacts_btn)
+        row3.addStretch(1)
+        lay.addLayout(row3)
+
+        # CAMPAIGN MESSAGE
+---- linhas 628-637 ----
+        msg_head=QHBoxLayout()
+        msg_title=QLabel("Mensagem")
+        msg_title.setStyleSheet("font-weight:700;")
+        self.review_btn=QPushButton("✓ Revisar PT-BR")
+        self.review_btn.setToolTip("Revisar possíveis erros de ortografia em português")
+        msg_head.addWidget(msg_title)
+        msg_head.addStretch(1)
+        msg_head.addWidget(self.review_btn)
+        lay.addLayout(msg_head)
+
+---- linhas 644-653 ----
+        lay.addWidget(self.message)
+
+        row4=QHBoxLayout()
+        self.image_btn=QPushButton("🖼 Imagem")
+        self.image_label=QLabel("Sem imagem • opcional")
+        self.image_label.setWordWrap(True)
+        row4.addWidget(self.image_btn)
+        row4.addWidget(self.image_label,1)
+        lay.addLayout(row4)
+
+---- linhas 652-661 ----
+        lay.addLayout(row4)
+
+        row5=QHBoxLayout()
+        self.test_one_btn=QPushButton("🧪 Testar 1 contato")
+        self.test_one_btn.setToolTip("Enviar a mensagem somente para o primeiro contato válido")
+        self.start_btn=QPushButton("▶ Iniciar")
+        self.pause_btn=QPushButton("⏸ Pausar")
+        self.pause_btn.setEnabled(False)
+        row5.addWidget(self.test_one_btn)
+        row5.addWidget(self.start_btn)
+---- linhas 654-663 ----
+        row5=QHBoxLayout()
+        self.test_one_btn=QPushButton("🧪 Testar 1 contato")
+        self.test_one_btn.setToolTip("Enviar a mensagem somente para o primeiro contato válido")
+        self.start_btn=QPushButton("▶ Iniciar")
+        self.pause_btn=QPushButton("⏸ Pausar")
+        self.pause_btn.setEnabled(False)
+        row5.addWidget(self.test_one_btn)
+        row5.addWidget(self.start_btn)
+        row5.addWidget(self.pause_btn)
+        lay.addLayout(row5)
+---- linhas 655-664 ----
+        self.test_one_btn=QPushButton("🧪 Testar 1 contato")
+        self.test_one_btn.setToolTip("Enviar a mensagem somente para o primeiro contato válido")
+        self.start_btn=QPushButton("▶ Iniciar")
+        self.pause_btn=QPushButton("⏸ Pausar")
+        self.pause_btn.setEnabled(False)
+        row5.addWidget(self.test_one_btn)
+        row5.addWidget(self.start_btn)
+        row5.addWidget(self.pause_btn)
+        lay.addLayout(row5)
+
+---- linhas 1106-1115 ----
+        head.addWidget(title)
+        head.addStretch(1)
+
+        self.expand_btn=QPushButton("⛶")
+        self.expand_btn.setToolTip("Expandir transcrição")
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher transcrição")
+---- linhas 1111-1120 ----
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher transcrição")
+        self.close_btn.setFixedWidth(34)
+        head.addWidget(self.close_btn)
+        lay.addWidget(self.title_bar)
+
+        self.drop_zone=QLabel(
+---- linhas 1143-1152 ----
+        lay.addWidget(self.text,1)
+
+        row=QHBoxLayout()
+        self.copy_btn=QPushButton("📋")
+        self.copy_btn.setToolTip("Copiar transcrição")
+        self.clear_btn=QPushButton("🗑")
+        self.clear_btn.setToolTip("Limpar")
+        row.addWidget(self.copy_btn)
+        row.addWidget(self.clear_btn)
+        row.addStretch(1)
+---- linhas 1145-1154 ----
+        row=QHBoxLayout()
+        self.copy_btn=QPushButton("📋")
+        self.copy_btn.setToolTip("Copiar transcrição")
+        self.clear_btn=QPushButton("🗑")
+        self.clear_btn.setToolTip("Limpar")
+        row.addWidget(self.copy_btn)
+        row.addWidget(self.clear_btn)
+        row.addStretch(1)
+        lay.addLayout(row)
+
+---- linhas 1269-1278 ----
+        head.addWidget(title)
+        head.addStretch(1)
+
+        self.expand_btn=QPushButton("⛶")
+        self.expand_btn.setToolTip("Expandir painel de prazos")
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher prazos")
+---- linhas 1274-1283 ----
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher prazos")
+        self.close_btn.setFixedWidth(34)
+        head.addWidget(self.close_btn)
+        lay.addWidget(self.title_bar)
+
+        desc=QLabel("Digite o valor total do orçamento:")
+---- linhas 1289-1298 ----
+        self.valor.setPlaceholderText("Ex.: 1850,00")
+        lay.addWidget(self.valor)
+
+        self.calc_btn=QPushButton("Calcular condição")
+        lay.addWidget(self.calc_btn)
+
+        self.result=QTextEdit()
+        self.result.setReadOnly(True)
+        self.result.setMinimumHeight(150)
+        lay.addWidget(self.result)
+---- linhas 1308-1317 ----
+        lay.addWidget(self.msg)
+
+        row=QHBoxLayout()
+        self.copy_btn=QPushButton("📋")
+        self.copy_btn.setToolTip("Copiar mensagem")
+        self.clear_btn=QPushButton("🗑")
+        self.clear_btn.setToolTip("Limpar")
+        row.addWidget(self.copy_btn)
+        row.addWidget(self.clear_btn)
+        row.addStretch(1)
+---- linhas 1310-1319 ----
+        row=QHBoxLayout()
+        self.copy_btn=QPushButton("📋")
+        self.copy_btn.setToolTip("Copiar mensagem")
+        self.clear_btn=QPushButton("🗑")
+        self.clear_btn.setToolTip("Limpar")
+        row.addWidget(self.copy_btn)
+        row.addWidget(self.clear_btn)
+        row.addStretch(1)
+        lay.addLayout(row)
+
+---- linhas 1464-1473 ----
+        head.addWidget(title)
+        head.addStretch(1)
+
+        self.back_btn=QPushButton("←")
+        self.back_btn.setToolTip("Voltar para a tela anterior do Assistente")
+        self.back_btn.setFixedWidth(34)
+        head.addWidget(self.back_btn)
+
+        self.home_btn=QPushButton("⌂")
+        self.home_btn.setToolTip("Voltar para o início do Assistente")
+---- linhas 1469-1478 ----
+        self.back_btn.setFixedWidth(34)
+        head.addWidget(self.back_btn)
+
+        self.home_btn=QPushButton("⌂")
+        self.home_btn.setToolTip("Voltar para o início do Assistente")
+        self.home_btn.setFixedWidth(34)
+        head.addWidget(self.home_btn)
+
+        self.reload_btn=QPushButton("⟳")
+        self.reload_btn.setToolTip("Recarregar ChatGPT")
+---- linhas 1474-1483 ----
+        self.home_btn.setFixedWidth(34)
+        head.addWidget(self.home_btn)
+
+        self.reload_btn=QPushButton("⟳")
+        self.reload_btn.setToolTip("Recarregar ChatGPT")
+        self.reload_btn.setFixedWidth(34)
+        head.addWidget(self.reload_btn)
+
+        self.expand_btn=QPushButton("⛶")
+        self.expand_btn.setToolTip("Expandir ALIYVO")
+---- linhas 1479-1488 ----
+        self.reload_btn.setFixedWidth(34)
+        head.addWidget(self.reload_btn)
+
+        self.expand_btn=QPushButton("⛶")
+        self.expand_btn.setToolTip("Expandir ALIYVO")
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher ALIYVO")
+---- linhas 1484-1493 ----
+        self.expand_btn.setFixedWidth(34)
+        head.addWidget(self.expand_btn)
+
+        self.close_btn=QPushButton("◀")
+        self.close_btn.setToolTip("Recolher ALIYVO")
+        self.close_btn.setFixedWidth(34)
+        head.addWidget(self.close_btn)
+
+        lay.addWidget(self.title_bar)
+
+===== menuBar =====
+===== addAction =====
+===== toolbar =====
+---- linhas 16880-16889 ----
+                    w.setEnabled(False)
+                    continue
+
+                # Qualquer botao principal/toolbar chamado Busca placa recebe o novo dialogo.
+                normalized=re.sub(r"[^a-z]","",label)
+                if normalized in ("buscaplaca","buscarplaca"):
+                    if not bool(w.property("ALIYVO_PLATE_DIALOG_V23")):
+                        try: w.clicked.disconnect()
+                        except Exception: pass
+                        w.clicked.connect(lambda checked=False,b=w:_aliyvo_show_plate_dialog(b.window()))
+===== Lembretes =====
+---- linhas 6236-6245 ----
+        self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+        self.plate_toggle=QPushButton("🚚  Busca placa")
+        self.attendance_toggle=QPushButton("📊  Diagnóstico")
+        self.reminder_toggle=QPushButton("⏰  Lembretes")
+        self.ponto_toggle=QPushButton("🕒  Ponto")
+        self.ponto_toggle.setToolTip("Controle de ponto • 07:50 • 12:08 • 13:30 • 18:00")
+
+        # Primeiro botão destacado como na referência
+        self.campaign_toggle.setStyleSheet("""
+            QPushButton{
+---- linhas 7902-7911 ----
+                    f"  Conversas abertas: {opens} • mensagens cliente: {cust} • suas: {seller}\n"
+                    f"  Respostas medidas (tempo útil): {len(resp)} • média {fmt(avg) if resp else '-'} • maior {fmt(mx) if resp else '-'}\n"
+                    f"  Ligações: {len(calls)} / {fmt(callsec)} • interrupções: {intr}\n"
+                    f"  Lembretes criados: {rem} • concluídos: {done}")
+        today=[x for x in rel if str(x.get("time") or "").startswith(now.date().isoformat())]
+        recent=sorted(rel,key=lambda x:float(x.get("ts") or 0),reverse=True)[:10]
+        labels={"message_customer":"Cliente","message_seller":"Você","response":"Resposta medida","call":"Ligação","chat_opened":"Conversa aberta","attendance_interrupted":"Interrompido","reminder_created":"Lembrete criado","reminder_done":"Lembrete concluído","tool_opened":"Ferramenta"}
+        last=[]
+        for x in recent:
+            t=str(x.get("time") or "")[11:16]
+---- linhas 8807-8816 ----
+        if not tips:tips.append("Ainda não há padrão forte; observe a conversa atual antes de antecipar uma ação.")
+        for x in tips[:4]:lines.append("• "+x)
+        rem=self._crm_open_reminders_payload(name)
+        lines += ["", "LEMBRETES DESTE CLIENTE"]
+        if rem:
+            for x in rem[:5]:lines.append(("⚠ " if x.get("overdue") else "• ")+f"{x.get('due')} — {x.get('text')}")
+        else:lines.append("• Nenhum lembrete pendente vinculado.")
+        lines += ["", "Essas dicas são regras locais baseadas no diagnóstico; não enviam mensagens nem alteram lembretes."]
+        return "\n".join(lines)
+
+---- linhas 8811-8820 ----
+        if rem:
+            for x in rem[:5]:lines.append(("⚠ " if x.get("overdue") else "• ")+f"{x.get('due')} — {x.get('text')}")
+        else:lines.append("• Nenhum lembrete pendente vinculado.")
+        lines += ["", "Essas dicas são regras locais baseadas no diagnóstico; não enviam mensagens nem alteram lembretes."]
+        return "\n".join(lines)
+
+    def _ai_current_assist_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout
+        dlg=QDialog(parent or self);dlg.setWindowTitle("💡 Assistência rápida do cliente");dlg.resize(720,560)
+        lay=QVBoxLayout(dlg);txt=QPlainTextEdit();txt.setReadOnly(True);txt.setPlainText(self._ai_current_assist_text());lay.addWidget(txt,1)
+---- linhas 8827-8836 ----
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+        lay=QVBoxLayout(dlg)
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+        active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        state=self._crm_state_for_client(active) if active else {}
+---- linhas 8856-8865 ----
+            item=QListWidgetItem("Nenhuma pendência comercial detectada nos últimos 7 dias.");item.setFlags(Qt.ItemFlag.NoItemFlags);pending_list.addItem(item)
+        lay.addWidget(pending_list,1)
+
+        lay.addWidget(QLabel("⏰ LEMBRETES ABERTOS"))
+        reminder_list=QListWidget();reminder_list.setSpacing(3);reminder_list.setMinimumHeight(120)
+        rem=self._crm_open_reminders_payload()
+        for r in rem[:30]:
+            client=str(r.get('client') or '').strip()
+            prefix="⚠ " if r.get("overdue") else "• "
+            item=QListWidgetItem(prefix+f"{r.get('due')}  •  {client or 'sem cliente'} — {r.get('text')}")
+---- linhas 9256-9265 ----
+        priority=self._ai_priority_for_client(target) if target else {}
+        commercial_state=self._crm_state_for_client(target) if target else {}
+        commercial_pending=self._crm_states_payload(20,True) if mode in ("observer","auto","crm_reminders") else []
+        return {"generated_at":datetime.datetime.now().isoformat(timespec="seconds"),"mode":mode,"delta_only":bool(mode=="auto"),"active_contact":target,"active_recent_context":current_context,"client_profile":profile,"client_priority":priority,"commercial_state":commercial_state,"commercial_pending":commercial_pending,"open_reminders":reminders,"whatsapp_overview":overview,"waiting_now":waiting,"recent_events":events,"day_event_count":len(rows),"events_sent":len(events),"last_event_ts":last_event_ts,"accumulated_learning":learning,"working_hours":{"weekdays":"segunda a sexta","periods":["07:50-12:08","13:30-18:00"],"waiting_metrics_use_business_time":True},"goal":"atuar como copiloto/CRM assistido: priorizar clientes, usar status comercial + proxima acao + pendencia, aprofundar estrategia por cliente, conectar lembretes ao contexto comercial e sugerir proximas acoes sem enviar mensagens nem alterar lembretes automaticamente"}
+
+    def _ai_prompt(self,mode):
+        base=("Você é a IA Observadora do ALIYVO, um copiloto comercial para vendas de autopeças pesadas pelo WhatsApp. "
+              "Analise somente os dados fornecidos. Não invente fatos, peças, preços, venda fechada ou intenção do cliente. "
+              "O vendedor trabalha rápido e usa respostas curtas; não critique abreviações ou informalidade se não prejudicarem a venda. "
+              "Mensagens de encerramento como ok, show, obrigado, valeu e equivalentes normalmente não exigem resposta. "
+---- linhas 9264-9273 ----
+              "O vendedor trabalha rápido e usa respostas curtas; não critique abreviações ou informalidade se não prejudicarem a venda. "
+              "Mensagens de encerramento como ok, show, obrigado, valeu e equivalentes normalmente não exigem resposta. "
+              "Diferencie sempre FATO OBSERVADO, INDÍCIO e SUGESTÃO. Um sinal textual de fechamento não prova faturamento. "
+              "Gargalos de atendimento não são automações por si só. Lembretes são tarefas do usuário: você pode priorizar e sugerir, mas nunca afirmar que criou, adiou, concluiu ou enviou algo. "
+              "Nunca envie nada ao cliente.")
+        if mode=="conversation":
+            return base+("\nAnalise a conversa atual e responda em português com: 1) PRIORIDADE AGORA e motivo; 2) SITUAÇÃO; 3) O QUE FALTA FAZER/RESPONDER; 4) RESPOSTA SUGERIDA curta, se couber; 5) AÇÃO/FERRAMENTA; 6) se existe lembrete relacionado; 7) oportunidade de automação. Seja objetivo.")
+        if mode=="client_profile":
+            return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+        if mode=="crm_reminders":
+---- linhas 9269-9278 ----
+        if mode=="conversation":
+            return base+("\nAnalise a conversa atual e responda em português com: 1) PRIORIDADE AGORA e motivo; 2) SITUAÇÃO; 3) O QUE FALTA FAZER/RESPONDER; 4) RESPOSTA SUGERIDA curta, se couber; 5) AÇÃO/FERRAMENTA; 6) se existe lembrete relacionado; 7) oportunidade de automação. Seja objetivo.")
+        if mode=="client_profile":
+            return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+        if mode=="crm_reminders":
+            return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+        return base+("\nFaça uma auditoria do fluxo recente com: 1) ATENÇÃO AGORA; 2) PADRÕES COMERCIAIS; 3) GARGALOS; 4) DESFECHOS OBSERVÁVEIS; 5) LEMBRETES/CRM; 6) TAREFAS REPETITIVAS; 7) FERRAMENTAS/ATALHOS; 8) AUTOMAÇÕES FUTURAS; 9) O QUE CONTINUAR OBSERVANDO.")
+
+    def _ai_response_text(self,data):
+        if not isinstance(data,dict):return ""
+---- linhas 9271-9280 ----
+        if mode=="client_profile":
+            return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+        if mode=="crm_reminders":
+            return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+        return base+("\nFaça uma auditoria do fluxo recente com: 1) ATENÇÃO AGORA; 2) PADRÕES COMERCIAIS; 3) GARGALOS; 4) DESFECHOS OBSERVÁVEIS; 5) LEMBRETES/CRM; 6) TAREFAS REPETITIVAS; 7) FERRAMENTAS/ATALHOS; 8) AUTOMAÇÕES FUTURAS; 9) O QUE CONTINUAR OBSERVANDO.")
+
+    def _ai_response_text(self,data):
+        if not isinstance(data,dict):return ""
+        direct=str(data.get("output_text") or "").strip()
+        if direct:return direct
+---- linhas 9272-9281 ----
+            return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+        if mode=="crm_reminders":
+            return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+        return base+("\nFaça uma auditoria do fluxo recente com: 1) ATENÇÃO AGORA; 2) PADRÕES COMERCIAIS; 3) GARGALOS; 4) DESFECHOS OBSERVÁVEIS; 5) LEMBRETES/CRM; 6) TAREFAS REPETITIVAS; 7) FERRAMENTAS/ATALHOS; 8) AUTOMAÇÕES FUTURAS; 9) O QUE CONTINUAR OBSERVANDO.")
+
+    def _ai_response_text(self,data):
+        if not isinstance(data,dict):return ""
+        direct=str(data.get("output_text") or "").strip()
+        if direct:return direct
+        parts=[]
+---- linhas 9434-9443 ----
+        self._ai_observer_text_widget=txt;self._ai_observer_status_widget=status
+        latest=self._ai_history_latest()
+        if isinstance(latest,dict) and latest.get("ok"):txt.setPlainText(f"Última análise: {latest.get('time','')}\nModelo: {latest.get('model','')}\n\n{latest.get('analysis','')}")
+        else:txt.setPlainText("A IA acumula padrões locais, perfis por cliente e agora também pode cruzar lembretes com o atendimento. Nenhuma mensagem é enviada automaticamente.")
+        bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+        for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+        dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+
+---- linhas 9483-9492 ----
+    def _reminder_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"lembretes.json"
+
+    def _reminder_load(self):
+        try:
+            f=self._reminder_file()
+            if f.exists():
+                x=json.loads(f.read_text(encoding="utf-8"))
+---- linhas 9508-9517 ----
+    def _reminder_update_button(self):
+        try:
+            n=sum(1 for x in getattr(self,"_reminders",[]) if isinstance(x,dict) and not x.get("done"))
+            self.reminder_toggle.setText(f"⏰  Lembretes ({n})" if n else "⏰  Lembretes")
+        except Exception: pass
+
+    def _reminder_show_dialog(self):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QListWidget,QListWidgetItem,QPushButton,QComboBox,QLabel,QWidget
+        from PyQt6.QtGui import QColor,QFont
+        from PyQt6.QtCore import QSize
+---- linhas 9516-9525 ----
+        from PyQt6.QtGui import QColor,QFont
+        from PyQt6.QtCore import QSize
+        import datetime,time
+        dlg=QDialog(self); dlg.setWindowTitle("📊 ALIYVO CRM — Lembretes e Oportunidades"); dlg.resize(940,690); lay=QVBoxLayout(dlg)
+
+        # Cabeçalho visual do CRM
+        crm_title=QLabel("ALIYVO CRM")
+        crm_title.setStyleSheet("font-size:22px;font-weight:900;color:#0B3349;padding:2px 2px 0 2px;")
+        crm_sub=QLabel("Lembretes, clientes esperando e oportunidades em um só lugar")
+        crm_sub.setStyleSheet("font-size:11px;font-weight:600;color:#657784;padding:0 2px 8px 2px;")
+---- linhas 9521-9530 ----
+        # Cabeçalho visual do CRM
+        crm_title=QLabel("ALIYVO CRM")
+        crm_title.setStyleSheet("font-size:22px;font-weight:900;color:#0B3349;padding:2px 2px 0 2px;")
+        crm_sub=QLabel("Lembretes, clientes esperando e oportunidades em um só lugar")
+        crm_sub.setStyleSheet("font-size:11px;font-weight:600;color:#657784;padding:0 2px 8px 2px;")
+        lay.addWidget(crm_title);lay.addWidget(crm_sub)
+
+        cards=QHBoxLayout();cards.setSpacing(8)
+        card_over=QPushButton();card_today=QPushButton();card_wait=QPushButton();card_ai=QPushButton()
+        for c in (card_over,card_today,card_wait,card_ai):
+===== Assistência =====
+---- linhas 8782-8791 ----
+
+    def _ai_current_assist_text(self,client_name=""):
+        name=str(client_name or getattr(self,"_diagnostic_active_name","") or "").strip()
+        if not name:return "Abra uma conversa individual no WhatsApp para ver a assistência rápida."
+        p=self._ai_client_profile_payload(name) or {};pri=self._ai_priority_for_client(name);pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+        lines=[f"ASSISTÊNCIA RÁPIDA — {name}",f"Prioridade agora: {pri['level'].upper()} • índice {pri['score']}"]
+        if pri.get("reasons"):
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+---- linhas 8784-8793 ----
+        name=str(client_name or getattr(self,"_diagnostic_active_name","") or "").strip()
+        if not name:return "Abra uma conversa individual no WhatsApp para ver a assistência rápida."
+        p=self._ai_client_profile_payload(name) or {};pri=self._ai_priority_for_client(name);pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+        lines=[f"ASSISTÊNCIA RÁPIDA — {name}",f"Prioridade agora: {pri['level'].upper()} • índice {pri['score']}"]
+        if pri.get("reasons"):
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+---- linhas 8816-8825 ----
+
+    def _ai_current_assist_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout
+        dlg=QDialog(parent or self);dlg.setWindowTitle("💡 Assistência rápida do cliente");dlg.resize(720,560)
+        lay=QVBoxLayout(dlg);txt=QPlainTextEdit();txt.setReadOnly(True);txt.setPlainText(self._ai_current_assist_text());lay.addWidget(txt,1)
+        row=QHBoxLayout();deep=QPushButton("🤖 Estratégia IA completa");refresh=QPushButton("↻ Atualizar");close=QPushButton("Fechar");row.addWidget(deep);row.addWidget(refresh);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        def do_ai():
+            name=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+            if not name:return
+            self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+---- linhas 9435-9444 ----
+        latest=self._ai_history_latest()
+        if isinstance(latest,dict) and latest.get("ok"):txt.setPlainText(f"Última análise: {latest.get('time','')}\nModelo: {latest.get('model','')}\n\n{latest.get('analysis','')}")
+        else:txt.setPlainText("A IA acumula padrões locais, perfis por cliente e agora também pode cruzar lembretes com o atendimento. Nenhuma mensagem é enviada automaticamente.")
+        bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+        for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+        bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+        settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+        dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+
+    def _ai_observer_dialog_closed(self,txt,status):
+===== Assistencia =====
+===== CRM =====
+---- linhas 7487-7496 ----
+            except Exception as _smart_err:
+                try:self._diagnostic_log("smart_reminder_error",error=str(_smart_err)[:220])
+                except Exception:pass
+            # CRM Assistido 0.22.92: reaproveita o MESMO contexto ja extraido
+            # pelo diagnostico. Nao cria scanner, timer nem leitura adicional do DOM.
+            try:self._crm_update_state_from_context(name,context)
+            except Exception as _crm_err:
+                try:self._diagnostic_log("crm_state_error",error=str(_crm_err)[:220])
+                except Exception:pass
+
+---- linhas 7489-7498 ----
+                except Exception:pass
+            # CRM Assistido 0.22.92: reaproveita o MESMO contexto ja extraido
+            # pelo diagnostico. Nao cria scanner, timer nem leitura adicional do DOM.
+            try:self._crm_update_state_from_context(name,context)
+            except Exception as _crm_err:
+                try:self._diagnostic_log("crm_state_error",error=str(_crm_err)[:220])
+                except Exception:pass
+
+        groups=set(getattr(self,"_diagnostic_groups",set()) or set())
+        learned=False
+---- linhas 7490-7499 ----
+            # CRM Assistido 0.22.92: reaproveita o MESMO contexto ja extraido
+            # pelo diagnostico. Nao cria scanner, timer nem leitura adicional do DOM.
+            try:self._crm_update_state_from_context(name,context)
+            except Exception as _crm_err:
+                try:self._diagnostic_log("crm_state_error",error=str(_crm_err)[:220])
+                except Exception:pass
+
+        groups=set(getattr(self,"_diagnostic_groups",set()) or set())
+        learned=False
+        if name and bool(active.get("is_group")) and name not in groups:
+---- linhas 7491-7500 ----
+            # pelo diagnostico. Nao cria scanner, timer nem leitura adicional do DOM.
+            try:self._crm_update_state_from_context(name,context)
+            except Exception as _crm_err:
+                try:self._diagnostic_log("crm_state_error",error=str(_crm_err)[:220])
+                except Exception:pass
+
+        groups=set(getattr(self,"_diagnostic_groups",set()) or set())
+        learned=False
+        if name and bool(active.get("is_group")) and name not in groups:
+            groups.add(name); learned=True
+---- linhas 8741-8750 ----
+        try:timer.stop()
+        except Exception:pass
+
+    def _crm_open_reminders_payload(self,client_name=""):
+        import time,datetime
+        name=str(client_name or "").strip(); now=time.time(); out=[]
+        for r in getattr(self,"_reminders",[]) or []:
+            if not isinstance(r,dict) or r.get("done"):continue
+            client=str(r.get("client") or "").strip()
+            if name and client!=name:continue
+---- linhas 8769-8778 ----
+                elif sec>=300:score+=30;reasons.append("aguardando há mais de 5 min úteis")
+                elif sec>0:score+=15;reasons.append("aguardando resposta agora")
+        except Exception:pass
+        rem=self._crm_open_reminders_payload(name)
+        if any(x.get("overdue") for x in rem):score+=35;reasons.append("tem lembrete vencido")
+        elif rem:score+=15;reasons.append("tem lembrete pendente")
+        pats={x.get("key"):int(x.get("count") or 0) for x in (p.get("patterns") or [])}
+        if pats.get("consulta_preco",0)>=3:score+=8;reasons.append("cliente recorrente em preço/orçamento")
+        if pats.get("pre_venda",0)>=2:score+=8;reasons.append("pré-venda/reserva aparece com frequência")
+        if any(x.get("key")=="sinal_fechamento" for x in (p.get("outcomes") or [])):score+=10;reasons.append("há sinais observados de pedido/fechamento")
+---- linhas 8787-8796 ----
+        lines=[f"ASSISTÊNCIA RÁPIDA — {name}",f"Prioridade agora: {pri['level'].upper()} • índice {pri['score']}"]
+        if pri.get("reasons"):
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+---- linhas 8788-8797 ----
+        if pri.get("reasons"):
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+---- linhas 8789-8798 ----
+            lines.append("Motivos: "+"; ".join(pri["reasons"]))
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+            lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+---- linhas 8790-8799 ----
+        crm_state=self._crm_state_for_client(name)
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+            lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+        lines += ["", "O QUE O HISTÓRICO SUGERE"]
+---- linhas 8791-8800 ----
+        lines += ["", "SITUAÇÃO CRM"]
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+            lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+        lines += ["", "O QUE O HISTÓRICO SUGERE"]
+        tips=[]
+---- linhas 8792-8801 ----
+        if crm_state:
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+            lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+        lines += ["", "O QUE O HISTÓRICO SUGERE"]
+        tips=[]
+        if pats.get("consulta_preco",0)>=2 and pats.get("prazo_pagamento",0)>=2:tips.append("Preço e prazo aparecem juntos com frequência; quando couber, responda os dois de uma vez.")
+---- linhas 8793-8802 ----
+            lines.append(f"• Status: {crm_state.get('status') or '-'}")
+            lines.append(f"• Próxima ação: {crm_state.get('next_action') or '-'}")
+            lines.append(f"• Pendência: {'SIM' if crm_state.get('pending') else 'NÃO'} • responsável agora: {crm_state.get('owner') or '-'} • confiança {crm_state.get('confidence') or '-'}")
+            if crm_state.get("reason"):lines.append("• Motivo: "+str(crm_state.get("reason")))
+        else:
+            lines.append("• Ainda não há estado comercial detectado para esta conversa.")
+        lines += ["", "O QUE O HISTÓRICO SUGERE"]
+        tips=[]
+        if pats.get("consulta_preco",0)>=2 and pats.get("prazo_pagamento",0)>=2:tips.append("Preço e prazo aparecem juntos com frequência; quando couber, responda os dois de uma vez.")
+        elif pats.get("consulta_preco",0)>=2:tips.append("Preço/orçamento é recorrente neste cliente.")
+---- linhas 8806-8815 ----
+        if int(p.get("audio") or 0)>=3:tips.append("Esse cliente usa bastante áudio.")
+        if not tips:tips.append("Ainda não há padrão forte; observe a conversa atual antes de antecipar uma ação.")
+        for x in tips[:4]:lines.append("• "+x)
+        rem=self._crm_open_reminders_payload(name)
+        lines += ["", "LEMBRETES DESTE CLIENTE"]
+        if rem:
+            for x in rem[:5]:lines.append(("⚠ " if x.get("overdue") else "• ")+f"{x.get('due')} — {x.get('text')}")
+        else:lines.append("• Nenhum lembrete pendente vinculado.")
+        lines += ["", "Essas dicas são regras locais baseadas no diagnóstico; não enviam mensagens nem alteram lembretes."]
+        return "\n".join(lines)
+---- linhas 8825-8834 ----
+            self._ai_profile_target=name;self._ai_observer_text_widget=txt;self._ai_observer_status_widget=None;self._ai_observer_analyze("client_profile",False)
+        deep.clicked.connect(do_ai);refresh.clicked.connect(lambda:txt.setPlainText(self._ai_current_assist_text()));close.clicked.connect(dlg.accept);dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,None));dlg.exec()
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+        lay=QVBoxLayout(dlg)
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+---- linhas 8827-8836 ----
+
+    def _ai_crm_reminders_dialog(self,parent=None):
+        from PyQt6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QHBoxLayout,QLabel,QListWidget,QListWidgetItem,QMessageBox
+        dlg=QDialog(parent or self);dlg.setWindowTitle("🧭 CRM do dia — IA + Lembretes");dlg.resize(860,690)
+        lay=QVBoxLayout(dlg)
+        status=QLabel("Selecione uma pendência para abrir a conversa ou criar um lembrete. A IA não envia nada sozinha.")
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+        active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        state=self._crm_state_for_client(active) if active else {}
+---- linhas 8833-8842 ----
+        status.setWordWrap(True);status.setStyleSheet("font-weight:700;color:#425466;padding:4px;");lay.addWidget(status)
+
+        active=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+        state=self._crm_state_for_client(active) if active else {}
+        current=QLabel()
+        current.setWordWrap(True)
+        current.setStyleSheet("background:#EDF6FF;color:#174A70;border-radius:8px;padding:9px;font-weight:800;")
+        if active and state:
+            current.setText(f"CONVERSA ATUAL: {active}\n{state.get('status') or '-'} → {state.get('next_action') or '-'}")
+        elif active:current.setText(f"CONVERSA ATUAL: {active} — ainda sem classificação comercial.")
+---- linhas 8845-8854 ----
+
+        lay.addWidget(QLabel("🤖 PENDÊNCIAS DETECTADAS PELO OBSERVADOR"))
+        pending_list=QListWidget();pending_list.setSpacing(4);pending_list.setMinimumHeight(180)
+        live=self._crm_states_payload(30,True)
+        for x in live:
+            client=str(x.get('client') or '').strip()
+            item=QListWidgetItem(f"{client}  •  {x.get('status') or '-'}\n→ {x.get('next_action') or '-'}")
+            item.setData(Qt.ItemDataRole.UserRole,client)
+            item.setData(Qt.ItemDataRole.UserRole+1,str(x.get('evidence') or ''))
+            pending_list.addItem(item)
+---- linhas 8858-8867 ----
+
+        lay.addWidget(QLabel("⏰ LEMBRETES ABERTOS"))
+        reminder_list=QListWidget();reminder_list.setSpacing(3);reminder_list.setMinimumHeight(120)
+        rem=self._crm_open_reminders_payload()
+        for r in rem[:30]:
+            client=str(r.get('client') or '').strip()
+            prefix="⚠ " if r.get("overdue") else "• "
+            item=QListWidgetItem(prefix+f"{r.get('due')}  •  {client or 'sem cliente'} — {r.get('text')}")
+            item.setData(Qt.ItemDataRole.UserRole,client)
+            item.setData(Qt.ItemDataRole.UserRole+1,str(r.get('context') or ''))
+---- linhas 8871-8880 ----
+        lay.addWidget(reminder_list,1)
+
+        ai_output=QPlainTextEdit();ai_output.setReadOnly(True);ai_output.setMaximumHeight(170)
+        ai_output.setPlaceholderText("A análise da IA aparecerá aqui quando você clicar em Analisar meu CRM.")
+        lay.addWidget(ai_output)
+
+        def selected_payload():
+            it=pending_list.currentItem()
+            if it and str(it.data(Qt.ItemDataRole.UserRole) or '').strip():
+                return str(it.data(Qt.ItemDataRole.UserRole) or '').strip(),str(it.data(Qt.ItemDataRole.UserRole+1) or '')
+---- linhas 8893-8902 ----
+        def open_selected():
+            client,_ctx=selected_payload()
+            if not client:
+                QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+            dlg.accept()
+            QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+
+        def remind_selected():
+            client,ctx=selected_payload()
+            if not client:
+---- linhas 8900-8909 ----
+        def remind_selected():
+            client,ctx=selected_payload()
+            if not client:
+                QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+            st=self._crm_state_for_client(client) or {}
+            title=str(st.get('next_action') or f"Retornar para {client}")
+            evidence=str(st.get('evidence') or ctx or '')
+            self._reminder_add(dlg,None,force_client=client,context=evidence,prefill_text=title)
+
+        row=QHBoxLayout()
+---- linhas 8901-8910 ----
+            client,ctx=selected_payload()
+            if not client:
+                QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+            st=self._crm_state_for_client(client) or {}
+            title=str(st.get('next_action') or f"Retornar para {client}")
+            evidence=str(st.get('evidence') or ctx or '')
+            self._reminder_add(dlg,None,force_client=client,context=evidence,prefill_text=title)
+
+        row=QHBoxLayout()
+        open_btn=QPushButton("💬 Abrir conversa");remind_btn=QPushButton("⏰ Criar lembrete");an=QPushButton("🤖 Analisar meu CRM");close=QPushButton("Fechar")
+---- linhas 8907-8916 ----
+            self._reminder_add(dlg,None,force_client=client,context=evidence,prefill_text=title)
+
+        row=QHBoxLayout()
+        open_btn=QPushButton("💬 Abrir conversa");remind_btn=QPushButton("⏰ Criar lembrete");an=QPushButton("🤖 Analisar meu CRM");close=QPushButton("Fechar")
+        row.addWidget(open_btn);row.addWidget(remind_btn);row.addWidget(an);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+
+        def run():
+            self._ai_observer_text_widget=ai_output;self._ai_observer_status_widget=status;self._ai_observer_analyze("crm_reminders",False)
+        open_btn.clicked.connect(open_selected);remind_btn.clicked.connect(remind_selected);an.clicked.connect(run);close.clicked.connect(dlg.accept)
+        pending_list.itemDoubleClicked.connect(lambda _it:open_selected())
+---- linhas 8911-8920 ----
+        row.addWidget(open_btn);row.addWidget(remind_btn);row.addWidget(an);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+
+        def run():
+            self._ai_observer_text_widget=ai_output;self._ai_observer_status_widget=status;self._ai_observer_analyze("crm_reminders",False)
+        open_btn.clicked.connect(open_selected);remind_btn.clicked.connect(remind_selected);an.clicked.connect(run);close.clicked.connect(dlg.accept)
+        pending_list.itemDoubleClicked.connect(lambda _it:open_selected())
+        reminder_list.itemDoubleClicked.connect(lambda _it:open_selected())
+        dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(ai_output,status));dlg.exec()
+
+    def _today_quick_panel(self,parent=None):
+---- linhas 9010-9019 ----
+            reasons='; '.join(pri.get('reasons') or []) or 'histórico e pendências atuais'
+            pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+        add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+---- linhas 9011-9020 ----
+            pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+        add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+---- linhas 9013-9022 ----
+        row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+        crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+    def _crm_states_load(self):
+        cached=getattr(self,"_crm_states",None)
+---- linhas 9016-9025 ----
+    def _crm_state_file(self):
+        try:USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+    def _crm_states_load(self):
+        cached=getattr(self,"_crm_states",None)
+        if isinstance(cached,dict):return cached
+        data={}
+        try:
+---- linhas 9018-9027 ----
+        except Exception:pass
+        return USER_DATA_DIR/"crm_estados_beta.json"
+
+    def _crm_states_load(self):
+        cached=getattr(self,"_crm_states",None)
+        if isinstance(cached,dict):return cached
+        data={}
+        try:
+            f=self._crm_state_file()
+            if f.exists():
+===== phone =====
+---- linhas 716-725 ----
+    def _refresh_current_list(self):
+        self.current_list.clear()
+
+        def looks_like_phone(value):
+            d="".join(ch for ch in str(value or "") if ch.isdigit())
+            return len(d)>=10 and len(d)>=max(10,len(str(value or "").replace(" ","").replace("+","").replace("-",""))-3)
+
+        for i,c in enumerate(self.contacts,1):
+            phone=(c.get("phone") or "").strip()
+            name=(c.get("name") or "").strip()
+---- linhas 721-730 ----
+            return len(d)>=10 and len(d)>=max(10,len(str(value or "").replace(" ","").replace("+","").replace("-",""))-3)
+
+        for i,c in enumerate(self.contacts,1):
+            phone=(c.get("phone") or "").strip()
+            name=(c.get("name") or "").strip()
+
+            if not name or looks_like_phone(name):
+                name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+
+            masked=("••••"+phone[-4:]) if phone else "sem número"
+---- linhas 724-733 ----
+            phone=(c.get("phone") or "").strip()
+            name=(c.get("name") or "").strip()
+
+            if not name or looks_like_phone(name):
+                name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+
+            masked=("••••"+phone[-4:]) if phone else "sem número"
+            label=f"{i}. {name}  •  📞 {masked}"
+
+            it=QListWidgetItem(label)
+---- linhas 725-734 ----
+            name=(c.get("name") or "").strip()
+
+            if not name or looks_like_phone(name):
+                name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+
+            masked=("••••"+phone[-4:]) if phone else "sem número"
+            label=f"{i}. {name}  •  📞 {masked}"
+
+            it=QListWidgetItem(label)
+            it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+---- linhas 727-736 ----
+            if not name or looks_like_phone(name):
+                name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+
+            masked=("••••"+phone[-4:]) if phone else "sem número"
+            label=f"{i}. {name}  •  📞 {masked}"
+
+            it=QListWidgetItem(label)
+            it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+            it.setData(Qt.ItemDataRole.UserRole,c)
+            self.current_list.addItem(it)
+---- linhas 731-740 ----
+            label=f"{i}. {name}  •  📞 {masked}"
+
+            it=QListWidgetItem(label)
+            it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+            it.setData(Qt.ItemDataRole.UserRole,c)
+            self.current_list.addItem(it)
+
+        self.contacts_label.setText(
+            f"{len(self.contacts)} clientes na lista atual"
+        )
+---- linhas 787-796 ----
+            return
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+            )
+---- linhas 790-799 ----
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+            )
+            return
+
+        # Número passa a ser a chave principal da lista.
+---- linhas 797-806 ----
+            return
+
+        # Número passa a ser a chave principal da lista.
+        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+
+        already=phone in existing
+        existing[phone]={
+            "name":name,
+            "phone":phone,
+            "chat_id":chat_id
+---- linhas 799-808 ----
+        # Número passa a ser a chave principal da lista.
+        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+
+        already=phone in existing
+        existing[phone]={
+            "name":name,
+            "phone":phone,
+            "chat_id":chat_id
+        }
+
+---- linhas 800-809 ----
+        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+
+        already=phone in existing
+        existing[phone]={
+            "name":name,
+            "phone":phone,
+            "chat_id":chat_id
+        }
+
+        self.contacts=list(existing.values())
+---- linhas 802-811 ----
+        already=phone in existing
+        existing[phone]={
+            "name":name,
+            "phone":phone,
+            "chat_id":chat_id
+        }
+
+        self.contacts=list(existing.values())
+        self._refresh_current_list()
+
+---- linhas 811-820 ----
+
+        if already:
+            self.status.setText(
+                f"ℹ {name} / {phone} já estava na lista."
+            )
+        else:
+            self.status.setText(
+                f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+            )
+
+---- linhas 815-824 ----
+            )
+        else:
+            self.status.setText(
+                f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+            )
+
+    def save_current_list(self):
+        if not self.contacts:
+            QMessageBox.information(self,"Lista","A lista atual está vazia.")
+            return
+---- linhas 967-976 ----
+
+        valid=[
+            c for c in self.contacts
+            if c.get("phone") or c.get("chat_id")
+        ]
+        if not valid:
+            QMessageBox.information(
+                self,
+                "Teste",
+                "Ainda não há contato com telefone/ID resolvido."
+---- linhas 1018-1027 ----
+
+        unresolved=sum(
+            1 for c in self.contacts
+            if not c.get("phone") and not c.get("chat_id")
+        )
+        if unresolved:
+            QMessageBox.information(
+                self,
+                "Campanha",
+                f"A lista possui {unresolved} contato(s) sem telefone/identificador.\n\n"
+---- linhas 2027-2036 ----
+                return
+            kind=str(getattr(args,"PermissionKind","") or "").lower()
+            allow_kinds=(
+                "microphone","camera","autoplay",
+                "windowmanagement","window management",
+                "notifications","persistentstorage","persistent storage",
+                "clipboard","other sensors",
+            )
+            allowed=any(x in kind for x in allow_kinds)
+            # Log tecnico sem dados da conversa, apenas permissao/origem.
+---- linhas 2735-2744 ----
+            const chats=[];
+            const seen=new Set();
+
+            function cleanPhone(s){
+              if(!s) return "";
+              const digits=String(s).replace(/\D/g,"");
+              return digits.length>=10 ? digits : "";
+            }
+
+            function extractFromAttrs(el){
+---- linhas 2778-2787 ----
+              if(seen.has(name)) continue;
+              seen.add(name);
+
+              let phone="";
+
+              // tenta no próprio row
+              phone=extractFromAttrs(row);
+
+              // tenta nos descendentes
+              if(!phone){
+---- linhas 2781-2790 ----
+              let phone="";
+
+              // tenta no próprio row
+              phone=extractFromAttrs(row);
+
+              // tenta nos descendentes
+              if(!phone){
+                const descendants=Array.from(row.querySelectorAll("*"));
+                for(const el of descendants){
+                  phone=extractFromAttrs(el);
+---- linhas 2784-2793 ----
+              phone=extractFromAttrs(row);
+
+              // tenta nos descendentes
+              if(!phone){
+                const descendants=Array.from(row.querySelectorAll("*"));
+                for(const el of descendants){
+                  phone=extractFromAttrs(el);
+                  if(phone) break;
+                }
+              }
+---- linhas 2787-2796 ----
+              if(!phone){
+                const descendants=Array.from(row.querySelectorAll("*"));
+                for(const el of descendants){
+                  phone=extractFromAttrs(el);
+                  if(phone) break;
+                }
+              }
+
+              // tenta texto visível caso o chat esteja salvo por número
+              if(!phone){
+---- linhas 2788-2797 ----
+                const descendants=Array.from(row.querySelectorAll("*"));
+                for(const el of descendants){
+                  phone=extractFromAttrs(el);
+                  if(phone) break;
+                }
+              }
+
+              // tenta texto visível caso o chat esteja salvo por número
+              if(!phone){
+                const txt=(row.innerText||row.textContent||"");
+---- linhas 2793-2802 ----
+              }
+
+              // tenta texto visível caso o chat esteja salvo por número
+              if(!phone){
+                const txt=(row.innerText||row.textContent||"");
+                const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+                if(m) phone=cleanPhone(m[0]);
+              }
+
+              chats.push({name:name,phone:phone});
+---- linhas 2796-2805 ----
+              if(!phone){
+                const txt=(row.innerText||row.textContent||"");
+                const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+                if(m) phone=cleanPhone(m[0]);
+              }
+
+              chats.push({name:name,phone:phone});
+            }
+
+            return {ok:true,chats:chats};
+---- linhas 2799-2808 ----
+                if(m) phone=cleanPhone(m[0]);
+              }
+
+              chats.push({name:name,phone:phone});
+            }
+
+            return {ok:true,chats:chats};
+          } catch(e){
+            return {ok:false,error:String(e)};
+          }
+---- linhas 2850-2859 ----
+        lst=QListWidget()
+        for chat in chats:
+            name=chat.get("name","")
+            phone=chat.get("phone","")
+            label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+            item=QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, chat)
+            item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(item)
+---- linhas 2851-2860 ----
+        for chat in chats:
+            name=chat.get("name","")
+            phone=chat.get("phone","")
+            label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+            item=QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, chat)
+            item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(item)
+        lay.addWidget(lst,1)
+---- linhas 2900-2909 ----
+
+        for chat in chosen:
+            nome=(chat.get("name") or "").strip()
+            phone=re.sub(r"\D","",(chat.get("phone") or "").strip())
+
+            if phone:
+                resolved+=1
+                cur.execute("""
+                    DELETE FROM campanha_contatos
+                    WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+---- linhas 2902-2911 ----
+            nome=(chat.get("name") or "").strip()
+            phone=re.sub(r"\D","",(chat.get("phone") or "").strip())
+
+            if phone:
+                resolved+=1
+                cur.execute("""
+                    DELETE FROM campanha_contatos
+                    WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+                """,(nome,))
+                cur.execute("""
+===== telefone =====
+---- linhas 588-597 ----
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+            "Digite nome ou telefone. Ex.: Nelson Torres"
+        )
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+---- linhas 731-740 ----
+            label=f"{i}. {name}  •  📞 {masked}"
+
+            it=QListWidgetItem(label)
+            it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+            it.setData(Qt.ItemDataRole.UserRole,c)
+            self.current_list.addItem(it)
+
+        self.contacts_label.setText(
+            f"{len(self.contacts)} clientes na lista atual"
+        )
+---- linhas 751-760 ----
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+        if not term:
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+---- linhas 792-801 ----
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+            )
+            return
+
+        # Número passa a ser a chave principal da lista.
+        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+
+---- linhas 973-982 ----
+            QMessageBox.information(
+                self,
+                "Teste",
+                "Ainda não há contato com telefone/ID resolvido."
+            )
+            return
+
+        cb=getattr(self,"on_test_one",None)
+        if cb:
+            cb(valid[0],text)
+---- linhas 1024-1033 ----
+            QMessageBox.information(
+                self,
+                "Campanha",
+                f"A lista possui {unresolved} contato(s) sem telefone/identificador.\n\n"
+                "Nesta etapa estamos validando a criação das listas. "
+                "Depois vamos resolver os identificadores para o envio."
+            )
+            return
+
+        ans=QMessageBox.question(
+---- linhas 2595-2604 ----
+        l3.addLayout(ar)
+
+        self.contact_table=QTableWidget(0,5)
+        self.contact_table.setHorizontalHeaderLabels(["Usar","Nome","Telefone","Grupo","Opt-in"])
+        self.contact_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
+        l3.addWidget(self.contact_table,1)
+
+        rr=QHBoxLayout()
+        self.interval_spin=QSpinBox()
+        self.interval_spin.setRange(20,300)
+---- linhas 2838-2847 ----
+
+        info=QLabel(
+            "Marque os clientes para salvar na lista de campanhas.\n"
+            "O ALIYVO agora tenta descobrir o telefone pelos identificadores internos do WhatsApp."
+        )
+        info.setWordWrap(True)
+        lay.addWidget(info)
+
+        search=QLineEdit()
+        search.setPlaceholderText("Filtrar...")
+---- linhas 2851-2860 ----
+        for chat in chats:
+            name=chat.get("name","")
+            phone=chat.get("phone","")
+            label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+            item=QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, chat)
+            item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(item)
+        lay.addWidget(lst,1)
+---- linhas 2906-2915 ----
+                resolved+=1
+                cur.execute("""
+                    DELETE FROM campanha_contatos
+                    WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+                """,(nome,))
+                cur.execute("""
+                    INSERT INTO campanha_contatos
+                    (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                    VALUES(?,?,?,1,1,'whatsapp',?)
+                    ON CONFLICT(telefone) DO UPDATE SET
+---- linhas 2910-2919 ----
+                """,(nome,))
+                cur.execute("""
+                    INSERT INTO campanha_contatos
+                    (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                    VALUES(?,?,?,1,1,'whatsapp',?)
+                    ON CONFLICT(telefone) DO UPDATE SET
+                      nome=excluded.nome,
+                      grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+                      ativo=1,
+                      origem='whatsapp',
+---- linhas 2912-2921 ----
+                    INSERT INTO campanha_contatos
+                    (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                    VALUES(?,?,?,1,1,'whatsapp',?)
+                    ON CONFLICT(telefone) DO UPDATE SET
+                      nome=excluded.nome,
+                      grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+                      ativo=1,
+                      origem='whatsapp',
+                      whatsapp_nome=excluded.whatsapp_nome
+                """,(nome,phone,grupo,nome))
+---- linhas 2924-2933 ----
+                placeholder="pendente:"+nome.lower()
+                cur.execute("""
+                    INSERT OR IGNORE INTO campanha_contatos
+                    (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                    VALUES(?,?,?,1,1,'whatsapp',?)
+                """,(nome,placeholder,grupo,nome))
+
+        con.commit()
+        con.close()
+
+---- linhas 2936-2945 ----
+            self,
+            "WhatsApp",
+            f"{len(chosen)} contatos processados.\n\n"
+            f"Telefone identificado: {resolved}\n"
+            f"Telefone pendente: {pending}"
+        )
+
+    def add_current_chat_to_campaign(self):
+        js = r"""
+        (() => {
+---- linhas 2937-2946 ----
+            "WhatsApp",
+            f"{len(chosen)} contatos processados.\n\n"
+            f"Telefone identificado: {resolved}\n"
+            f"Telefone pendente: {pending}"
+        )
+
+    def add_current_chat_to_campaign(self):
+        js = r"""
+        (() => {
+          try {
+---- linhas 3032-3041 ----
+            # atualiza eventual placeholder pelo nome
+            cur.execute("""
+                DELETE FROM campanha_contatos
+                WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+            """,(name,))
+            cur.execute("""
+                INSERT INTO campanha_contatos
+                (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                VALUES(?,?,?,1,1,'whatsapp',?)
+                ON CONFLICT(telefone) DO UPDATE SET
+---- linhas 3036-3045 ----
+            """,(name,))
+            cur.execute("""
+                INSERT INTO campanha_contatos
+                (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                VALUES(?,?,?,1,1,'whatsapp',?)
+                ON CONFLICT(telefone) DO UPDATE SET
+                    nome=excluded.nome,
+                    grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+                    ativo=1,
+                    origem='whatsapp',
+---- linhas 3038-3047 ----
+                INSERT INTO campanha_contatos
+                (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                VALUES(?,?,?,1,1,'whatsapp',?)
+                ON CONFLICT(telefone) DO UPDATE SET
+                    nome=excluded.nome,
+                    grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+                    ativo=1,
+                    origem='whatsapp',
+                    whatsapp_nome=excluded.whatsapp_nome
+            """,(name,phone,group,name))
+---- linhas 3049-3058 ----
+            placeholder="pendente:"+name.lower()
+            cur.execute("""
+                INSERT OR IGNORE INTO campanha_contatos
+                (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+                VALUES(?,?,?,1,1,'whatsapp',?)
+            """,(name,placeholder,group,name))
+
+        con.commit()
+        con.close()
+        self.refresh_campaign_contacts()
+---- linhas 3058-3067 ----
+        self.refresh_campaign_contacts()
+
+        if phone:
+            QMessageBox.information(self,"WhatsApp",f"{name} adicionado com telefone identificado.")
+        else:
+            QMessageBox.information(
+                self,
+                "WhatsApp",
+                f"{name} foi adicionado.\n\n"
+                "O telefone não ficou exposto nesta tela do WhatsApp e foi marcado como pendente."
+---- linhas 3064-3073 ----
+                self,
+                "WhatsApp",
+                f"{name} foi adicionado.\n\n"
+                "O telefone não ficou exposto nesta tela do WhatsApp e foi marcado como pendente."
+            )
+
+
+    def select_campaign_image(self):
+        p,_=QFileDialog.getOpenFileName(self,"Selecionar imagem","","Imagens (*.jpg *.jpeg *.png *.webp)")
+        if p:
+---- linhas 3088-3097 ----
+                dialect=csv.excel
+            for row in csv.DictReader(f,dialect=dialect):
+                nome=(row.get("nome") or row.get("Nome") or "").strip()
+                tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+                grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+                if nome and tel:
+                    cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+                                   VALUES(?,?,?,1,1)
+                                   ON CONFLICT(telefone) DO UPDATE SET
+                                   nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+---- linhas 3091-3100 ----
+                tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+                grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+                if nome and tel:
+                    cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+                                   VALUES(?,?,?,1,1)
+                                   ON CONFLICT(telefone) DO UPDATE SET
+                                   nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+                    n+=1
+        con.commit(); con.close()
+        self.refresh_campaign_contacts()
+---- linhas 3093-3102 ----
+                if nome and tel:
+                    cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+                                   VALUES(?,?,?,1,1)
+                                   ON CONFLICT(telefone) DO UPDATE SET
+                                   nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+                    n+=1
+        con.commit(); con.close()
+        self.refresh_campaign_contacts()
+        QMessageBox.information(self,"Importação",f"{n} contatos importados.")
+
+---- linhas 3104-3113 ----
+        if not hasattr(self,"contact_table"):
+            return
+        con=self.db()
+        rows=con.execute("""SELECT id,nome,telefone,grupo,opt_in
+                            FROM campanha_contatos
+                            WHERE ativo=1 ORDER BY nome""").fetchall()
+        con.close()
+        self.contact_table.setRowCount(0)
+        for r in rows:
+            row=self.contact_table.rowCount()
+---- linhas 3120-3129 ----
+            self.contact_table.setItem(row,1,QTableWidgetItem(r[1] or ""))
+            tel_display = r[2] or ""
+            if tel_display.startswith("pendente:"):
+                tel_display = "⚠ telefone pendente"
+            self.contact_table.setItem(row,2,QTableWidgetItem(tel_display))
+            self.contact_table.setItem(row,3,QTableWidgetItem(r[3] or ""))
+            self.contact_table.setItem(row,4,QTableWidgetItem("Sim" if r[4] else "Não"))
+
+    def start_campaign(self):
+        msg=self.camp_msg.toPlainText().strip()
+---- linhas 3143-3152 ----
+                    tel
+                ))
+        if not queue:
+            QMessageBox.warning(self,"Campanha","Nenhum contato com telefone identificado e opt-in selecionado.")
+            return
+        if QMessageBox.question(
+            self,"Confirmar",
+            f"Processar {len(queue)} contatos selecionados?",
+            QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No
+        ) != QMessageBox.StandardButton.Yes:
+---- linhas 12461-12470 ----
+              if (seen.has(name)) continue;
+              seen.add(name);
+
+              // Se o próprio nome visível já for telefone, guardamos.
+              const digits=(name.match(/\d/g)||[]).join("");
+              let phone="";
+              if (digits.length >= 10 && digits.length <= 15) {
+                phone=digits;
+                if (phone.length === 10 || phone.length === 11) {
+                  phone="55"+phone;
+---- linhas 13094-13103 ----
+            return {
+              ok:false,
+              code:"N30",
+              error:"O painel abriu, mas nenhum telefone foi encontrado.",
+              debug:debug
+            };
+
+          }catch(e){
+            return {
+              ok:false,
+---- linhas 13272-13281 ----
+        phone=(contact.get("phone") or "").strip()
+        if not phone:
+            panel.status.setText(
+                "ERRO CWA40 — contato de teste sem telefone."
+            )
+            return
+
+        # Preserve current UI list; only queue is replaced for this test.
+        panel.queue=[contact]
+        panel.current_index=0
+===== whatsapp =====
+---- linhas 89-98 ----
+ALIYVO_PLAN = "BETA_FREE"
+ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest"
+DB_PATH = APP_DIR / "copiloto.db"
+# Perfil estável do WhatsApp entre versões do ALIYVO.
+ALIYVO_USER_DIR = Path(
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+---- linhas 93-102 ----
+ALIYVO_USER_DIR = Path(
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+---- linhas 94-103 ----
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+def _prepare_persistent_user_data():
+---- linhas 186-195 ----
+
+_prepare_persistent_user_data()
+
+def _prepare_webview2_whatsapp_profile():
+    """
+    Perfil persistente do Edge WebView2.
+    Na primeira execução tenta reaproveitar a sessão criada pelo
+    teste "ALIYVO-WebView2-Teste", se ela ainda existir.
+    """
+    try:
+---- linhas 233-242 ----
+        except Exception:
+            pass
+
+def _reset_whatsapp_media_permissions():
+    """Remove somente permissoes salvas de microfone/camera do WhatsApp no perfil WebView2."""
+    try:
+        import json as _json
+        pref_candidates=[
+            WEBVIEW2_PROFILE_DIR/"Default"/"Preferences",
+            WEBVIEW2_PROFILE_DIR/"Preferences",
+---- linhas 234-243 ----
+            pass
+
+def _reset_whatsapp_media_permissions():
+    """Remove somente permissoes salvas de microfone/camera do WhatsApp no perfil WebView2."""
+    try:
+        import json as _json
+        pref_candidates=[
+            WEBVIEW2_PROFILE_DIR/"Default"/"Preferences",
+            WEBVIEW2_PROFILE_DIR/"Preferences",
+        ]
+---- linhas 254-263 ----
+                        continue
+                    for key in list(entries.keys()):
+                        lk=str(key).lower()
+                        if "whatsapp.com" in lk or "whatsapp.net" in lk:
+                            entries.pop(key,None)
+                            changed=True
+                if changed:
+                    tmp=pref.with_name(pref.name+".aliyvo_tmp")
+                    tmp.write_text(_json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+                    tmp.replace(pref)
+---- linhas 266-275 ----
+    except Exception:
+        pass
+
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+---- linhas 267-276 ----
+        pass
+
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+    - só procura versões antigas quando o perfil está vazio;
+---- linhas 269-278 ----
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+    - só procura versões antigas quando o perfil está vazio;
+    - sem rglob/tamanho recursivo durante o startup.
+    """
+---- linhas 292-301 ----
+            pass
+
+        candidates=[]
+        local_old=APP_DIR/"whatsapp_profile_clean_v2"
+        if local_old.exists():
+            candidates.append(local_old)
+
+        parent=APP_DIR.parent.parent if APP_DIR.parent.name=="_app" else APP_DIR.parent
+        try:
+            children=list(parent.iterdir())[:80]
+---- linhas 303-312 ----
+                if not child.is_dir():
+                    continue
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+---- linhas 304-313 ----
+                    continue
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+---- linhas 305-314 ----
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+            pass
+---- linhas 306-315 ----
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+            pass
+
+---- linhas 336-345 ----
+        except Exception:
+            pass
+
+_prepare_stable_whatsapp_profile()
+
+
+def norm(v):
+    return re.sub(r"[^A-Z0-9]", "", (v or "").upper())
+
+def detect_plate(text):
+---- linhas 581-590 ----
+        lay.addLayout(row)
+
+        # SEARCH WORKFLOW
+        search_title=QLabel("Adicionar cliente pelo WhatsApp")
+        search_title.setStyleSheet("font-weight:700;margin-top:4px;")
+        lay.addWidget(search_title)
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+---- linhas 593-602 ----
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+---- linhas 594-603 ----
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+        hint=QLabel(
+---- linhas 596-605 ----
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+            "clique em ➕ Adicionar conversa atual."
+---- linhas 601-610 ----
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+            "clique em ➕ Adicionar conversa atual."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#666;")
+        lay.addWidget(hint)
+
+---- linhas 674-683 ----
+        self.new_list_btn.clicked.connect(self.new_list)
+        self.use_list_btn.clicked.connect(self.use_saved_list)
+        self.save_current_btn.clicked.connect(self.save_current_list)
+        self.search_whatsapp_btn.clicked.connect(self.request_search_whatsapp)
+        self.add_current_btn.clicked.connect(self.request_add_current_chat)
+        self.remove_selected_btn.clicked.connect(self.remove_selected)
+        self.clear_contacts_btn.clicked.connect(self.clear_contacts)
+        self.image_btn.clicked.connect(self.choose_image)
+        self.review_btn.clicked.connect(self.review_message_ptbr)
+        self.test_one_btn.clicked.connect(self.request_test_one)
+---- linhas 683-692 ----
+        self.test_one_btn.clicked.connect(self.request_test_one)
+        self.start_btn.clicked.connect(self.request_start)
+        self.pause_btn.clicked.connect(self.pause)
+        self.search_contact.returnPressed.connect(self.request_search_whatsapp)
+
+        self._refresh_saved_combo()
+
+    def _load_saved_lists(self):
+        try:
+            if self.lists_file.exists():
+---- linhas 748-757 ----
+        self._refresh_current_list()
+        self.status.setText(f"Nova lista: {self.selected_list_name}")
+
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+        if not term:
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+---- linhas 754-763 ----
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+---- linhas 756-765 ----
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+            )
+            return
+---- linhas 759-768 ----
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+            )
+            return
+
+        self.status.setText("🔎 Enviando busca para o WhatsApp...")
+        cb(term)
+---- linhas 764-773 ----
+            )
+            return
+
+        self.status.setText("🔎 Enviando busca para o WhatsApp...")
+        cb(term)
+
+    def request_add_current_chat(self):
+        cb=getattr(self,"on_add_current_chat",None)
+        if not cb:
+            self.status.setText("⚠ Leitura da conversa não conectada.")
+---- linhas 884-893 ----
+            tokens=re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+",text)
+
+            ignore={
+                "whatsapp","whats","app","copiloto","soma","somaforce",
+                "pix","email","site","instagram","facebook"
+            }
+
+            replacements={}
+            for word in tokens:
+                low=word.lower()
+---- linhas 1118-1127 ----
+        lay.addWidget(self.title_bar)
+
+        self.drop_zone=QLabel(
+            "⬇ No WhatsApp: menu do áudio → Baixar\n"
+            "ou arraste um arquivo de áudio para esta área"
+        )
+        self.drop_zone.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.drop_zone.setMinimumHeight(82)
+        self.drop_zone.setStyleSheet(
+            "border:2px dashed #93C5FD;"
+===== WhatsApp =====
+---- linhas 89-98 ----
+ALIYVO_PLAN = "BETA_FREE"
+ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest"
+DB_PATH = APP_DIR / "copiloto.db"
+# Perfil estável do WhatsApp entre versões do ALIYVO.
+ALIYVO_USER_DIR = Path(
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+---- linhas 93-102 ----
+ALIYVO_USER_DIR = Path(
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+---- linhas 94-103 ----
+    os.environ.get("LOCALAPPDATA", str(APP_DIR))
+) / "ALIYVO"
+PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+
+def _prepare_persistent_user_data():
+---- linhas 186-195 ----
+
+_prepare_persistent_user_data()
+
+def _prepare_webview2_whatsapp_profile():
+    """
+    Perfil persistente do Edge WebView2.
+    Na primeira execução tenta reaproveitar a sessão criada pelo
+    teste "ALIYVO-WebView2-Teste", se ela ainda existir.
+    """
+    try:
+---- linhas 233-242 ----
+        except Exception:
+            pass
+
+def _reset_whatsapp_media_permissions():
+    """Remove somente permissoes salvas de microfone/camera do WhatsApp no perfil WebView2."""
+    try:
+        import json as _json
+        pref_candidates=[
+            WEBVIEW2_PROFILE_DIR/"Default"/"Preferences",
+            WEBVIEW2_PROFILE_DIR/"Preferences",
+---- linhas 234-243 ----
+            pass
+
+def _reset_whatsapp_media_permissions():
+    """Remove somente permissoes salvas de microfone/camera do WhatsApp no perfil WebView2."""
+    try:
+        import json as _json
+        pref_candidates=[
+            WEBVIEW2_PROFILE_DIR/"Default"/"Preferences",
+            WEBVIEW2_PROFILE_DIR/"Preferences",
+        ]
+---- linhas 254-263 ----
+                        continue
+                    for key in list(entries.keys()):
+                        lk=str(key).lower()
+                        if "whatsapp.com" in lk or "whatsapp.net" in lk:
+                            entries.pop(key,None)
+                            changed=True
+                if changed:
+                    tmp=pref.with_name(pref.name+".aliyvo_tmp")
+                    tmp.write_text(_json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+                    tmp.replace(pref)
+---- linhas 266-275 ----
+    except Exception:
+        pass
+
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+---- linhas 267-276 ----
+        pass
+
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+    - só procura versões antigas quando o perfil está vazio;
+---- linhas 269-278 ----
+_reset_whatsapp_media_permissions()
+_prepare_webview2_whatsapp_profile()
+
+def _prepare_stable_whatsapp_profile():
+    """
+    Perfil rápido:
+    - se já existe, retorna imediatamente;
+    - só procura versões antigas quando o perfil está vazio;
+    - sem rglob/tamanho recursivo durante o startup.
+    """
+---- linhas 292-301 ----
+            pass
+
+        candidates=[]
+        local_old=APP_DIR/"whatsapp_profile_clean_v2"
+        if local_old.exists():
+            candidates.append(local_old)
+
+        parent=APP_DIR.parent.parent if APP_DIR.parent.name=="_app" else APP_DIR.parent
+        try:
+            children=list(parent.iterdir())[:80]
+---- linhas 303-312 ----
+                if not child.is_dir():
+                    continue
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+---- linhas 304-313 ----
+                    continue
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+---- linhas 305-314 ----
+                for candidate in (
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+            pass
+---- linhas 306-315 ----
+                    child/"_app"/"whatsapp_profile_clean_v2",
+                    child/"whatsapp_profile_clean_v2",
+                    child/"_app"/"whatsapp_profile",
+                    child/"whatsapp_profile",
+                ):
+                    if candidate.exists():
+                        candidates.append(candidate)
+        except Exception:
+            pass
+
+---- linhas 336-345 ----
+        except Exception:
+            pass
+
+_prepare_stable_whatsapp_profile()
+
+
+def norm(v):
+    return re.sub(r"[^A-Z0-9]", "", (v or "").upper())
+
+def detect_plate(text):
+---- linhas 581-590 ----
+        lay.addLayout(row)
+
+        # SEARCH WORKFLOW
+        search_title=QLabel("Adicionar cliente pelo WhatsApp")
+        search_title.setStyleSheet("font-weight:700;margin-top:4px;")
+        lay.addWidget(search_title)
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+---- linhas 593-602 ----
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+---- linhas 594-603 ----
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+        hint=QLabel(
+---- linhas 596-605 ----
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+        row2.addWidget(self.add_current_btn)
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+            "clique em ➕ Adicionar conversa atual."
+---- linhas 601-610 ----
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+            "clique em ➕ Adicionar conversa atual."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#666;")
+        lay.addWidget(hint)
+
+---- linhas 674-683 ----
+        self.new_list_btn.clicked.connect(self.new_list)
+        self.use_list_btn.clicked.connect(self.use_saved_list)
+        self.save_current_btn.clicked.connect(self.save_current_list)
+        self.search_whatsapp_btn.clicked.connect(self.request_search_whatsapp)
+        self.add_current_btn.clicked.connect(self.request_add_current_chat)
+        self.remove_selected_btn.clicked.connect(self.remove_selected)
+        self.clear_contacts_btn.clicked.connect(self.clear_contacts)
+        self.image_btn.clicked.connect(self.choose_image)
+        self.review_btn.clicked.connect(self.review_message_ptbr)
+        self.test_one_btn.clicked.connect(self.request_test_one)
+---- linhas 683-692 ----
+        self.test_one_btn.clicked.connect(self.request_test_one)
+        self.start_btn.clicked.connect(self.request_start)
+        self.pause_btn.clicked.connect(self.pause)
+        self.search_contact.returnPressed.connect(self.request_search_whatsapp)
+
+        self._refresh_saved_combo()
+
+    def _load_saved_lists(self):
+        try:
+            if self.lists_file.exists():
+---- linhas 748-757 ----
+        self._refresh_current_list()
+        self.status.setText(f"Nova lista: {self.selected_list_name}")
+
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+        if not term:
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+---- linhas 754-763 ----
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+---- linhas 756-765 ----
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+            )
+            return
+---- linhas 759-768 ----
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+                self,
+                "Buscar no WhatsApp",
+                "A função de busca não está conectada nesta sessão."
+            )
+            return
+
+        self.status.setText("🔎 Enviando busca para o WhatsApp...")
+        cb(term)
+---- linhas 764-773 ----
+            )
+            return
+
+        self.status.setText("🔎 Enviando busca para o WhatsApp...")
+        cb(term)
+
+    def request_add_current_chat(self):
+        cb=getattr(self,"on_add_current_chat",None)
+        if not cb:
+            self.status.setText("⚠ Leitura da conversa não conectada.")
+---- linhas 884-893 ----
+            tokens=re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+",text)
+
+            ignore={
+                "whatsapp","whats","app","copiloto","soma","somaforce",
+                "pix","email","site","instagram","facebook"
+            }
+
+            replacements={}
+            for word in tokens:
+                low=word.lower()
+---- linhas 1118-1127 ----
+        lay.addWidget(self.title_bar)
+
+        self.drop_zone=QLabel(
+            "⬇ No WhatsApp: menu do áudio → Baixar\n"
+            "ou arraste um arquivo de áudio para esta área"
+        )
+        self.drop_zone.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.drop_zone.setMinimumHeight(82)
+        self.drop_zone.setStyleSheet(
+            "border:2px dashed #93C5FD;"
+===== contact =====
+---- linhas 526-535 ----
+        self.setStyleSheet("background-color:#FFFFFF;")
+        self.expanded=False
+
+        self.contacts=[]
+        self.queue=[]
+        self.running=False
+        self.current_index=0
+        self.image_path=None
+        self.saved_lists={}
+        self.selected_list_name=None
+---- linhas 585-594 ----
+        search_title.setStyleSheet("font-weight:700;margin-top:4px;")
+        lay.addWidget(search_title)
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+            "Digite nome ou telefone. Ex.: Nelson Torres"
+        )
+        lay.addWidget(self.search_contact)
+
+---- linhas 586-595 ----
+        lay.addWidget(search_title)
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+            "Digite nome ou telefone. Ex.: Nelson Torres"
+        )
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+---- linhas 587-596 ----
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+            "Digite nome ou telefone. Ex.: Nelson Torres"
+        )
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+---- linhas 590-599 ----
+        self.search_contact.setPlaceholderText(
+            "Digite nome ou telefone. Ex.: Nelson Torres"
+        )
+        lay.addWidget(self.search_contact)
+
+        row2=QHBoxLayout()
+        self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+        self.search_whatsapp_btn.setVisible(False)
+        self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+        row2.addWidget(self.search_whatsapp_btn)
+---- linhas 608-617 ----
+        hint.setStyleSheet("color:#666;")
+        lay.addWidget(hint)
+
+        self.contacts_label=QLabel("0 clientes na lista atual")
+        lay.addWidget(self.contacts_label)
+
+        self.current_list=QListWidget()
+        self.current_list.setMinimumHeight(90)
+        self.current_list.setMaximumHeight(260)
+        lay.addWidget(self.current_list)
+---- linhas 609-618 ----
+        lay.addWidget(hint)
+
+        self.contacts_label=QLabel("0 clientes na lista atual")
+        lay.addWidget(self.contacts_label)
+
+        self.current_list=QListWidget()
+        self.current_list.setMinimumHeight(90)
+        self.current_list.setMaximumHeight(260)
+        lay.addWidget(self.current_list)
+
+---- linhas 618-627 ----
+
+        row3=QHBoxLayout()
+        self.remove_selected_btn=QPushButton("➖ Remover")
+        self.clear_contacts_btn=QPushButton("🗑 Limpar lista")
+        row3.addWidget(self.remove_selected_btn)
+        row3.addWidget(self.clear_contacts_btn)
+        row3.addStretch(1)
+        lay.addLayout(row3)
+
+        # CAMPAIGN MESSAGE
+---- linhas 620-629 ----
+        self.remove_selected_btn=QPushButton("➖ Remover")
+        self.clear_contacts_btn=QPushButton("🗑 Limpar lista")
+        row3.addWidget(self.remove_selected_btn)
+        row3.addWidget(self.clear_contacts_btn)
+        row3.addStretch(1)
+        lay.addLayout(row3)
+
+        # CAMPAIGN MESSAGE
+        msg_head=QHBoxLayout()
+        msg_title=QLabel("Mensagem")
+---- linhas 677-686 ----
+        self.search_whatsapp_btn.clicked.connect(self.request_search_whatsapp)
+        self.add_current_btn.clicked.connect(self.request_add_current_chat)
+        self.remove_selected_btn.clicked.connect(self.remove_selected)
+        self.clear_contacts_btn.clicked.connect(self.clear_contacts)
+        self.image_btn.clicked.connect(self.choose_image)
+        self.review_btn.clicked.connect(self.review_message_ptbr)
+        self.test_one_btn.clicked.connect(self.request_test_one)
+        self.start_btn.clicked.connect(self.request_start)
+        self.pause_btn.clicked.connect(self.pause)
+        self.search_contact.returnPressed.connect(self.request_search_whatsapp)
+---- linhas 683-692 ----
+        self.test_one_btn.clicked.connect(self.request_test_one)
+        self.start_btn.clicked.connect(self.request_start)
+        self.pause_btn.clicked.connect(self.pause)
+        self.search_contact.returnPressed.connect(self.request_search_whatsapp)
+
+        self._refresh_saved_combo()
+
+    def _load_saved_lists(self):
+        try:
+            if self.lists_file.exists():
+---- linhas 720-729 ----
+            d="".join(ch for ch in str(value or "") if ch.isdigit())
+            return len(d)>=10 and len(d)>=max(10,len(str(value or "").replace(" ","").replace("+","").replace("-",""))-3)
+
+        for i,c in enumerate(self.contacts,1):
+            phone=(c.get("phone") or "").strip()
+            name=(c.get("name") or "").strip()
+
+            if not name or looks_like_phone(name):
+                name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+
+---- linhas 735-744 ----
+            it.setData(Qt.ItemDataRole.UserRole,c)
+            self.current_list.addItem(it)
+
+        self.contacts_label.setText(
+            f"{len(self.contacts)} clientes na lista atual"
+        )
+
+    def new_list(self):
+        name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+        if not ok or not name.strip():
+---- linhas 736-745 ----
+            self.current_list.addItem(it)
+
+        self.contacts_label.setText(
+            f"{len(self.contacts)} clientes na lista atual"
+        )
+
+    def new_list(self):
+        name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+        if not ok or not name.strip():
+            return
+---- linhas 743-752 ----
+        name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+        if not ok or not name.strip():
+            return
+        self.contacts=[]
+        self.selected_list_name=name.strip()
+        self._refresh_current_list()
+        self.status.setText(f"Nova lista: {self.selected_list_name}")
+
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+---- linhas 749-758 ----
+        self.status.setText(f"Nova lista: {self.selected_list_name}")
+
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+        if not term:
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+---- linhas 781-790 ----
+        self.status.setText("➕ Lendo conversa aberta...")
+        cb()
+
+    def add_current_contact(self, contact):
+        if not contact:
+            self.status.setText("ERRO P30 — Contato vazio.")
+            return
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+---- linhas 782-791 ----
+        cb()
+
+    def add_current_contact(self, contact):
+        if not contact:
+            self.status.setText("ERRO P30 — Contato vazio.")
+            return
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+---- linhas 786-795 ----
+            self.status.setText("ERRO P30 — Contato vazio.")
+            return
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+---- linhas 787-796 ----
+            return
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+            )
+---- linhas 788-797 ----
+
+        name=(contact.get("name") or "Contato").strip()
+        phone=(contact.get("phone") or "").strip()
+        chat_id=(contact.get("chat_id") or "").strip()
+
+        if not phone:
+            self.status.setText(
+                f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+            )
+            return
+---- linhas 797-806 ----
+            return
+
+        # Número passa a ser a chave principal da lista.
+        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+
+        already=phone in existing
+        existing[phone]={
+            "name":name,
+            "phone":phone,
+            "chat_id":chat_id
+---- linhas 806-815 ----
+            "chat_id":chat_id
+        }
+
+        self.contacts=list(existing.values())
+        self._refresh_current_list()
+
+        if already:
+            self.status.setText(
+                f"ℹ {name} / {phone} já estava na lista."
+            )
+---- linhas 815-824 ----
+            )
+        else:
+            self.status.setText(
+                f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+            )
+
+    def save_current_list(self):
+        if not self.contacts:
+            QMessageBox.information(self,"Lista","A lista atual está vazia.")
+            return
+---- linhas 819-828 ----
+            )
+
+    def save_current_list(self):
+        if not self.contacts:
+            QMessageBox.information(self,"Lista","A lista atual está vazia.")
+            return
+
+        name=self.selected_list_name
+        if not name:
+            name,ok=QInputDialog.getText(self,"Salvar lista","Nome da lista:")
+---- linhas 830-839 ----
+                return
+            name=name.strip()
+
+        self.saved_lists[name]=self.contacts
+        self.selected_list_name=name
+        self._save_lists_file()
+        self._refresh_saved_combo()
+
+        idx=self.saved_combo.findText(name)
+        if idx>=0:
+---- linhas 844-853 ----
+        name=self.saved_combo.currentText().strip()
+        if not name or name not in self.saved_lists:
+            return
+        self.contacts=list(self.saved_lists[name])
+        self.selected_list_name=name
+        self._refresh_current_list()
+        self.status.setText(f"Lista carregada: {name}")
+
+    def remove_selected(self):
+        selected=self.current_list.selectedItems()
+---- linhas 854-863 ----
+        if not selected:
+            return
+        data=[x.data(Qt.ItemDataRole.UserRole) for x in selected]
+        self.contacts=[c for c in self.contacts if c not in data]
+        self._refresh_current_list()
+
+    def clear_contacts(self):
+        self.contacts=[]
+        self._refresh_current_list()
+
+---- linhas 857-866 ----
+        self.contacts=[c for c in self.contacts if c not in data]
+        self._refresh_current_list()
+
+    def clear_contacts(self):
+        self.contacts=[]
+        self._refresh_current_list()
+
+    def review_message_ptbr(self):
+        text=self.message.toPlainText()
+        if not text.strip():
+---- linhas 858-867 ----
+        self._refresh_current_list()
+
+    def clear_contacts(self):
+        self.contacts=[]
+        self._refresh_current_list()
+
+    def review_message_ptbr(self):
+        text=self.message.toPlainText()
+        if not text.strip():
+            self.status.setText("Digite uma mensagem antes de revisar.")
+===== client =====
+---- linhas 415-424 ----
+                   p.refforn,p.marca,p.descricao,p.compldesc
+            FROM alternativas_apelidos a
+            LEFT JOIN produtos p ON p.codprod=a.codprod
+            WHERE a.termo_cliente=?
+            ORDER BY a.codprod
+        """,(term,)).fetchall()
+    con.close()
+
+    # remove duplicatas por codprod
+    seen=set()
+---- linhas 436-445 ----
+    con=sqlite3.connect(db_path)
+    cur=con.cursor()
+    rows=cur.execute("""
+        SELECT termo_cliente,termo_tecnico,medida_contexto,codprod_preferido,observacao
+        FROM apelidos_produtos
+    """).fetchall()
+    con.close()
+
+    best=None
+    for r in rows:
+---- linhas 461-470 ----
+    con=sqlite3.connect(db_path)
+    cur=con.cursor()
+    rows=cur.execute("""
+        SELECT frase_cliente,termo_tecnico,aplicacao,consulta_sugerida,observacao
+        FROM conhecimento_tecnico
+    """).fetchall()
+    con.close()
+    best=None
+    for r in rows:
+        phrase=normalize_phrase(r[0])
+---- linhas 581-590 ----
+        lay.addLayout(row)
+
+        # SEARCH WORKFLOW
+        search_title=QLabel("Adicionar cliente pelo WhatsApp")
+        search_title.setStyleSheet("font-weight:700;margin-top:4px;")
+        lay.addWidget(search_title)
+
+        self.search_contact=QLineEdit()
+        self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.search_contact.setPlaceholderText(
+---- linhas 601-610 ----
+        lay.addLayout(row2)
+
+        hint=QLabel(
+            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+            "clique em ➕ Adicionar conversa atual."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#666;")
+        lay.addWidget(hint)
+
+---- linhas 608-617 ----
+        hint.setStyleSheet("color:#666;")
+        lay.addWidget(hint)
+
+        self.contacts_label=QLabel("0 clientes na lista atual")
+        lay.addWidget(self.contacts_label)
+
+        self.current_list=QListWidget()
+        self.current_list.setMinimumHeight(90)
+        self.current_list.setMaximumHeight(260)
+        lay.addWidget(self.current_list)
+---- linhas 736-745 ----
+            self.current_list.addItem(it)
+
+        self.contacts_label.setText(
+            f"{len(self.contacts)} clientes na lista atual"
+        )
+
+    def new_list(self):
+        name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+        if not ok or not name.strip():
+            return
+---- linhas 751-760 ----
+    def request_search_whatsapp(self):
+        term=self.search_contact.text().strip()
+        if not term:
+            self.status.setText("Digite o nome ou telefone do cliente.")
+            return
+
+        cb=getattr(self,"on_search_whatsapp",None)
+        if not cb:
+            self.status.setText("⚠ Busca do WhatsApp não conectada.")
+            QMessageBox.warning(
+---- linhas 1033-1042 ----
+        ans=QMessageBox.question(
+            self,
+            "Iniciar campanha",
+            f"Iniciar envio para {len(self.contacts)} clientes?"
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+
+        self.autosave_current_list()
+
+---- linhas 1297-1306 ----
+        self.result.setMinimumHeight(150)
+        lay.addWidget(self.result)
+
+        msg_title=QLabel("Mensagem para o cliente")
+        msg_title.setStyleSheet("font-weight:700;")
+        lay.addWidget(msg_title)
+
+        self.msg=QTextEdit()
+        self.msg.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.msg.installEventFilter(self)
+---- linhas 2552-2561 ----
+        # TAB 3 - Campanhas
+        tab3=QWidget()
+        l3=QVBoxLayout(tab3)
+        info=QLabel("Campanhas para clientes autorizados. Configure uma vez e rode a fila automaticamente.")
+        info.setWordWrap(True)
+        l3.addWidget(info)
+
+        r=QHBoxLayout()
+        self.camp_name=QLineEdit()
+        self.camp_name.setPlaceholderText("Nome da campanha")
+---- linhas 2710-2719 ----
+
+        self.msg.setPlainText(text)
+        if chat_name:
+            self.status.setText(f"Cliente: {chat_name} | última mensagem recebida capturada")
+
+        if auto_analyze:
+            self.analyze_text()
+
+
+
+---- linhas 2832-2841 ----
+            return
+
+        dlg=QDialog(self)
+        dlg.setWindowTitle("Escolher clientes do WhatsApp")
+        dlg.resize(600,680)
+        lay=QVBoxLayout(dlg)
+
+        info=QLabel(
+            "Marque os clientes para salvar na lista de campanhas.\n"
+            "O ALIYVO agora tenta descobrir o telefone pelos identificadores internos do WhatsApp."
+---- linhas 2837-2846 ----
+        lay=QVBoxLayout(dlg)
+
+        info=QLabel(
+            "Marque os clientes para salvar na lista de campanhas.\n"
+            "O ALIYVO agora tenta descobrir o telefone pelos identificadores internos do WhatsApp."
+        )
+        info.setWordWrap(True)
+        lay.addWidget(info)
+
+        search=QLineEdit()
+---- linhas 3673-3682 ----
+            else:
+                doubts.append("Não achei um código Soma inequívoco só com HL4 + 1113. Pesquisar por conjunto/aplicação antes de afirmar o código.")
+
+        # Conhecimento por apelido/linguagem de cliente
+        alternatives = find_alias_alternatives(text, DB_PATH)
+
+        if alternatives:
+            lines.append("")
+            lines.append("INTERPRETAÇÃO COMERCIAL:")
+            lines.append("⚠ 'mola de cuíca' possui mais de uma aplicação possível.")
+---- linhas 3683-3692 ----
+            for alt in alternatives:
+                cod, funcao, obs_alt, ref, marca, desc, compl = alt
+                lines.append(f"• Soma {cod} | {funcao} | {marca or ''} | {desc or ''}")
+            doubts.append("Confirmar se o cliente quer a mola do FREIO DE PÉ ou do FREIO ESTACIONÁRIO.")
+            # não pesquisar automaticamente um único produto
+            self.search.clear()
+
+        elif alias:
+            termo_cliente, termo_tecnico, medida_ctx, cod_pref, obs = alias
+            lines.append("")
+---- linhas 3688-3697 ----
+            self.search.clear()
+
+        elif alias:
+            termo_cliente, termo_tecnico, medida_ctx, cod_pref, obs = alias
+            lines.append("")
+            lines.append("INTERPRETAÇÃO COMERCIAL:")
+            lines.append(f"✅ '{termo_cliente}' → provável '{termo_tecnico}'")
+            if medida_ctx:
+                lines.append(f"✅ contexto de medida: {medida_ctx}")
+            if cod_pref:
+---- linhas 3691-3700 ----
+            termo_cliente, termo_tecnico, medida_ctx, cod_pref, obs = alias
+            lines.append("")
+            lines.append("INTERPRETAÇÃO COMERCIAL:")
+            lines.append(f"✅ '{termo_cliente}' → provável '{termo_tecnico}'")
+            if medida_ctx:
+                lines.append(f"✅ contexto de medida: {medida_ctx}")
+            if cod_pref:
+                con=self.db(); cur=con.cursor()
+                row=cur.execute("""
+                    SELECT codprod,refforn,marca,descricao,compldesc
+---- linhas 5457-5466 ----
+            self.on_analyze()
+
+    def set_loading(self):
+        self.status.setText("Lendo o contexto recente do cliente e suas respostas, depois consultando a Base Soma...")
+        self.result.setPlainText("Analisando pedido atual...")
+
+    def render_error(self, message):
+        self.status.setText("Não consegui ler o pedido atual.")
+        self.result.setPlainText(str(message or "Abra uma conversa no WhatsApp e tente novamente."))
+
+---- linhas 5468-5477 ----
+        if not isinstance(data,dict) or not data.get("ok"):
+            self.render_error((data or {}).get("error") if isinstance(data,dict) else None)
+            return
+        name=str(data.get("name") or "Cliente")
+        messages=[str(x).strip() for x in (data.get("messages") or []) if str(x).strip()]
+        customer_messages=[str(x).strip() for x in (data.get("customer_messages") or []) if str(x).strip()]
+        seller_messages=[str(x).strip() for x in (data.get("seller_messages") or []) if str(x).strip()]
+        raw_context=[]
+        for item in (data.get("context") or []):
+            if isinstance(item,dict) and str(item.get("text") or "").strip():
+---- linhas 5500-5509 ----
+        raw_tokens=re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9./-]*", normalized)
+        stop={
+            "bom","boa","dia","tarde","noite","por","favor","pra","para","com","sem","que","tem","uma","uns","umas",
+            "esse","essa","isso","meu","minha","dele","dela","cliente","preciso","queria","quero","consegue","consegue",
+            "do","da","dos","das","de","e","ou","no","na","nos","nas","modelo","mod"
+        }
+        tokens=[]
+        for t in raw_tokens:
+            t=t.strip("./-").lower()
+            if not t or t in stop: continue
+---- linhas 5511-5520 ----
+            if len(t)<3 and t not in ("mb",): continue
+            if t not in tokens: tokens.append(t)
+
+        lines=["PEDIDO CAPTURADO — ÚLTIMAS MENSAGENS RECEBIDAS",f"Cliente: {name}",""]
+        for m in messages[-10:]:
+            lines.append("• "+m[:500])
+
+        technical=find_technical_knowledge(text,DB_PATH)
+        alias=find_alias_match(text,DB_PATH)
+        if technical or alias:
+---- linhas 5525-5534 ----
+                if aplicacao: lines.append(f"• Aplicação conhecida: {aplicacao}")
+                if consulta: lines.append(f"• Pesquisa sugerida: {consulta}")
+            if alias:
+                termo_cliente,termo_tecnico,medida_ctx,cod_pref,obs=alias
+                lines.append(f"• '{termo_cliente}' pode significar '{termo_tecnico}'")
+
+        if tokens:
+            lines += ["","TERMOS ÚTEIS"," • ".join(tokens[:10])]
+
+        # Referências/códigos: aceita variações de ponto, hífen e espaço.
+---- linhas 5526-5535 ----
+                if consulta: lines.append(f"• Pesquisa sugerida: {consulta}")
+            if alias:
+                termo_cliente,termo_tecnico,medida_ctx,cod_pref,obs=alias
+                lines.append(f"• '{termo_cliente}' pode significar '{termo_tecnico}'")
+
+        if tokens:
+            lines += ["","TERMOS ÚTEIS"," • ".join(tokens[:10])]
+
+        # Referências/códigos: aceita variações de ponto, hífen e espaço.
+        # Chave canônica: mantém apenas letras+números (MB309.3 -> MB3093).
+---- linhas 5555-5564 ----
+        for c in re.findall(r"(?<![A-Za-z0-9])([A-Za-z0-9][A-Za-z0-9./_-]{4,})(?![A-Za-z0-9])",text):
+            _add_ref_candidate(c)
+
+        # Forma espaçada que clientes digitam no WhatsApp: MB 309 3 / ZL 2050 etc.
+        # Exclui palavras de contexto para não transformar 'MOD 2014' em código.
+        blocked_prefix={"MOD","MODELO","ANO","QTD","QTDE","VALOR","PRECO","REF","COD","CODIGO"}
+        spaced_rx=re.compile(r"(?i)(?<![A-Z0-9])([A-Z]{1,4})\s*[-./]?\s*(\d{2,8})(?:\s*[-./]?\s*([A-Z0-9]{1,4}))?(?![A-Z0-9])")
+        for mm in spaced_rx.finditer(text):
+            prefix=(mm.group(1) or "").upper()
+            if prefix in blocked_prefix:
+---- linhas 5636-5645 ----
+            lines += ["","REFERÊNCIAS DETECTADAS"," • ".join(display_refs)]
+
+        # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4).
+        # Usa prioritariamente mensagens do cliente para não confundir preços/respostas antigas do vendedor.
+        simple_results=[]
+        simple_query_label=""
+        simple_source="\n".join(customer_messages[-10:]) if customer_messages else text
+        simple_candidates=[]
+
+        # Detecta expressões letra+número que funcionam como nome/especificação de produto.
+---- linhas 5880-5889 ----
+    STATUS_META={
+        "reply":("🔥","Preciso responder","#B91C1C"),
+        "working":("🟠","Em atendimento","#B45309"),
+        "waiting":("🔵","Aguardando cliente","#1D4ED8"),
+        "resolved":("✅","Resolvido","#047857"),
+    }
+
+    def __init__(self,owner,parent=None):
+        super().__init__(parent)
+        self.owner=owner
+---- linhas 5975-5984 ----
+        r3.addWidget(self.open_btn); r3.addWidget(self.refresh_btn)
+        lay.addLayout(r3)
+
+        tools=QLabel("FERRAMENTAS DO CLIENTE ATUAL")
+        tools.setStyleSheet("font-size:9px;font-weight:800;color:#9FC4D5;margin-top:3px;")
+        lay.addWidget(tools)
+        self.tool_soma=QPushButton("🔎  Busca Somaforce")
+        self.tool_image=QPushButton("🖼  Busca por imagem")
+        self.tool_plate=QPushButton("🚚  Placa / chassi")
+        self.tool_audio=QPushButton("🎙  Áudio")
+---- linhas 6097-6106 ----
+        else:
+            self.current.setText("<b>Abra uma conversa no WhatsApp</b>")
+            self.current.setStyleSheet("background:#0A2236;border:1px solid #173B52;border-radius:7px;padding:9px;font-size:12px;font-weight:800;color:#FFFFFF;")
+            self.resume.setText("<b>A fila continua guardada mesmo quando você troca de cliente.</b>")
+
+        old_selected=self.selected_name
+        self.list.clear()
+        rows=[]
+        status_weight={"reply":0,"working":1,"waiting":2,"resolved":3}
+        now_sort=10**20
+---- linhas 6708-6717 ----
+              let name='';
+              const h=main.querySelector('header [data-testid="conversation-info-header-chat-title"]') || main.querySelector('header span[title]') || main.querySelector('header [title]');
+              if(h)name=clean(h.getAttribute('title')||h.textContent||'');
+              const ctx=[]; const mr=main.getBoundingClientRect(); const mid=mr.left+mr.width*0.50;
+              const push=(side,txt,extra,ts)=>{txt=clean(txt);if(!txt||txt.length<2)return;const o={side:side,text:txt.slice(0,1200),message_ts:Number(ts||0)};if(extra)Object.assign(o,extra);ctx.push(o);};
+              const bubbles=Array.from(main.querySelectorAll('div.message-in,div.message-out,[data-pre-plain-text]')).slice(-28);
+              const seen=new Set();
+              for(const b of bubbles){
+                const holder=b.closest('div.message-in,div.message-out')||b;
+                if(seen.has(holder))continue; seen.add(holder);
