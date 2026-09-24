@@ -1,0 +1,13 @@
+{
+  "schema": "aliyvo-provenance-v1",
+  "origin_id": "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C",
+  "snapshot_date": "2026-09-24",
+  "repository": "alexmarianopola-lgtm/alivo-updates",
+  "base_release": "v0.23.02",
+  "base_zip_sha512": "6f13e2e3f68c279cc554973c14ec4910db6618aa8efe449b20eb9ac6ce1a287f2048bfb4884c962ce388522149aad7a9afb61a6cf7d9e77e8e59af6cf887c19b",
+  "base_main_sha512": "f621da5d7ab2702907056370f49ee723683b08d92ccec15e56755e7c007c321e8002dd0aeb6cce81c0781b4c7b54a3ffc548eb31681a3dd69280184208ab545c",
+  "final_release": "v0.23.03",
+  "final_zip_sha512": "815558b61ba91ec4f97f91a492eacb274f639b75bc576ee687c8535e08c4c534ec6ecd56bd5460dc7969119485e738e96dfdfc7f212408b3be6c734a3061903f",
+  "final_main_sha512": "976638a4f0f780145f27b13bc2303ba6d9e1bb8ca558b2cc3057da2c46dc3932ba6fccebdb5f2dbf296e8d7cd8094aa5a74df796ee66f710250277b8f88fadc5",
+  "note": "Technical provenance record; not a substitute for formal IP registration."
+}
