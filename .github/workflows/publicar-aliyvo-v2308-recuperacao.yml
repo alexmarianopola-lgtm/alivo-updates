@@ -1,0 +1,71 @@
+name: Publicar ALIYVO 0.23.08 Recuperacao
+on:
+  push:
+    paths: ['trigger-v2308-recovery.txt']
+permissions:
+  contents: write
+jobs:
+  recuperar:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar ultima base estavel 0.23.06
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.06 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02306.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02306.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.06 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Criar versao de recuperacao
+        shell: pwsh
+        run: |
+          $p='C:\temp\build\_app\main.py'
+          $s=Get-Content $p -Raw -Encoding UTF8
+          if($s -notmatch 'ALIYVO_VERSION = "0.23.06"'){ throw 'Versao base inesperada' }
+          $s=$s.Replace('ALIYVO_VERSION = "0.23.06"','ALIYVO_VERSION = "0.23.08"')
+          $s=$s.Replace('aliyvo_version="0.23.06"','aliyvo_version="0.23.08"')
+          Set-Content $p $s -Encoding UTF8
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          Select-String -Path $p -Pattern 'def _radar_show_dialog' | Out-Null
+          Select-String -Path $p -Pattern 'def _radar_bulk_link_dialog' | Out-Null
+          Select-String -Path $p -Pattern 'ALIYVO_ORIGIN_ID = "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"' | Out-Null
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Empacotar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02308.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02308.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\updater_worker.pyw
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02308.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            "ALIYVO 0.23.08 - RECUPERACAO",
+            "Base: 0.23.06 (ultima versao confirmada antes do problema de abertura da 0.23.07)",
+            "Radar da Carteira: preservado",
+            "Vinculo em massa: preservado",
+            "Barra superior limpa: preservada",
+            "CRM: preservado",
+            "WhatsApp Turbo: preservado",
+            "Ponto/Ahgora: preservado",
+            "Proveniencia: preservada",
+            "Updater: preservado",
+            "Mudancas 0.23.07 temporariamente removidas",
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02308.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.08 C:\temp\out\ALIYVO_BETA_GRATIS_02308.zip C:\temp\out\VALIDACAO_02308.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.08 - Recuperacao" --notes "Versao de recuperacao baseada na 0.23.06, publicada porque a 0.23.07 apresentou falha de abertura em uso real. Mantem Radar da Carteira, vinculo em massa, CRM, WhatsApp Turbo, ponto/Ahgora, barra superior limpa e proveniencia. As mudancas da 0.23.07 ficam temporariamente fora ate passarem por teste real de inicializacao." --latest
