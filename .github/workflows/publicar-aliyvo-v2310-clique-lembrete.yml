@@ -1,0 +1,76 @@
+name: Publicar ALIYVO 0.23.10 Clique Lembrete
+on:
+  push:
+    paths: ['trigger-v2310-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.09
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.09 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02309.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02309.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.09 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar clique em lembrete
+        shell: pwsh
+        run: |
+          python patch_today_click_v2310.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_today_click_v2310.py C:\temp\build\_app
+          if($LASTEXITCODE -ne 0){ throw 'Gate v2310 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias para smoke test
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited){
+            if($proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          } else {
+            Stop-Process -Id $proc.Id -Force
+          }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02310.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02310.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_today_click_v2310.py C:\temp\verify\_app
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02310.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.10 - CLIQUE NO LEMBRETE',
+            'Base: 0.23.09',
+            'Clique no cartao abre conversa: OK',
+            'Fallback para lembretes antigos: OK',
+            'Joia/negativo preservados: OK',
+            'Teste de abertura: OK',
+            'CRM/Radar/WhatsApp Turbo/Ponto preservados: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02310.txt -Encoding UTF8
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.10 C:\temp\out\ALIYVO_BETA_GRATIS_02310.zip C:\temp\out\VALIDACAO_02310.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.10 - Clique no Lembrete" --notes "No painel Hoje no ALIYVO, clicar no texto/area principal de um lembrete vencido ou tarefa abre diretamente a conversa do cliente no WhatsApp. Tambem reconhece lembretes antigos em que o contato ficou salvo no fim do texto. Mantem os botoes de resolvido e ainda nao fiz." --latest
