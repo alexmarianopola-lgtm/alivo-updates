@@ -1,0 +1,131 @@
+07030:             return
+07031:         items=self._attendance_data.setdefault("items",{})
+07032:         info=items.get(name) if isinstance(items.get(name),dict) else {}
+07033:         current=str(info.get("note") or "")
+07034:         value,ok=QInputDialog.getText(self,"O que falta fazer?",f"Pendência de {name}:",text=current)
+07035:         if ok:
+07036:             import time
+07037:             info["note"]=str(value or "").strip(); info["updated_at"]=time.time()
+07038:             items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+07039: 
+07040:     def _attendance_open_chat(self,name):
+07041:         name=str(name or "").strip()
+07042:         if not name:return
+07043:         js=r"""
+07044:         ((wanted)=>{
+07045:           try{
+07046:             const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+07047:             const pane=document.querySelector('#pane-side');
+07048:             if(!pane)return false;
+07049:             for(const s of Array.from(pane.querySelectorAll('span[title]'))){
+07050:               const n=clean(s.getAttribute('title')||s.textContent||'');
+07051:               if(n===wanted){
+07052:                 const row=s.closest('[role="listitem"],[role="row"],[data-testid="cell-frame-container"]') || s.closest('div');
+07053:                 if(row){row.click();return true;}
+07054:               }
+07055:             }
+07056:             return false;
+07057:           }catch(e){return false;}
+07058:         })(__NAME__));
+07059:         """.replace('__NAME__',json.dumps(name,ensure_ascii=False))
+07060:         def done(ok):
+07061:             if not ok:
+07062:                 QMessageBox.information(self,"Atendimentos",f"{name} não está visível na lista do WhatsApp agora. Use a busca do próprio WhatsApp e abra a conversa.")
+07063:             else:
+07064:                 QTimer.singleShot(650,lambda:self._attendance_scan(force=True))
+07065:         try:self.web.page().runJavaScript(js,done)
+07066:         except Exception:pass
+07067: 
+07068:     def _attendance_open_tool(self,tool):
+07069:         labels={"technical":"Busca Somaforce","lens":"Busca por imagem","audio":"Áudio","plate":"Placa/chassi"}
+07070:         name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07071:         if name:
+07072:             try:
+07073:                 import time
+07074:                 items=self._attendance_data.setdefault("items",{})
+07075:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+07076:                 info["last_tool"]=str(tool)
+07077:                 info["last_tool_label"]=labels.get(str(tool),str(tool))
+07078:                 info["tool_opened_at"]=time.time()
+07079:                 items[name]=info
+07080:                 self._attendance_save()
+07081:                 self.attendance_panel.refresh()
+07082:             except Exception:
+07083:                 pass
+07084:         self._open_quick_tool(tool)
+07085: 
+07086:     def _attendance_open_plate(self):
+07087:         try:
+07088:             name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07089:             if name:
+07090:                 import time
+07091:                 items=self._attendance_data.setdefault("items",{})
+07092:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+07093:                 info["last_tool"]="plate"; info["last_tool_label"]="Placa/chassi"; info["tool_opened_at"]=time.time()
+07094:                 items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+07095:         except Exception:
+07096:             pass
+07097:         try:
+07098:             # O fluxo novo de placa instalado nas versoes recentes abre um dialogo proprio.
+07099:             _aliyvo_show_plate_dialog(self)
+07100:         except Exception:
+07101:             try:self._open_quick_tool("plate")
+07102:             except Exception:pass
+07103: 
+07104:     def _diagnostic_file(self):
+07105:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+07106:         except Exception: pass
+07107:         return USER_DATA_DIR/"diagnostico_eventos.jsonl"
+07108: 
+07109:     def _diagnostic_log(self,event,**payload):
+07110:         try:
+07111:             import time,datetime
+07112:             row={"ts":time.time(),"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":str(event)}
+07113:             for k,v in payload.items():
+07114:                 if v is not None: row[str(k)]=v
+07115:             with self._diagnostic_file().open("a",encoding="utf-8") as f:
+07116:                 f.write(json.dumps(row,ensure_ascii=False)+"\n")
+07117:             cache=getattr(self,"_diagnostic_cache_rows",None)
+07118:             if isinstance(cache,list):
+07119:                 cache.append(dict(row))
+07120:         except Exception:
+07121:             pass
+07122: 
+07123:     def _diagnostic_start(self):
+07124:         # Cache em memoria: o historico JSONL e carregado uma vez por sessao.
+07125:         # Novos eventos sao acrescentados ao cache em _diagnostic_log.
+07126:         self._diagnostic_cache_rows=None
+07127:         self._diagnostic_busy=False
+07128:         self._diagnostic_active_name=""
+07129:         self._diagnostic_last_active=""
+07130:         self._diagnostic_signatures={}
+07131:         self._diagnostic_pending={}
+07132:         self._diagnostic_unread=set()
+07133:         self._diagnostic_seen_calls=set()
+07134:         self._diagnostic_groups=set(self._diagnostic_groups_load())
+07135:         self._diagnostic_last_context_by_contact={}
+07136:         self._diagnostic_live_call=None
+07137:         self._diagnostic_live_missing=0
+07138:         self._diagnostic_recent_live_calls=[]
+07139:         self._diagnostic_unread_registry={}
+07140:         self._diagnostic_unread_total_whatsapp=0
+07141:         self._diagnostic_unread_visible=0
+07142:         self._diagnostic_unread_message_total=0
+07143:         self._diagnostic_current_unread_names=set()
+07144:         self._ai_observer_busy=False
+07145:         self._ai_net=None
+07146:         self._ai_observer_reply=None
+07147:         self._ai_observer_text_widget=None
+07148:         self._ai_observer_status_widget=None
+07149:         self._ai_last_analyzed_event_ts=0.0
+07150:         self._ai_request_meta={}
+07151:         try:
+07152:             _last=self._ai_history_latest()
+07153:             self._ai_last_analyzed_event_ts=float((_last or {}).get("last_event_ts") or 0)
+07154:         except Exception:pass
+07155:         self._ai_observer_timer=QTimer(self)
+07156:         self._ai_observer_reschedule()
+07157:         try:
+07158:             for row in self._diagnostic_read()[-1800:]:
+07159:                 if isinstance(row,dict) and row.get("event")=="call":
+07160:                     k=str(row.get("call_key") or "").strip()
