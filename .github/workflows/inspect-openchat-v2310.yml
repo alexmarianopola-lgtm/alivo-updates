@@ -1,0 +1,33 @@
+name: Inspecionar abertura de chat 0.23.10
+on:
+  push:
+    paths: ['trigger-inspect-openchat-v2310.txt']
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair metodo
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\x | Out-Null
+          gh release download v0.23.10 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02310.zip" --dir C:\temp\x
+          Expand-Archive C:\temp\x\ALIYVO_BETA_GRATIS_02310.zip -DestinationPath C:\temp\x\app -Force
+          $p='C:\temp\x\app\_app\main.py'
+          $lines=Get-Content $p
+          $m=Select-String -Path $p -Pattern 'def _attendance_open_chat'
+          if(-not $m){ throw 'metodo nao encontrado' }
+          $n=$m.LineNumber
+          $a=[Math]::Max(1,$n-10);$b=[Math]::Min($lines.Count,$n+120)
+          $out=@()
+          for($i=$a;$i -le $b;$i++){ $out+=("{0:D5}: {1}" -f $i,$lines[$i-1]) }
+          $out | Set-Content openchat_v2310.txt -Encoding UTF8
+          git config user.name "aliyvo-inspector"
+          git config user.email "actions@users.noreply.github.com"
+          git add openchat_v2310.txt
+          git commit -m "inspect: extrair abertura de chat v2310"
+          git push
