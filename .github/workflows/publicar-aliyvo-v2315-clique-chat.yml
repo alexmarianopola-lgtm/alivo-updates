@@ -1,0 +1,51 @@
+name: Publicar ALIYVO 0.23.15 Clique Chat
+on:
+  push:
+    paths: ['trigger-v2315-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.14
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.14 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02314.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02314.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.14 invalida' }
+      - name: Aplicar correcao
+        shell: pwsh
+        run: |
+          python patch_openchat_v2315.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py
+          python tests\logic_openchat_v2315.py C:\temp\build\_app
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited -and $proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02315.zip -Force
+          gh release create v0.23.15 C:\temp\out\ALIYVO_BETA_GRATIS_02315.zip --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.15 - Clique Chat Corrigido" --notes "Corrige o fluxo visto no vídeo: o ALIYVO agora dispara a abertura da conversa antes de fechar o painel Hoje. Para contatos por nome, a busca passa a ter segunda etapa que clica no resultado após ele aparecer."
