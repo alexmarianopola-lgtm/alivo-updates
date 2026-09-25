@@ -1,0 +1,83 @@
+name: Publicar ALIYVO 0.23.13 WebView2 Navegacao
+on:
+  push:
+    paths: ['trigger-v2313-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base 0.23.12
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.12 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02312.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02312.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.12 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar correcao WebView2
+        shell: pwsh
+        run: |
+          python patch_webview2_nav_v2313.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_webview2_nav_v2313.py C:\temp\build\_app
+          if($LASTEXITCODE -ne 0){ throw 'Gate v2313 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+
+      - name: Instalar dependencias do ALIYVO
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+          python -c "from qtwebview2 import QtWebView2Widget; assert hasattr(QtWebView2Widget,'load_url'); print('QTWEBVIEW2_LOAD_URL=OK')"
+
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited){
+            if($proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          } else {
+            Stop-Process -Id $proc.Id -Force
+          }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02313.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02313.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_webview2_nav_v2313.py C:\temp\verify\_app
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02313.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.13 - NAVEGACAO WEBVIEW2 CORRIGIDA',
+            'Base: 0.23.12',
+            'QtWebView2 load_url verificado: OK',
+            'Compatibilidade setUrl -> load_url: OK',
+            'Clique em telefone usa load_url nativo: OK',
+            'Teste de abertura: OK',
+            'CRM/Radar/WhatsApp Turbo/Ponto preservados: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02313.txt -Encoding UTF8
+
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.13 C:\temp\out\ALIYVO_BETA_GRATIS_02313.zip C:\temp\out\VALIDACAO_02313.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.13 - Navegacao WebView2 Corrigida" --notes "Corrige a causa da abertura de chat não funcionar. O WhatsApp do ALIYVO usa QtWebView2 0.5, cuja navegação é load_url(), e não setUrl() do QWebEngine. A versão adiciona compatibilidade central e faz o clique de lembrete com telefone usar diretamente load_url()." --latest
