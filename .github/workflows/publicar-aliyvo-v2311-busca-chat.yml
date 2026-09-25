@@ -1,0 +1,77 @@
+name: Publicar ALIYVO 0.23.11 Busca Chat
+on:
+  push:
+    paths: ['trigger-v2311-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.10
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.10 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02310.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02310.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.10 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar busca automatica de chat
+        shell: pwsh
+        run: |
+          python patch_openchat_search_v2311.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_openchat_v2311.py C:\temp\build\_app
+          if($LASTEXITCODE -ne 0){ throw 'Gate v2311 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited){
+            if($proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          } else {
+            Stop-Process -Id $proc.Id -Force
+          }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02311.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02311.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_openchat_v2311.py C:\temp\verify\_app
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02311.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.11 - ABRIR CHAT DIRETO',
+            'Base: 0.23.10',
+            'Abre chat visivel: OK',
+            'Se nao estiver visivel, busca no WhatsApp automaticamente: OK',
+            'Nome e numero normalizados: OK',
+            'Clique do lembrete preservado: OK',
+            'Teste de abertura: OK',
+            'CRM/Radar/WhatsApp Turbo/Ponto preservados: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02311.txt -Encoding UTF8
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.11 C:\temp\out\ALIYVO_BETA_GRATIS_02311.zip C:\temp\out\VALIDACAO_02311.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.11 - Abrir Chat Direto" --notes "Corrige a abertura de conversas pelo CRM/lembretes. Antes, o ALIYVO so clicava se a conversa estivesse visivel na lista lateral. Agora, se nao estiver visivel, ele usa automaticamente a busca do WhatsApp Web, pesquisa pelo nome ou numero e abre o resultado correspondente. Mantem o fluxo de lembretes com joia/negativo." --latest
