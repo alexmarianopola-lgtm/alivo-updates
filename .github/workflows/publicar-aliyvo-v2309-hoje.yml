@@ -33,6 +33,11 @@ jobs:
           $before=(Get-Content C:\temp\updater_before.txt).Trim()
           $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
           if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias do ALIYVO para teste
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+
       - name: Teste real de abertura
         shell: pwsh
         run: |
