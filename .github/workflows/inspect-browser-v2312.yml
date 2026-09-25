@@ -1,0 +1,36 @@
+name: Inspecionar navegador WhatsApp v0.23.12
+on:
+  push:
+    paths: ['trigger-inspect-browser-v2312.txt']
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair navegador
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\x | Out-Null
+          gh release download v0.23.12 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02312.zip" --dir C:\temp\x
+          Expand-Archive C:\temp\x\ALIYVO_BETA_GRATIS_02312.zip -DestinationPath C:\temp\x\app -Force
+          $p='C:\temp\x\app\_app\main.py'
+          $lines=Get-Content $p
+          $patterns=@('self.web=','self.web =','QtWebView2Widget(','QWebEngineView(','def _attendance_open_chat','runJavaScript','ExecuteScript','Navigate(','Source=','source =')
+          $out=@()
+          foreach($pat in $patterns){
+            $out+="===== $pat ====="
+            foreach($m in (Select-String -Path $p -SimpleMatch $pat | Select-Object -First 25)){
+              $a=[Math]::Max(1,$m.LineNumber-20);$b=[Math]::Min($lines.Count,$m.LineNumber+50)
+              for($i=$a;$i -le $b;$i++){ $out+=("{0:D5}: {1}" -f $i,$lines[$i-1]) }
+            }
+          }
+          $out | Set-Content browser_v2312.txt -Encoding UTF8
+          git config user.name "aliyvo-inspector"
+          git config user.email "actions@users.noreply.github.com"
+          git add browser_v2312.txt
+          git commit -m "inspect: navegador WhatsApp v2312"
+          git push
