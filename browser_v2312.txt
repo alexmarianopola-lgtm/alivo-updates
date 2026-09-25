@@ -1,0 +1,3134 @@
+===== self.web= =====
+01479:         self.reload_btn.setFixedWidth(34)
+01480:         head.addWidget(self.reload_btn)
+01481: 
+01482:         self.expand_btn=QPushButton("⛶")
+01483:         self.expand_btn.setToolTip("Expandir ALIYVO")
+01484:         self.expand_btn.setFixedWidth(34)
+01485:         head.addWidget(self.expand_btn)
+01486: 
+01487:         self.close_btn=QPushButton("◀")
+01488:         self.close_btn.setToolTip("Recolher ALIYVO")
+01489:         self.close_btn.setFixedWidth(34)
+01490:         head.addWidget(self.close_btn)
+01491: 
+01492:         lay.addWidget(self.title_bar)
+01493: 
+01494:         self.status=QLabel("ChatGPT integrado")
+01495:         self.status.setStyleSheet("color:#666;")
+01496:         lay.addWidget(self.status)
+01497: 
+01498:         # WebEngine pesado: só nasce quando o usuário abrir Assistente.
+01499:         self.web=None
+01500:         self._web_ready=False
+01501:         self.web_placeholder=QLabel(
+01502:             "Assistente pronto para abrir.\n"
+01503:             "O ChatGPT será carregado somente quando esta ferramenta for usada."
+01504:         )
+01505:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01506:         self.web_placeholder.setWordWrap(True)
+01507:         self.web_placeholder.setStyleSheet(
+01508:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01509:         )
+01510:         lay.addWidget(self.web_placeholder,1)
+01511: 
+01512:         self.back_btn.clicked.connect(self._go_back)
+01513:         self.home_btn.clicked.connect(self._go_home)
+01514:         self.reload_btn.clicked.connect(self._reload_web)
+01515:         self.expanded=False
+01516: 
+01517:     def _ensure_web(self):
+01518:         if self.web is not None:
+01519:             return self.web
+01520: 
+01521:         self.status.setText("Carregando ChatGPT...")
+01522:         self.web=QWebEngineView(self)
+01523: 
+01524:         try:
+01525:             self.web.page().profile().downloadRequested.connect(self._handle_download)
+01526:         except Exception:
+01527:             pass
+01528: 
+01529:         self.web.loadStarted.connect(
+01530:             lambda: self.status.setText("Carregando ChatGPT...")
+01531:         )
+01532:         self.web.loadFinished.connect(
+01533:             lambda ok: self.status.setText(
+01534:                 "ChatGPT pronto" if ok else "Falha ao carregar ChatGPT"
+01535:             )
+01536:         )
+01537: 
+01538:         layout=self.layout()
+01539:         idx=layout.indexOf(self.web_placeholder)
+01540:         if idx < 0:
+01541:             idx=layout.count()
+01542:         layout.insertWidget(idx,self.web,1)
+01543:         self.web_placeholder.hide()
+01544: 
+01545:         self.web.setUrl(
+01546:             QUrl("https://chatgpt.com/share/6a91b46d-d2f4-83e9-a758-e901e31bcba2")
+01547:         )
+01548:         self._web_ready=True
+01549:         return self.web
+01502:             "Assistente pronto para abrir.\n"
+01503:             "O ChatGPT será carregado somente quando esta ferramenta for usada."
+01504:         )
+01505:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01506:         self.web_placeholder.setWordWrap(True)
+01507:         self.web_placeholder.setStyleSheet(
+01508:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01509:         )
+01510:         lay.addWidget(self.web_placeholder,1)
+01511: 
+01512:         self.back_btn.clicked.connect(self._go_back)
+01513:         self.home_btn.clicked.connect(self._go_home)
+01514:         self.reload_btn.clicked.connect(self._reload_web)
+01515:         self.expanded=False
+01516: 
+01517:     def _ensure_web(self):
+01518:         if self.web is not None:
+01519:             return self.web
+01520: 
+01521:         self.status.setText("Carregando ChatGPT...")
+01522:         self.web=QWebEngineView(self)
+01523: 
+01524:         try:
+01525:             self.web.page().profile().downloadRequested.connect(self._handle_download)
+01526:         except Exception:
+01527:             pass
+01528: 
+01529:         self.web.loadStarted.connect(
+01530:             lambda: self.status.setText("Carregando ChatGPT...")
+01531:         )
+01532:         self.web.loadFinished.connect(
+01533:             lambda ok: self.status.setText(
+01534:                 "ChatGPT pronto" if ok else "Falha ao carregar ChatGPT"
+01535:             )
+01536:         )
+01537: 
+01538:         layout=self.layout()
+01539:         idx=layout.indexOf(self.web_placeholder)
+01540:         if idx < 0:
+01541:             idx=layout.count()
+01542:         layout.insertWidget(idx,self.web,1)
+01543:         self.web_placeholder.hide()
+01544: 
+01545:         self.web.setUrl(
+01546:             QUrl("https://chatgpt.com/share/6a91b46d-d2f4-83e9-a758-e901e31bcba2")
+01547:         )
+01548:         self._web_ready=True
+01549:         return self.web
+01550: 
+01551:     def _go_back(self):
+01552:         web=self._ensure_web()
+01553:         try:
+01554:             if web.history().canGoBack():
+01555:                 web.back()
+01556:                 self.status.setText("Voltando...")
+01557:             else:
+01558:                 self._go_home()
+01559:         except Exception:
+01560:             self._go_home()
+01561: 
+01562:     def _go_home(self):
+01563:         web=self._ensure_web()
+01564:         self.status.setText("Voltando ao início do Assistente...")
+01565:         web.setUrl(
+01566:             QUrl("https://chatgpt.com/share/6a91b46d-d2f4-83e9-a758-e901e31bcba2")
+01567:         )
+01568: 
+01569:     def _reload_web(self):
+01570:         self._ensure_web().reload()
+01571: 
+01572:     def showEvent(self,event):
+01756: 
+01757:         row=QHBoxLayout()
+01758:         self.use_clip_btn=QPushButton("📋")
+01759:         self.use_clip_btn.setToolTip("Usar imagem da área de transferência")
+01760:         self.search_btn=QPushButton("🔎")
+01761:         self.search_btn.setToolTip("Pesquisar imagem no Google Lens")
+01762:         self.search_btn.setEnabled(False)
+01763:         self.reload_btn=QPushButton("⟳")
+01764:         self.reload_btn.setToolTip("Recarregar Google Lens")
+01765:         row.addWidget(self.use_clip_btn)
+01766:         row.addWidget(self.search_btn)
+01767:         row.addWidget(self.reload_btn)
+01768:         row.addStretch(1)
+01769:         lay.addLayout(row)
+01770: 
+01771:         self.status=QLabel("Painel recolhido por padrão.")
+01772:         self.status.setWordWrap(True)
+01773:         lay.addWidget(self.status)
+01774: 
+01775:         # WebEngine pesado: criado somente quando o Lens for realmente aberto.
+01776:         self.web=None
+01777:         self._web_ready=False
+01778:         self.web_placeholder=QLabel(
+01779:             "Busca por imagem pronta para uso.\n"
+01780:             "O Google Lens será carregado somente quando esta ferramenta for aberta."
+01781:         )
+01782:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01783:         self.web_placeholder.setWordWrap(True)
+01784:         self.web_placeholder.setStyleSheet(
+01785:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01786:         )
+01787:         lay.addWidget(self.web_placeholder,1)
+01788: 
+01789:         self.back_btn.clicked.connect(self._go_back)
+01790:         self.new_search_btn.clicked.connect(self.new_search)
+01791:         self.use_clip_btn.clicked.connect(self.load_clipboard_image)
+01792:         self.search_btn.clicked.connect(self.search_lens)
+01793:         self.reload_btn.clicked.connect(self._reload_web)
+01794: 
+01795:     def _ensure_web(self):
+01796:         if self.web is not None:
+01797:             return self.web
+01798: 
+01799:         self.web=QWebEngineView(self)
+01800:         layout=self.layout()
+01801:         idx=layout.indexOf(self.web_placeholder)
+01802:         if idx < 0:
+01803:             idx=layout.count()
+01804:         layout.insertWidget(idx,self.web,1)
+01805:         self.web_placeholder.hide()
+01806: 
+01807:         self.web.setUrl(QUrl("https://lens.google.com/"))
+01808:         self._web_ready=True
+01809:         return self.web
+01810: 
+01811:     def _go_back(self):
+01812:         web=self._ensure_web()
+01813:         try:
+01814:             if web.history().canGoBack():
+01815:                 web.back()
+01816:                 self.status.setText("Voltando...")
+01817:             else:
+01818:                 self.new_search()
+01819:         except Exception:
+01820:             self.new_search()
+01821: 
+01822:     def new_search(self):
+01823:         """
+01824:         Volta o Lens ao estado inicial sem recriar o WebEngine.
+01825:         Isso deixa a segunda busca mais rápida.
+01826:         """
+01779:             "Busca por imagem pronta para uso.\n"
+01780:             "O Google Lens será carregado somente quando esta ferramenta for aberta."
+01781:         )
+01782:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01783:         self.web_placeholder.setWordWrap(True)
+01784:         self.web_placeholder.setStyleSheet(
+01785:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01786:         )
+01787:         lay.addWidget(self.web_placeholder,1)
+01788: 
+01789:         self.back_btn.clicked.connect(self._go_back)
+01790:         self.new_search_btn.clicked.connect(self.new_search)
+01791:         self.use_clip_btn.clicked.connect(self.load_clipboard_image)
+01792:         self.search_btn.clicked.connect(self.search_lens)
+01793:         self.reload_btn.clicked.connect(self._reload_web)
+01794: 
+01795:     def _ensure_web(self):
+01796:         if self.web is not None:
+01797:             return self.web
+01798: 
+01799:         self.web=QWebEngineView(self)
+01800:         layout=self.layout()
+01801:         idx=layout.indexOf(self.web_placeholder)
+01802:         if idx < 0:
+01803:             idx=layout.count()
+01804:         layout.insertWidget(idx,self.web,1)
+01805:         self.web_placeholder.hide()
+01806: 
+01807:         self.web.setUrl(QUrl("https://lens.google.com/"))
+01808:         self._web_ready=True
+01809:         return self.web
+01810: 
+01811:     def _go_back(self):
+01812:         web=self._ensure_web()
+01813:         try:
+01814:             if web.history().canGoBack():
+01815:                 web.back()
+01816:                 self.status.setText("Voltando...")
+01817:             else:
+01818:                 self.new_search()
+01819:         except Exception:
+01820:             self.new_search()
+01821: 
+01822:     def new_search(self):
+01823:         """
+01824:         Volta o Lens ao estado inicial sem recriar o WebEngine.
+01825:         Isso deixa a segunda busca mais rápida.
+01826:         """
+01827:         self.last_image_path=None
+01828:         self.search_btn.setEnabled(False)
+01829:         self.preview.clear()
+01830:         self.preview.setText("Win + Shift + S\nRecorte a nova peça")
+01831:         self.status.setText(
+01832:             "Nova busca pronta. Recorte/copiei outra imagem e clique em 📋."
+01833:         )
+01834: 
+01835:         web=self._ensure_web()
+01836:         try:
+01837:             web.setUrl(QUrl("https://lens.google.com/"))
+01838:         except Exception:
+01839:             pass
+01840: 
+01841:     def _reload_web(self):
+01842:         self._ensure_web().reload()
+01843: 
+01844:     def showEvent(self,event):
+01845:         super().showEvent(event)
+01846:         if self.web is None:
+01847:             QTimer.singleShot(0,self._ensure_web)
+01848: 
+01849:     def load_clipboard_image(self):
+04318: 
+04319:         central=QWidget()
+04320:         self.setCentralWidget(central)
+04321:         lay=QVBoxLayout(central)
+04322:         lay.setContentsMargins(0,0,0,0)
+04323:         lay.setSpacing(0)
+04324: 
+04325:         top=QWidget()
+04326:         top.setStyleSheet("background:#071A2B;color:white;")
+04327:         row=QHBoxLayout(top)
+04328:         row.setContentsMargins(10,6,10,6)
+04329:         lbl=QLabel("Conectar fonte técnica")
+04330:         lbl.setStyleSheet("font-weight:700;color:#DCEBE7;")
+04331:         row.addWidget(lbl)
+04332:         row.addStretch(1)
+04333:         self.status=QLabel("Sessão local do catálogo")
+04334:         self.status.setStyleSheet("color:#69BBA4;")
+04335:         row.addWidget(self.status)
+04336:         lay.addWidget(top)
+04337: 
+04338:         self.web=QtWebView2Widget(
+04339:             url="https://scherer.catalogofraga.com.br/",
+04340:             user_agent=None,
+04341:             debug=False,
+04342:             context_menus=True,
+04343:             transparent=False,
+04344:             background_color="#FFFFFF",
+04345:             handle_new_window=True,
+04346:             lazyload=False,
+04347:             user_data_folder=str(CATALOG_PROFILE_DIR),
+04348:             no_local_storage=False,
+04349:             fullscreen_support=True,
+04350:             parent=None,
+04351:         )
+04352:         lay.addWidget(self.web,1)
+04353:         try:
+04354:             self.web.bridge.initialization_done.connect(self._initialized)
+04355:         except Exception:
+04356:             pass
+04357: 
+04358:     def _initialized(self,*args):
+04359:         self._ready=True
+04360:         self.status.setText("Catálogo carregado")
+04361:         if self._pending_search:
+04362:             plate,callback,result_callback=self._pending_search
+04363:             self._pending_search=None
+04364:             QTimer.singleShot(1200,lambda:self.search_plate(plate,callback,result_callback))
+04365: 
+04366:     def closeEvent(self,event):
+04367:         # Depois do login, continua ativo em segundo plano para buscas diretas.
+04368:         event.ignore()
+04369:         self.hide_background()
+04370: 
+04371:     def evaluate(self,code,callback=None):
+04372:         try:
+04373:             self.web.evaluate_js(code,callback)
+04374:         except Exception as e:
+04375:             if callback:
+04376:                 callback({"success":False,"error":str(e)})
+04377: 
+04378:     def _unwrap_js(self,payload):
+04379:         # qtwebview2 versions may return either the result directly or
+04380:         # an envelope {success,result}. Accept both forms.
+04381:         if isinstance(payload,dict) and "success" in payload:
+04382:             if payload.get("success"):
+04383:                 value=payload.get("result")
+04384:                 return value if isinstance(value,dict) else {"ok":False,"error":"Retorno vazio da consulta."}
+04385:             return {"ok":False,"error":str(payload.get("error") or "Falha ao executar consulta.")}
+04386:         if isinstance(payload,dict):
+04387:             return payload
+04388:         return {"ok":False,"error":"Sem retorno da página."}
+06279:         # ========== CORPO ==========
+06280:         body=QWidget()
+06281:         body.setObjectName("aliyvoBody")
+06282:         body.setMinimumHeight(0)
+06283:         body.setSizePolicy(
+06284:             QSizePolicy.Policy.Expanding,
+06285:             QSizePolicy.Policy.Expanding
+06286:         )
+06287:         body.setStyleSheet(
+06288:             "QWidget#aliyvoBody{background:#061626;}"
+06289:         )
+06290:         body_lay=QHBoxLayout(body)
+06291:         body_lay.setContentsMargins(0,0,0,0)
+06292:         body_lay.setSpacing(0)
+06293: 
+06294:         self._aliyvo_shutting_down=False
+06295:         self._aliyvo_webviews_shutdown=False
+06296:         self._wa_recovery_attempts=0
+06297:         self._wa_recovery_scheduled=False
+06298:         self._wa_recovery_generation=0
+06299:         self.web=WhatsAppView()
+06300: 
+06301:         self.web_host=QWidget()
+06302:         self.web_host.setObjectName("webHost")
+06303:         self.web_host.setMinimumHeight(0)
+06304:         self.web_host.setSizePolicy(
+06305:             QSizePolicy.Policy.Expanding,
+06306:             QSizePolicy.Policy.Expanding
+06307:         )
+06308:         self.web.setMinimumHeight(0)
+06309:         self.web.setSizePolicy(
+06310:             QSizePolicy.Policy.Expanding,
+06311:             QSizePolicy.Policy.Expanding
+06312:         )
+06313:         self.web_host.setStyleSheet(
+06314:             "QWidget#webHost{background:#061626;border:none;}"
+06315:         )
+06316:         self.web_host_layout=QVBoxLayout(self.web_host)
+06317:         self.web_host_layout.setContentsMargins(0,0,0,0)
+06318:         self.web_host_layout.setSpacing(0)
+06319:         self.web_host_layout.addWidget(self.web)
+06320:         body_lay.addWidget(self.web_host,1)
+06321: 
+06322:         # Painel da direita como no mockup aprovado
+06323:         self.quick_panel=QWidget()
+06324:         self.quick_panel.setObjectName("quickPanel")
+06325:         self.quick_panel.setFixedWidth(225)
+06326:         self.quick_panel.setStyleSheet("""
+06327:             QWidget#quickPanel{
+06328:                 background:#071A2B;
+06329:                 border-left:1px solid #15364B;
+06330:             }
+06331:             QWidget#quickPanel QLabel{
+06332:                 color:#F4FAF8;
+06333:                 background:transparent;
+06334:             }
+06335:             QWidget#quickPanel QPushButton{
+06336:                 text-align:left;
+06337:                 background:#0A2236;
+06338:                 color:#F4FAF8;
+06339:                 border:1px solid #173B52;
+06340:                 border-radius:7px;
+06341:                 padding:9px 11px;
+06342:                 min-height:28px;
+06343:                 font-size:10px;
+06344:                 font-weight:700;
+06345:             }
+06346:             QWidget#quickPanel QPushButton:hover{
+06347:                 background:#0D303B;
+06348:                 border-color:#20E983;
+06349:             }
+===== self.web = =====
+===== QtWebView2Widget( =====
+04318: 
+04319:         central=QWidget()
+04320:         self.setCentralWidget(central)
+04321:         lay=QVBoxLayout(central)
+04322:         lay.setContentsMargins(0,0,0,0)
+04323:         lay.setSpacing(0)
+04324: 
+04325:         top=QWidget()
+04326:         top.setStyleSheet("background:#071A2B;color:white;")
+04327:         row=QHBoxLayout(top)
+04328:         row.setContentsMargins(10,6,10,6)
+04329:         lbl=QLabel("Conectar fonte técnica")
+04330:         lbl.setStyleSheet("font-weight:700;color:#DCEBE7;")
+04331:         row.addWidget(lbl)
+04332:         row.addStretch(1)
+04333:         self.status=QLabel("Sessão local do catálogo")
+04334:         self.status.setStyleSheet("color:#69BBA4;")
+04335:         row.addWidget(self.status)
+04336:         lay.addWidget(top)
+04337: 
+04338:         self.web=QtWebView2Widget(
+04339:             url="https://scherer.catalogofraga.com.br/",
+04340:             user_agent=None,
+04341:             debug=False,
+04342:             context_menus=True,
+04343:             transparent=False,
+04344:             background_color="#FFFFFF",
+04345:             handle_new_window=True,
+04346:             lazyload=False,
+04347:             user_data_folder=str(CATALOG_PROFILE_DIR),
+04348:             no_local_storage=False,
+04349:             fullscreen_support=True,
+04350:             parent=None,
+04351:         )
+04352:         lay.addWidget(self.web,1)
+04353:         try:
+04354:             self.web.bridge.initialization_done.connect(self._initialized)
+04355:         except Exception:
+04356:             pass
+04357: 
+04358:     def _initialized(self,*args):
+04359:         self._ready=True
+04360:         self.status.setText("Catálogo carregado")
+04361:         if self._pending_search:
+04362:             plate,callback,result_callback=self._pending_search
+04363:             self._pending_search=None
+04364:             QTimer.singleShot(1200,lambda:self.search_plate(plate,callback,result_callback))
+04365: 
+04366:     def closeEvent(self,event):
+04367:         # Depois do login, continua ativo em segundo plano para buscas diretas.
+04368:         event.ignore()
+04369:         self.hide_background()
+04370: 
+04371:     def evaluate(self,code,callback=None):
+04372:         try:
+04373:             self.web.evaluate_js(code,callback)
+04374:         except Exception as e:
+04375:             if callback:
+04376:                 callback({"success":False,"error":str(e)})
+04377: 
+04378:     def _unwrap_js(self,payload):
+04379:         # qtwebview2 versions may return either the result directly or
+04380:         # an envelope {success,result}. Accept both forms.
+04381:         if isinstance(payload,dict) and "success" in payload:
+04382:             if payload.get("success"):
+04383:                 value=payload.get("result")
+04384:                 return value if isinstance(value,dict) else {"ok":False,"error":"Retorno vazio da consulta."}
+04385:             return {"ok":False,"error":str(payload.get("error") or "Falha ao executar consulta.")}
+04386:         if isinstance(payload,dict):
+04387:             return payload
+04388:         return {"ok":False,"error":"Sem retorno da página."}
+===== QWebEngineView( =====
+01502:             "Assistente pronto para abrir.\n"
+01503:             "O ChatGPT será carregado somente quando esta ferramenta for usada."
+01504:         )
+01505:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01506:         self.web_placeholder.setWordWrap(True)
+01507:         self.web_placeholder.setStyleSheet(
+01508:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01509:         )
+01510:         lay.addWidget(self.web_placeholder,1)
+01511: 
+01512:         self.back_btn.clicked.connect(self._go_back)
+01513:         self.home_btn.clicked.connect(self._go_home)
+01514:         self.reload_btn.clicked.connect(self._reload_web)
+01515:         self.expanded=False
+01516: 
+01517:     def _ensure_web(self):
+01518:         if self.web is not None:
+01519:             return self.web
+01520: 
+01521:         self.status.setText("Carregando ChatGPT...")
+01522:         self.web=QWebEngineView(self)
+01523: 
+01524:         try:
+01525:             self.web.page().profile().downloadRequested.connect(self._handle_download)
+01526:         except Exception:
+01527:             pass
+01528: 
+01529:         self.web.loadStarted.connect(
+01530:             lambda: self.status.setText("Carregando ChatGPT...")
+01531:         )
+01532:         self.web.loadFinished.connect(
+01533:             lambda ok: self.status.setText(
+01534:                 "ChatGPT pronto" if ok else "Falha ao carregar ChatGPT"
+01535:             )
+01536:         )
+01537: 
+01538:         layout=self.layout()
+01539:         idx=layout.indexOf(self.web_placeholder)
+01540:         if idx < 0:
+01541:             idx=layout.count()
+01542:         layout.insertWidget(idx,self.web,1)
+01543:         self.web_placeholder.hide()
+01544: 
+01545:         self.web.setUrl(
+01546:             QUrl("https://chatgpt.com/share/6a91b46d-d2f4-83e9-a758-e901e31bcba2")
+01547:         )
+01548:         self._web_ready=True
+01549:         return self.web
+01550: 
+01551:     def _go_back(self):
+01552:         web=self._ensure_web()
+01553:         try:
+01554:             if web.history().canGoBack():
+01555:                 web.back()
+01556:                 self.status.setText("Voltando...")
+01557:             else:
+01558:                 self._go_home()
+01559:         except Exception:
+01560:             self._go_home()
+01561: 
+01562:     def _go_home(self):
+01563:         web=self._ensure_web()
+01564:         self.status.setText("Voltando ao início do Assistente...")
+01565:         web.setUrl(
+01566:             QUrl("https://chatgpt.com/share/6a91b46d-d2f4-83e9-a758-e901e31bcba2")
+01567:         )
+01568: 
+01569:     def _reload_web(self):
+01570:         self._ensure_web().reload()
+01571: 
+01572:     def showEvent(self,event):
+01779:             "Busca por imagem pronta para uso.\n"
+01780:             "O Google Lens será carregado somente quando esta ferramenta for aberta."
+01781:         )
+01782:         self.web_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+01783:         self.web_placeholder.setWordWrap(True)
+01784:         self.web_placeholder.setStyleSheet(
+01785:             "color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;padding:12px;"
+01786:         )
+01787:         lay.addWidget(self.web_placeholder,1)
+01788: 
+01789:         self.back_btn.clicked.connect(self._go_back)
+01790:         self.new_search_btn.clicked.connect(self.new_search)
+01791:         self.use_clip_btn.clicked.connect(self.load_clipboard_image)
+01792:         self.search_btn.clicked.connect(self.search_lens)
+01793:         self.reload_btn.clicked.connect(self._reload_web)
+01794: 
+01795:     def _ensure_web(self):
+01796:         if self.web is not None:
+01797:             return self.web
+01798: 
+01799:         self.web=QWebEngineView(self)
+01800:         layout=self.layout()
+01801:         idx=layout.indexOf(self.web_placeholder)
+01802:         if idx < 0:
+01803:             idx=layout.count()
+01804:         layout.insertWidget(idx,self.web,1)
+01805:         self.web_placeholder.hide()
+01806: 
+01807:         self.web.setUrl(QUrl("https://lens.google.com/"))
+01808:         self._web_ready=True
+01809:         return self.web
+01810: 
+01811:     def _go_back(self):
+01812:         web=self._ensure_web()
+01813:         try:
+01814:             if web.history().canGoBack():
+01815:                 web.back()
+01816:                 self.status.setText("Voltando...")
+01817:             else:
+01818:                 self.new_search()
+01819:         except Exception:
+01820:             self.new_search()
+01821: 
+01822:     def new_search(self):
+01823:         """
+01824:         Volta o Lens ao estado inicial sem recriar o WebEngine.
+01825:         Isso deixa a segunda busca mais rápida.
+01826:         """
+01827:         self.last_image_path=None
+01828:         self.search_btn.setEnabled(False)
+01829:         self.preview.clear()
+01830:         self.preview.setText("Win + Shift + S\nRecorte a nova peça")
+01831:         self.status.setText(
+01832:             "Nova busca pronta. Recorte/copiei outra imagem e clique em 📋."
+01833:         )
+01834: 
+01835:         web=self._ensure_web()
+01836:         try:
+01837:             web.setUrl(QUrl("https://lens.google.com/"))
+01838:         except Exception:
+01839:             pass
+01840: 
+01841:     def _reload_web(self):
+01842:         self._ensure_web().reload()
+01843: 
+01844:     def showEvent(self,event):
+01845:         super().showEvent(event)
+01846:         if self.web is None:
+01847:             QTimer.singleShot(0,self._ensure_web)
+01848: 
+01849:     def load_clipboard_image(self):
+04998:         self.refresh_btn.setToolTip("Recarregar buscador")
+04999:         self.refresh_btn.setFixedWidth(34)
+05000:         self.external_btn=QPushButton("↗")
+05001:         self.external_btn.setToolTip("Abrir no navegador")
+05002:         self.external_btn.setFixedWidth(34)
+05003:         self.expand_btn=QPushButton("⛶")
+05004:         self.expand_btn.setFixedWidth(34)
+05005:         self.close_btn=QPushButton("◀")
+05006:         self.close_btn.setFixedWidth(34)
+05007:         head.addWidget(self.refresh_btn)
+05008:         head.addWidget(self.external_btn)
+05009:         head.addWidget(self.expand_btn)
+05010:         head.addWidget(self.close_btn)
+05011:         lay.addLayout(head)
+05012: 
+05013:         info=QLabel("Buscador oficial Somaforce. A análise antiga continua preservada no ALIYVO para podermos voltar se necessário.")
+05014:         info.setWordWrap(True)
+05015:         info.setStyleSheet("color:#64748B;font-size:9px;")
+05016:         lay.addWidget(info)
+05017: 
+05018:         self.browser=QWebEngineView(self)
+05019:         try:
+05020:             if _AliyvoQWebEnginePage is not None:
+05021:                 self._aliyvo_upload_page=_AliyvoSomaforceUploadPage(self.browser)
+05022:                 self.browser.setPage(self._aliyvo_upload_page)
+05023:             else:
+05024:                 self._aliyvo_upload_page=None
+05025:         except Exception:
+05026:             self._aliyvo_upload_page=None
+05027:         self.browser.setAcceptDrops(True)
+05028:         self.browser.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+05029:         self.browser.installEventFilter(self)
+05030:         try:
+05031:             fp=self.browser.focusProxy()
+05032:             if fp is not None:
+05033:                 fp.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+05034:                 fp.installEventFilter(self)
+05035:         except Exception:
+05036:             pass
+05037:         self.browser.setUrl(QUrl(self.URL))
+05038:         lay.addWidget(self.browser,1)
+05039: 
+05040:         self._aliyvo_drop_status=QLabel("📷 Arraste a foto do WhatsApp para dentro do buscador. O ALIYVO envia para leitura automaticamente.")
+05041:         self._aliyvo_drop_status.setWordWrap(True)
+05042:         self._aliyvo_drop_status.setStyleSheet("color:#0F766E;font-size:10px;font-weight:700;padding:4px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;")
+05043:         lay.insertWidget(max(0,lay.count()-1),self._aliyvo_drop_status)
+05044:         self._aliyvo_drop_filter=_AliyvoSomaforceDropFilter(self)
+05045:         try:
+05046:             QApplication.instance().installEventFilter(self._aliyvo_drop_filter)
+05047:         except Exception:
+05048:             try: self.browser.installEventFilter(self._aliyvo_drop_filter)
+05049:             except Exception: pass
+05050: 
+05051:         self.refresh_btn.clicked.connect(self.browser.reload)
+05052:         self.external_btn.clicked.connect(self._open_external)
+05053: 
+05054:     def _force_browser_focus(self):
+05055:         try:
+05056:             self.browser.activateWindow()
+05057:         except Exception:
+05058:             pass
+05059:         try:
+05060:             self.browser.setFocus(Qt.FocusReason.MouseFocusReason)
+05061:         except Exception:
+05062:             try: self.browser.setFocus()
+05063:             except Exception: pass
+05064:         try:
+05065:             fp=self.browser.focusProxy()
+05066:             if fp is not None:
+05067:                 fp.setFocus(Qt.FocusReason.MouseFocusReason)
+05068:         except Exception:
+===== def _attendance_open_chat =====
+07051:                     SELECT telefone
+07052:                     FROM campanha_contatos
+07053:                     WHERE ativo=1
+07054:                       AND (
+07055:                         lower(trim(coalesce(whatsapp_nome,'')))=lower(trim(?))
+07056:                         OR lower(trim(coalesce(nome,'')))=lower(trim(?))
+07057:                       )
+07058:                       AND telefone NOT LIKE 'pendente:%'
+07059:                     ORDER BY id DESC
+07060:                     LIMIT 1
+07061:                 """,(raw,raw)).fetchone()
+07062:                 con.close()
+07063:                 if row: phone=re.sub(r"\D","",str(row[0] or ""))
+07064:             except Exception:
+07065:                 phone=""
+07066:         if not phone:return ""
+07067:         # Brasil: contatos locais salvos com DDD (10/11 dígitos) recebem DDI 55.
+07068:         if len(phone) in (10,11):phone="55"+phone
+07069:         return phone if len(phone)>=12 else ""
+07070: 
+07071:     def _attendance_open_chat(self,name):
+07072:         from PyQt6.QtCore import QUrl
+07073:         name=str(name or "").strip()
+07074:         if not name:return
+07075: 
+07076:         phone=self._attendance_phone_for_contact(name)
+07077:         if phone:
+07078:             # Caminho determinístico: o próprio WhatsApp Web abre o chat pelo número.
+07079:             url=f"https://web.whatsapp.com/send?phone={phone}"
+07080:             try:
+07081:                 self.web.setUrl(QUrl(url))
+07082:                 QTimer.singleShot(1800,lambda:self._attendance_scan(force=True))
+07083:                 return
+07084:             except Exception:
+07085:                 pass
+07086: 
+07087:         # Fallback para contatos conhecidos apenas pelo nome.
+07088:         js=r"""
+07089:         ((wanted)=>{
+07090:           const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+07091:           const clickMatch=()=>{
+07092:             const spans=Array.from(document.querySelectorAll('#pane-side span[title], span[title]'));
+07093:             for(const sp of spans){
+07094:               const n=clean(sp.getAttribute('title')||sp.textContent||'');
+07095:               if(n===wanted){
+07096:                 const row=sp.closest('[role="listitem"],[role="row"],[data-testid="cell-frame-container"]') || sp.closest('div');
+07097:                 if(row){row.click();return true;}
+07098:               }
+07099:             }
+07100:             return false;
+07101:           };
+07102:           if(clickMatch())return {ok:true,via:'visible'};
+07103: 
+07104:           const boxes=Array.from(document.querySelectorAll('div[contenteditable="true"][role="textbox"],div[contenteditable="true"][data-tab]'));
+07105:           let search=null;
+07106:           for(const el of boxes){
+07107:             const a=clean(el.getAttribute('aria-label')||el.getAttribute('title')||el.getAttribute('data-placeholder')||'').toLowerCase();
+07108:             const r=el.getBoundingClientRect();
+07109:             if(a.includes('pesquis')||a.includes('search')||(r.top<180&&r.left<650&&r.width>150)){search=el;break;}
+07110:           }
+07111:           if(!search)return {ok:false,reason:'search_not_found'};
+07112:           try{
+07113:             search.focus();
+07114:             search.textContent='';
+07115:             search.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'deleteContentBackward'}));
+07116:             search.textContent=wanted;
+07117:             search.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:wanted}));
+07118:             search.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'a'}));
+07119:           }catch(e){return {ok:false,reason:'search_fill_failed'};}
+07120: 
+07121:           return new Promise(resolve=>{
+===== runJavaScript =====
+01913:         super().paintEvent(event)
+01914: 
+01915: 
+01916: 
+01917: 
+01918: class _WebView2ProfileAdapter:
+01919:     """Compatibilidade mínima com chamadas antigas page().profile()."""
+01920:     def __init__(self, owner):
+01921:         self.owner=owner
+01922: 
+01923:     def httpUserAgent(self):
+01924:         return "Microsoft Edge WebView2 (Evergreen)"
+01925: 
+01926:     def clearHttpCache(self):
+01927:         # Não apagamos cookies/sessão. O método de recuperação antigo não fica
+01928:         # ativo em segundo plano; este no-op preserva a conta do WhatsApp.
+01929:         return None
+01930: 
+01931: 
+01932: class _WebView2PageAdapter:
+01933:     """Faz o código existente de WA-JS continuar usando page().runJavaScript."""
+01934:     def __init__(self, owner):
+01935:         self.owner=owner
+01936:         self._profile=_WebView2ProfileAdapter(owner)
+01937: 
+01938:     def profile(self):
+01939:         return self._profile
+01940: 
+01941:     def runJavaScript(self, script, callback=None):
+01942:         return self.owner._run_javascript_compat(script,callback)
+01943: 
+01944: 
+01945: class WhatsAppView(QtWebView2Widget):
+01946:     """
+01947:     WhatsApp via Microsoft Edge WebView2.
+01948: 
+01949:     Vídeos, chamadas e codecs são responsabilidade do Edge, como no teste
+01950:     aprovado. O restante do ALIYVO continua usando a API compatível
+01951:     page().runJavaScript para WA-JS e automações existentes.
+01952:     """
+01953:     loadFinished=pyqtSignal(bool)
+01954:     loadStarted=pyqtSignal()
+01955:     _download_done=pyqtSignal(str,bool,bool)
+01956: 
+01957:     def __init__(self):
+01958:         self.media_download_callback=None
+01959:         self.audio_download_callback=None
+01960:         self.audio_download_pending=False
+01961:         self._download_handlers=[]
+01962:         self._current_url="https://web.whatsapp.com/"
+01963: 
+01964:         # O WebView2 usa o Edge Evergreen do Windows, sem UA falso.
+01965:         super().__init__(
+01966:             url=self._current_url,
+01967:             user_agent=None,
+01968:             debug=False,
+01969:             context_menus=False,
+01970:             transparent=False,
+01971:             background_color="#071A2B",
+01972:             handle_new_window=True,
+01973:             lazyload=False,
+01974:             user_data_folder=str(WEBVIEW2_PROFILE_DIR),
+01975:             no_local_storage=False,
+01976:             fullscreen_support=True,
+01977:             init_settings_hook=self._configure_webview2_core,
+01978:             parent=None,
+01979:         )
+01980: 
+01981:         self._page_adapter=_WebView2PageAdapter(self)
+01982:         self.setAcceptDrops(True)
+01983: 
+01921:         self.owner=owner
+01922: 
+01923:     def httpUserAgent(self):
+01924:         return "Microsoft Edge WebView2 (Evergreen)"
+01925: 
+01926:     def clearHttpCache(self):
+01927:         # Não apagamos cookies/sessão. O método de recuperação antigo não fica
+01928:         # ativo em segundo plano; este no-op preserva a conta do WhatsApp.
+01929:         return None
+01930: 
+01931: 
+01932: class _WebView2PageAdapter:
+01933:     """Faz o código existente de WA-JS continuar usando page().runJavaScript."""
+01934:     def __init__(self, owner):
+01935:         self.owner=owner
+01936:         self._profile=_WebView2ProfileAdapter(owner)
+01937: 
+01938:     def profile(self):
+01939:         return self._profile
+01940: 
+01941:     def runJavaScript(self, script, callback=None):
+01942:         return self.owner._run_javascript_compat(script,callback)
+01943: 
+01944: 
+01945: class WhatsAppView(QtWebView2Widget):
+01946:     """
+01947:     WhatsApp via Microsoft Edge WebView2.
+01948: 
+01949:     Vídeos, chamadas e codecs são responsabilidade do Edge, como no teste
+01950:     aprovado. O restante do ALIYVO continua usando a API compatível
+01951:     page().runJavaScript para WA-JS e automações existentes.
+01952:     """
+01953:     loadFinished=pyqtSignal(bool)
+01954:     loadStarted=pyqtSignal()
+01955:     _download_done=pyqtSignal(str,bool,bool)
+01956: 
+01957:     def __init__(self):
+01958:         self.media_download_callback=None
+01959:         self.audio_download_callback=None
+01960:         self.audio_download_pending=False
+01961:         self._download_handlers=[]
+01962:         self._current_url="https://web.whatsapp.com/"
+01963: 
+01964:         # O WebView2 usa o Edge Evergreen do Windows, sem UA falso.
+01965:         super().__init__(
+01966:             url=self._current_url,
+01967:             user_agent=None,
+01968:             debug=False,
+01969:             context_menus=False,
+01970:             transparent=False,
+01971:             background_color="#071A2B",
+01972:             handle_new_window=True,
+01973:             lazyload=False,
+01974:             user_data_folder=str(WEBVIEW2_PROFILE_DIR),
+01975:             no_local_storage=False,
+01976:             fullscreen_support=True,
+01977:             init_settings_hook=self._configure_webview2_core,
+01978:             parent=None,
+01979:         )
+01980: 
+01981:         self._page_adapter=_WebView2PageAdapter(self)
+01982:         self.setAcceptDrops(True)
+01983: 
+01984:         self._download_done.connect(self._on_webview2_download_done)
+01985: 
+01986:         # O QtWebView2 0.5 fornece DOMContentLoaded e initialization_done.
+01987:         try:
+01988:             self.bridge.domContentLoaded.connect(self._on_dom_loaded)
+01989:         except Exception:
+01990:             pass
+01991: 
+01931: 
+01932: class _WebView2PageAdapter:
+01933:     """Faz o código existente de WA-JS continuar usando page().runJavaScript."""
+01934:     def __init__(self, owner):
+01935:         self.owner=owner
+01936:         self._profile=_WebView2ProfileAdapter(owner)
+01937: 
+01938:     def profile(self):
+01939:         return self._profile
+01940: 
+01941:     def runJavaScript(self, script, callback=None):
+01942:         return self.owner._run_javascript_compat(script,callback)
+01943: 
+01944: 
+01945: class WhatsAppView(QtWebView2Widget):
+01946:     """
+01947:     WhatsApp via Microsoft Edge WebView2.
+01948: 
+01949:     Vídeos, chamadas e codecs são responsabilidade do Edge, como no teste
+01950:     aprovado. O restante do ALIYVO continua usando a API compatível
+01951:     page().runJavaScript para WA-JS e automações existentes.
+01952:     """
+01953:     loadFinished=pyqtSignal(bool)
+01954:     loadStarted=pyqtSignal()
+01955:     _download_done=pyqtSignal(str,bool,bool)
+01956: 
+01957:     def __init__(self):
+01958:         self.media_download_callback=None
+01959:         self.audio_download_callback=None
+01960:         self.audio_download_pending=False
+01961:         self._download_handlers=[]
+01962:         self._current_url="https://web.whatsapp.com/"
+01963: 
+01964:         # O WebView2 usa o Edge Evergreen do Windows, sem UA falso.
+01965:         super().__init__(
+01966:             url=self._current_url,
+01967:             user_agent=None,
+01968:             debug=False,
+01969:             context_menus=False,
+01970:             transparent=False,
+01971:             background_color="#071A2B",
+01972:             handle_new_window=True,
+01973:             lazyload=False,
+01974:             user_data_folder=str(WEBVIEW2_PROFILE_DIR),
+01975:             no_local_storage=False,
+01976:             fullscreen_support=True,
+01977:             init_settings_hook=self._configure_webview2_core,
+01978:             parent=None,
+01979:         )
+01980: 
+01981:         self._page_adapter=_WebView2PageAdapter(self)
+01982:         self.setAcceptDrops(True)
+01983: 
+01984:         self._download_done.connect(self._on_webview2_download_done)
+01985: 
+01986:         # O QtWebView2 0.5 fornece DOMContentLoaded e initialization_done.
+01987:         try:
+01988:             self.bridge.domContentLoaded.connect(self._on_dom_loaded)
+01989:         except Exception:
+01990:             pass
+01991: 
+01992:         try:
+01993:             self.bridge.initialization_done.connect(self._on_wv2_initialized)
+01994:         except Exception:
+01995:             pass
+01996: 
+01997:     # --------------------------------------------------------
+01998:     # Core WebView2: downloads + permissions
+01999:     # --------------------------------------------------------
+02000:     def _configure_webview2_core(self,core):
+02001:         self._core_webview2=core
+02188:             super().reload()
+02189:         except Exception:
+02190:             try:
+02191:                 self.load_url(self._current_url)
+02192:             except Exception:
+02193:                 pass
+02194: 
+02195:     def _on_wv2_initialized(self,*args):
+02196:         try:
+02197:             if args and args[0] is False:
+02198:                 self.loadFinished.emit(False)
+02199:         except Exception:
+02200:             pass
+02201: 
+02202:     def _on_dom_loaded(self):
+02203:         self.current_url()
+02204:         self.loadFinished.emit(True)
+02205: 
+02206:     def _run_javascript_compat(self,script,callback=None):
+02207:         """
+02208:         QWebEngine.runJavaScript accepts an expression and returns its raw result.
+02209:         QtWebView2.evaluate_js executes a function body and returns
+02210:         {'success':..., 'result':...}. This adapter translates both semantics.
+02211:         """
+02212:         code=str(script or "")
+02213:         stripped=code.strip()
+02214: 
+02215:         # IIFEs / Boolean(...) / simple expressions need an explicit return
+02216:         # inside qtwebview2's async wrapper.
+02217:         expression_prefixes=(
+02218:             "(",
+02219:             "Boolean(",
+02220:             "!!",
+02221:             "typeof ",
+02222:             "window.",
+02223:             "document.",
+02224:             "[",
+02225:         )
+02226: 
+02227:         if callback is not None and stripped.startswith(expression_prefixes):
+02228:             expr=stripped
+02229:             while expr.endswith(";"):
+02230:                 expr=expr[:-1].rstrip()
+02231:             code="return ("+expr+");"
+02232: 
+02233:         def finished(payload):
+02234:             if callback is None:
+02235:                 return
+02236:             try:
+02237:                 if isinstance(payload,dict) and payload.get("success"):
+02238:                     callback(payload.get("result"))
+02239:                 else:
+02240:                     callback(None)
+02241:             except Exception:
+02242:                 try:
+02243:                     callback(None)
+02244:                 except Exception:
+02245:                     pass
+02246: 
+02247:         try:
+02248:             if callback is None:
+02249:                 self.evaluate_js(code)
+02250:             else:
+02251:                 self.evaluate_js(code,finished)
+02252:         except Exception:
+02253:             if callback:
+02254:                 try:
+02255:                     callback(None)
+02256:                 except Exception:
+02257:                     pass
+02258: 
+02424:     def _paste_dropped_image(self):
+02425:         js=r"""
+02426:         (() => {
+02427:           try{
+02428:             const main=document.querySelector("#main");
+02429:             if(!main) return false;
+02430:             const footer=main.querySelector("footer") || main;
+02431:             const editor=
+02432:               footer.querySelector("[contenteditable='true'][role='textbox']") ||
+02433:               footer.querySelector("[contenteditable='true']");
+02434:             if(editor){
+02435:               editor.focus();
+02436:               return true;
+02437:             }
+02438:             return false;
+02439:           }catch(e){
+02440:             return false;
+02441:           }
+02442:         })();
+02443:         """
+02444:         self.page().runJavaScript(
+02445:             js,
+02446:             lambda ok:QTimer.singleShot(100,self._send_ctrl_v_to_web)
+02447:         )
+02448: 
+02449:     def _send_ctrl_v_to_web(self):
+02450:         try:
+02451:             self.setFocus()
+02452:             user32=__import__("ctypes").windll.user32
+02453:             user32.keybd_event(0x11,0,0,0)       # CTRL down
+02454:             user32.keybd_event(0x56,0,0,0)       # V down
+02455:             user32.keybd_event(0x56,0,0x0002,0)  # V up
+02456:             user32.keybd_event(0x11,0,0x0002,0)  # CTRL up
+02457:         except Exception:
+02458:             pass
+02459: 
+02460: 
+02461: class ALIYVOPanel(QWidget):
+02462:     def __init__(self):
+02463:         super().__init__()
+02464:         self.last_results = []
+02465:         self.build()
+02466: 
+02467:     def db(self):
+02468:         return sqlite3.connect(DB_PATH)
+02469: 
+02470:     def build(self):
+02471:         root = QVBoxLayout(self)
+02472:         title = QLabel("ALIYVO — Assistente Comercial")
+02473:         title.setStyleSheet("font-size:18px;font-weight:700;")
+02474:         root.addWidget(title)
+02475: 
+02476:         count = 0
+02477:         try:
+02478:             con=self.db()
+02479:             count=con.execute("SELECT COUNT(*) FROM produtos").fetchone()[0]
+02480:             con.close()
+02481:         except:
+02482:             pass
+02483:         self.status = QLabel(f"Base local: {count:,} produtos".replace(",", "."))
+02484:         root.addWidget(self.status)
+02485: 
+02486:         tabs = QTabWidget()
+02487:         root.addWidget(tabs, 1)
+02488: 
+02489:         # TAB 1 - Analisar
+02490:         tab1 = QWidget()
+02491:         l1 = QVBoxLayout(tab1)
+02492: 
+02493:         l1.addWidget(QLabel("Cole aqui a mensagem, transcrição do áudio ou lista recebida:"))
+02494:         self.msg = QTextEdit()
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02803:             }
+02804: 
+02805:             return {ok:true,chats:chats};
+02806:           } catch(e){
+02807:             return {ok:false,error:String(e)};
+02808:           }
+02809:         })();
+02810:         """
+02811:         self.window().web.page().runJavaScript(js, callback)
+02812: 
+02813:     def choose_whatsapp_contacts(self):
+02814:         self._extract_visible_whatsapp_chats(self._show_whatsapp_contact_picker)
+02815: 
+02816:     def _show_whatsapp_contact_picker(self, result):
+02817:         if not result or not result.get("ok"):
+02818:             QMessageBox.warning(
+02819:                 self,
+02820:                 "WhatsApp",
+02821:                 (result or {}).get("error","Não consegui ler as conversas visíveis.")
+02822:             )
+02823:             return
+02824: 
+02825:         chats=result.get("chats") or []
+02826:         if not chats:
+02827:             QMessageBox.information(
+02828:                 self,
+02829:                 "WhatsApp",
+02830:                 "Nenhuma conversa visível foi encontrada."
+02831:             )
+02832:             return
+02833: 
+02834:         dlg=QDialog(self)
+02835:         dlg.setWindowTitle("Escolher clientes do WhatsApp")
+02836:         dlg.resize(600,680)
+02837:         lay=QVBoxLayout(dlg)
+02838: 
+02839:         info=QLabel(
+02840:             "Marque os clientes para salvar na lista de campanhas.\n"
+02841:             "O ALIYVO agora tenta descobrir o telefone pelos identificadores internos do WhatsApp."
+02842:         )
+02843:         info.setWordWrap(True)
+02844:         lay.addWidget(info)
+02845: 
+02846:         search=QLineEdit()
+02847:         search.setPlaceholderText("Filtrar...")
+02848:         lay.addWidget(search)
+02849: 
+02850:         lst=QListWidget()
+02851:         for chat in chats:
+02852:             name=chat.get("name","")
+02853:             phone=chat.get("phone","")
+02854:             label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+02855:             item=QListWidgetItem(label)
+02856:             item.setData(Qt.ItemDataRole.UserRole, chat)
+02857:             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+02858:             item.setCheckState(Qt.CheckState.Unchecked)
+02859:             lst.addItem(item)
+02860:         lay.addWidget(lst,1)
+02861: 
+02989:               for(const a of attrs){
+02990:                 const v=el.getAttribute && el.getAttribute(a);
+02991:                 phone=scanValue(v);
+02992:                 if(phone) break;
+02993:               }
+02994:               if(phone) break;
+02995:             }
+02996: 
+02997:             if(!phone){
+02998:               const text=(main.innerText||main.textContent||"");
+02999:               const m=text.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+03000:               if(m) phone=m[0].replace(/\D/g,"");
+03001:             }
+03002: 
+03003:             return {ok:true,name:name,phone:phone};
+03004:           } catch(e){
+03005:             return {ok:false,error:String(e)};
+03006:           }
+03007:         })();
+03008:         """
+03009:         self.window().web.page().runJavaScript(js,self._save_current_chat_contact)
+03010: 
+03011:     def _save_current_chat_contact(self,result):
+03012:         if not result or not result.get("ok"):
+03013:             QMessageBox.warning(
+03014:                 self,"WhatsApp",
+03015:                 (result or {}).get("error","Não consegui ler a conversa atual.")
+03016:             )
+03017:             return
+03018: 
+03019:         name=(result.get("name") or "").strip()
+03020:         phone=re.sub(r"\D","",(result.get("phone") or "").strip())
+03021: 
+03022:         if not name:
+03023:             QMessageBox.warning(self,"WhatsApp","Não consegui identificar o nome da conversa.")
+03024:             return
+03025: 
+03026:         group=self.camp_group.text().strip() if hasattr(self,"camp_group") else ""
+03027: 
+03028:         con=self.db()
+03029:         cur=con.cursor()
+03030: 
+03031:         if phone:
+03032:             # atualiza eventual placeholder pelo nome
+03033:             cur.execute("""
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03059: 
+03187:         if not hasattr(self,"_campaign"):
+03188:             return
+03189:         camp=self._campaign
+03190:         if camp["index"]>=len(camp["queue"]):
+03191:             if hasattr(self,"campaign_timer"):
+03192:                 self.campaign_timer.stop()
+03193:             self.start_campaign_btn.setEnabled(True)
+03194:             self.stop_campaign_btn.setEnabled(False)
+03195:             self.campaign_progress.setText("Concluída")
+03196:             return
+03197: 
+03198:         cid,nome,tel=camp["queue"][camp["index"]]
+03199:         import urllib.parse
+03200:         text=camp["message"].replace("{nome}",nome)
+03201:         url="https://web.whatsapp.com/send?phone="+urllib.parse.quote(tel)+"&text="+urllib.parse.quote(text)
+03202:         self.window().web.setUrl(QUrl(url))
+03203:         QTimer.singleShot(7000,lambda cid=cid:self.finish_campaign_send(cid))
+03204: 
+03205:     def finish_campaign_send(self,cid):
+03206:         js=r"""(()=>{const b=document.querySelector("button[aria-label*='Send' i]")||document.querySelector("span[data-icon='send']")?.closest("button");if(!b)return {ok:false};b.click();return {ok:true};})()"""
+03207:         self.window().web.page().runJavaScript(
+03208:             js,
+03209:             lambda result:self.after_campaign_text_send(cid,result)
+03210:         )
+03211: 
+03212:     def after_campaign_text_send(self,cid,result):
+03213:         from datetime import datetime
+03214:         ok=bool(result and result.get("ok"))
+03215:         con=self.db()
+03216:         con.execute("""UPDATE campanha_fila
+03217:                        SET status=?,enviado_em=?
+03218:                        WHERE campanha_id=? AND contato_id=?""",(
+03219:             "Enviado" if ok else "Erro",
+03220:             datetime.now().isoformat(timespec="seconds") if ok else None,
+03221:             self._campaign["id"],cid
+03222:         ))
+03223:         con.commit(); con.close()
+03224:         self._campaign["index"]+=1
+03225:         self.campaign_progress.setText(
+03226:             f"{self._campaign['index']}/{len(self._campaign['queue'])} processados"
+03227:         )
+03228: 
+03229: 
+03230:     def refresh_quick_messages(self):
+03231:         if not hasattr(self,"quick_combo"):
+03232:             return
+03233:         self.quick_combo.clear()
+03234:         con=self.db()
+03235:         rows=con.execute("""
+03236:             SELECT id,titulo,texto FROM mensagens_prontas
+03237:             WHERE ativo=1 ORDER BY id
+03238:         """).fetchall()
+03239:         con.close()
+03240:         for mid,titulo,texto in rows:
+03241:             self.quick_combo.addItem(titulo, {"id":mid,"texto":texto})
+03242: 
+03243:     def use_quick_message(self):
+03244:         data=self.quick_combo.currentData()
+03245:         if not data:
+03246:             return
+03247:         text=data.get("texto","")
+03248:         self.reply.setPlainText(text)
+03249:         self.push_reply_to_whatsapp_input(silent=True)
+03250: 
+03251:     def save_current_reply_as_quick(self):
+03252:         text=self.reply.toPlainText().strip()
+03253:         if not text:
+03254:             QMessageBox.warning(self,"Mensagem pronta","Não há texto para salvar.")
+03255:             return
+03256: 
+03257:         dlg=QDialog(self)
+03340:             }
+03341: 
+03342:             editor.focus();
+03343:             document.execCommand("insertText", false, text);
+03344: 
+03345:             editor.dispatchEvent(new InputEvent("input",{
+03346:               bubbles:true,
+03347:               inputType:"insertText",
+03348:               data:text
+03349:             }));
+03350: 
+03351:             return {ok:true};
+03352:           } catch(e){
+03353:             return {ok:false,error:String(e)};
+03354:           }
+03355:         })(%TEXT%);
+03356:         """.replace("%TEXT%", PAYLOAD)
+03357: 
+03358:         js=js.replace("PAYLOAD", payload)
+03359: 
+03360:         self.window().web.page().runJavaScript(
+03361:             js,
+03362:             lambda result:self._after_push_reply(result,silent)
+03363:         )
+03364: 
+03365:     def _after_push_reply(self,result,silent):
+03366:         ok=bool(result and result.get("ok"))
+03367:         if ok:
+03368:             self.status.setText("Resposta colocada no campo do WhatsApp. Só falta você enviar.")
+03369:         elif not silent:
+03370:             QMessageBox.warning(
+03371:                 self,
+03372:                 "WhatsApp",
+03373:                 (result or {}).get("error","Não consegui preencher o campo de mensagem.")
+03374:             )
+03375: 
+03376: 
+03377:     def _parse_brl_value(self, raw):
+03378:         s=(raw or "").strip()
+03379:         if not s:
+03380:             return None
+03381:         s=s.replace("R$","").replace(" ","")
+03382:         # padrão brasileiro: 1.850,00
+03383:         if "," in s:
+03384:             s=s.replace(".","").replace(",",".")
+03385:         else:
+03386:             # 1850.00 ou 1850
+03387:             pass
+03388:         try:
+03389:             return float(s)
+03390:         except:
+03391:             return None
+03392: 
+03393:     def generate_payment_terms(self):
+03394:         value=self._parse_brl_value(self.order_total.text())
+03395:         if value is None or value < 0:
+03396:             QMessageBox.warning(
+03397:                 self,
+03398:                 "Prazo",
+03399:                 "Informe o valor total do orçamento. Ex.: 1850,00"
+03400:             )
+03401:             return
+03402: 
+03403:         con=self.db()
+03404:         row=con.execute("""
+03405:             SELECT minimo,medio,opcoes
+03406:             FROM tabela_prazos
+03407:             WHERE minimo<=?
+03408:             ORDER BY minimo DESC
+03409:             LIMIT 1
+03410:         """,(value,)).fetchone()
+05051:         self.refresh_btn.clicked.connect(self.browser.reload)
+05052:         self.external_btn.clicked.connect(self._open_external)
+05053: 
+05054:     def _force_browser_focus(self):
+05055:         try:
+05056:             self.browser.activateWindow()
+05057:         except Exception:
+05058:             pass
+05059:         try:
+05060:             self.browser.setFocus(Qt.FocusReason.MouseFocusReason)
+05061:         except Exception:
+05062:             try: self.browser.setFocus()
+05063:             except Exception: pass
+05064:         try:
+05065:             fp=self.browser.focusProxy()
+05066:             if fp is not None:
+05067:                 fp.setFocus(Qt.FocusReason.MouseFocusReason)
+05068:         except Exception:
+05069:             pass
+05070:         try:
+05071:             self.browser.page().runJavaScript(
+05072:                 "try{window.focus();if(document.activeElement)document.activeElement.focus();}catch(e){}"
+05073:             )
+05074:         except Exception:
+05075:             pass
+05076: 
+05077:     def eventFilter(self,obj,event):
+05078:         try:
+05079:             et=event.type()
+05080:             if obj is self.browser or obj is self.browser.focusProxy():
+05081:                 if et in (QEvent.Type.MouseButtonPress, QEvent.Type.FocusIn):
+05082:                     QTimer.singleShot(0,self._force_browser_focus)
+05083:         except Exception:
+05084:             pass
+05085:         return super().eventFilter(obj,event)
+05086: 
+05087:     def _aliyvo_set_drop_status(self,message,error=False):
+05088:         try:
+05089:             self._aliyvo_drop_status.setText(str(message or ""))
+05090:             if error:
+05091:                 self._aliyvo_drop_status.setStyleSheet("color:#991B1B;font-size:10px;font-weight:700;padding:4px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:5px;")
+05092:             else:
+05093:                 self._aliyvo_drop_status.setStyleSheet("color:#0F766E;font-size:10px;font-weight:700;padding:4px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;")
+05094:         except Exception:
+05095:             pass
+05096: 
+05097:     def _aliyvo_temp_image_path(self,ext="png"):
+05098:         import tempfile,time
+05099:         folder=Path(tempfile.gettempdir())/"ALIYVO"/"pedido_foto"
+05100:         folder.mkdir(parents=True,exist_ok=True)
+05101:         ext=re.sub(r"[^a-zA-Z0-9]","",str(ext or "png").lower()) or "png"
+05102:         return folder/("pedido_"+str(int(time.time()*1000))+"."+ext)
+05103: 
+05104:     def _aliyvo_save_bytes(self,data,name_hint=""):
+05105:         try:
+05106:             raw=bytes(data)
+05107:             if not raw or len(raw)<32:
+05108:                 return ""
+05109:             ext=""
+05110:             if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+05111:                 ext="png"
+05112:             elif raw[:3]==b"\xff\xd8\xff":
+05113:                 ext="jpg"
+05114:             elif raw[:4]==b"RIFF" and b"WEBP" in raw[:16]:
+05115:                 ext="webp"
+05116:             elif raw[:6] in (b"GIF87a",b"GIF89a"):
+05117:                 ext="gif"
+05118:             elif raw[:2]==b"BM":
+05119:                 ext="bmp"
+05120: 
+05121:             # Alguns FileContents do Chromium chegam sem um header que reconhecemos
+05335:         try:
+05336:             page=getattr(self,"_aliyvo_upload_page",None)
+05337:             if page is None or not hasattr(page,"set_pending_upload"):
+05338:                 self._aliyvo_set_drop_status("⚠ Navegador interno sem suporte ao upload automático.",True); return
+05339:             page.set_pending_upload(path)
+05340:             js=r'''(() => {
+05341:               const inputs=[...document.querySelectorAll('input[type="file"]')];
+05342:               if(!inputs.length) return {ok:false,reason:'file_input_not_found'};
+05343:               const f=inputs[0];
+05344:               try{f.scrollIntoView({block:'center'});}catch(e){}
+05345:               f.click();
+05346:               return {ok:true};
+05347:             })()'''
+05348:             def after(res):
+05349:                 ok=False
+05350:                 try: ok=isinstance(res,dict) and bool(res.get("ok"))
+05351:                 except Exception: pass
+05352:                 if not ok:
+05353:                     self._aliyvo_set_drop_status("⚠ Não encontrei o campo de arquivo do site. Recarregue e tente novamente.",True); return
+05354:                 QTimer.singleShot(1200,self._aliyvo_submit_photo_request)
+05355:             self.browser.page().runJavaScript(js,after)
+05356:         except Exception as e:
+05357:             self._aliyvo_set_drop_status("⚠ Falha ao entregar a foto ao site: "+str(e)[:140],True)
+05358: 
+05359:     def _aliyvo_submit_photo_request(self):
+05360:         try:
+05361:             js=r'''(() => {
+05362:               const all=[...document.querySelectorAll('button,input[type="submit"],a')];
+05363:               const norm=s=>(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+05364:               let b=all.find(x=>norm(x.innerText||x.textContent||x.value).includes('enviar e ler pedido'));
+05365:               if(!b) b=all.find(x=>norm(x.innerText||x.textContent||x.value).includes('ler pedido'));
+05366:               if(!b) return {ok:false};
+05367:               b.click(); return {ok:true};
+05368:             })()'''
+05369:             def done(res):
+05370:                 try:
+05371:                     if isinstance(res,dict) and res.get("ok"):
+05372:                         self._aliyvo_set_drop_status("✅ Foto enviada. Aguardando a leitura do pedido...")
+05373:                     else:
+05374:                         self._aliyvo_set_drop_status("✅ Foto colocada no site. Clique em ENVIAR E LER PEDIDO.")
+05375:                 except Exception: pass
+05376:             self.browser.page().runJavaScript(js,done)
+05377:         except Exception:
+05378:             self._aliyvo_set_drop_status("✅ Foto colocada no site. Clique em ENVIAR E LER PEDIDO.")
+05379: 
+05380:     def _open_external(self):
+05381:         try:
+05382:             QDesktopServices.openUrl(QUrl(self.URL))
+05383:         except Exception:
+05384:             pass
+05385: 
+05386:     # Compatibilidade: se algum trecho antigo ainda chamar estes metodos,
+05387:     # o painel permanece estável e não dispara leitura do WhatsApp.
+05388:     def set_loading(self):
+05389:         pass
+05390:     def render_error(self,message):
+05391:         pass
+05392:     def render_payload(self,data):
+05393:         pass
+05394: 
+05395: class TechnicalAssistPanel(QWidget):
+05396:     def __init__(self, parent=None):
+05397:         super().__init__(parent)
+05398:         self.expanded=False
+05399:         self.on_analyze=None
+05400:         self.setObjectName("technicalAssistPanel")
+05401:         self.setStyleSheet("""
+05402:             QWidget#technicalAssistPanel{background:#F8FAFC;color:#0F172A;}
+05403:             QWidget#technicalAssistPanel QLabel{color:#0F172A;background:transparent;}
+05404:             QWidget#technicalAssistPanel QPushButton{
+05405:                 background:#0A2236;color:#F4FAF8;border:1px solid #173B52;
+05356:         except Exception as e:
+05357:             self._aliyvo_set_drop_status("⚠ Falha ao entregar a foto ao site: "+str(e)[:140],True)
+05358: 
+05359:     def _aliyvo_submit_photo_request(self):
+05360:         try:
+05361:             js=r'''(() => {
+05362:               const all=[...document.querySelectorAll('button,input[type="submit"],a')];
+05363:               const norm=s=>(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+05364:               let b=all.find(x=>norm(x.innerText||x.textContent||x.value).includes('enviar e ler pedido'));
+05365:               if(!b) b=all.find(x=>norm(x.innerText||x.textContent||x.value).includes('ler pedido'));
+05366:               if(!b) return {ok:false};
+05367:               b.click(); return {ok:true};
+05368:             })()'''
+05369:             def done(res):
+05370:                 try:
+05371:                     if isinstance(res,dict) and res.get("ok"):
+05372:                         self._aliyvo_set_drop_status("✅ Foto enviada. Aguardando a leitura do pedido...")
+05373:                     else:
+05374:                         self._aliyvo_set_drop_status("✅ Foto colocada no site. Clique em ENVIAR E LER PEDIDO.")
+05375:                 except Exception: pass
+05376:             self.browser.page().runJavaScript(js,done)
+05377:         except Exception:
+05378:             self._aliyvo_set_drop_status("✅ Foto colocada no site. Clique em ENVIAR E LER PEDIDO.")
+05379: 
+05380:     def _open_external(self):
+05381:         try:
+05382:             QDesktopServices.openUrl(QUrl(self.URL))
+05383:         except Exception:
+05384:             pass
+05385: 
+05386:     # Compatibilidade: se algum trecho antigo ainda chamar estes metodos,
+05387:     # o painel permanece estável e não dispara leitura do WhatsApp.
+05388:     def set_loading(self):
+05389:         pass
+05390:     def render_error(self,message):
+05391:         pass
+05392:     def render_payload(self,data):
+05393:         pass
+05394: 
+05395: class TechnicalAssistPanel(QWidget):
+05396:     def __init__(self, parent=None):
+05397:         super().__init__(parent)
+05398:         self.expanded=False
+05399:         self.on_analyze=None
+05400:         self.setObjectName("technicalAssistPanel")
+05401:         self.setStyleSheet("""
+05402:             QWidget#technicalAssistPanel{background:#F8FAFC;color:#0F172A;}
+05403:             QWidget#technicalAssistPanel QLabel{color:#0F172A;background:transparent;}
+05404:             QWidget#technicalAssistPanel QPushButton{
+05405:                 background:#0A2236;color:#F4FAF8;border:1px solid #173B52;
+05406:                 border-radius:6px;padding:8px;font-weight:700;
+05407:             }
+05408:             QWidget#technicalAssistPanel QPushButton:hover{border-color:#20E983;background:#0D303B;}
+05409:             QWidget#technicalAssistPanel QTextEdit{
+05410:                 background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;
+05411:                 border-radius:6px;font-size:11px;padding:5px;
+05412:             }
+05413:         """)
+05414:         lay=QVBoxLayout(self)
+05415:         lay.setContentsMargins(8,8,8,8)
+05416:         lay.setSpacing(7)
+05417: 
+05418:         head=QHBoxLayout()
+05419:         title=QLabel("⚡ Assistente Técnico")
+05420:         title.setStyleSheet("font-size:15px;font-weight:800;color:#073B4C;")
+05421:         head.addWidget(title)
+05422:         head.addStretch(1)
+05423:         self.expand_btn=QPushButton("⛶")
+05424:         self.expand_btn.setFixedWidth(34)
+05425:         self.close_btn=QPushButton("◀")
+05426:         self.close_btn.setFixedWidth(34)
+06842:                 }
+06843:               }
+06844:               for(const u of (out.unread||[])){
+06845:                 const d=details[u.name]||{};
+06846:                 Object.assign(u,d);
+06847:               }
+06848:               out.unread_total=Math.max(totalUnread,(out.unread||[]).length);
+06849:               out.unread_visible=(out.unread||[]).length;
+06850:               out.unread_messages_visible=(out.unread||[]).reduce((a,u)=>a+Math.max(1,parseInt(u.unread_count||1,10)||1),0);
+06851:             }catch(_overviewErr){}
+06852:             return out;
+06853:           }catch(e){return {ok:false,error:String(e)};}
+06854:         })();
+06855:         """
+06856: 
+06857:     def _attendance_scan(self,force=False):
+06858:         if not self._attendance_enabled(): return
+06859:         if getattr(self,"_attendance_scan_busy",False) and not force: return
+06860:         try:
+06861:             self._attendance_scan_busy=True
+06862:             self.web.page().runJavaScript(self._attendance_extract_js(),self._attendance_scan_done)
+06863:         except Exception:
+06864:             self._attendance_scan_busy=False
+06865: 
+06866:     def _attendance_scan_done(self,result):
+06867:         self._attendance_scan_busy=False
+06868:         if not isinstance(result,dict) or not result.get("ok"):
+06869:             return
+06870:         import time,re as _re
+06871:         now=time.time()
+06872:         items=self._attendance_data.setdefault("items",{})
+06873: 
+06874:         # O selo de não lido é um sinal adicional, nunca o único critério da fila.
+06875:         for _info in items.values():
+06876:             if isinstance(_info,dict):
+06877:                 _info["unread"]=False
+06878: 
+06879:         active=result.get("active") or {}
+06880:         name=str(active.get("name") or "").strip()
+06881:         context=active.get("context") or []
+06882:         if name:
+06883:             self._attendance_current_name=name
+06884:             info=items.get(name) if isinstance(items.get(name),dict) else {}
+06885:             last=context[-1] if context else {}
+06886:             side=str(last.get("side") or "")
+06887:             last_text=str(last.get("text") or "").strip()
+06888:             signature=(side+"|"+last_text)[-1500:]
+06889:             changed=bool(signature and signature!=str(info.get("last_signature") or ""))
+06890:             previous_status=str(info.get("status") or "")
+06891:             info["name"]=name
+06892:             info["last_seen"]=now
+06893:             info["context"]=context[-12:]
+06894: 
+06895:             customers=[str(x.get("text") or "").strip() for x in context if isinstance(x,dict) and x.get("side")=="customer" and str(x.get("text") or "").strip()]
+06896:             sellers=[str(x.get("text") or "").strip() for x in context if isinstance(x,dict) and x.get("side")=="seller" and str(x.get("text") or "").strip()]
+06897:             if customers: info["last_customer"]=customers[-1]
+06898:             if sellers: info["last_seller"]=sellers[-1]
+06899: 
+06900:             all_text="\n".join(str(x.get("text") or "") for x in context if isinstance(x,dict))
+06901:             try: info["plate"]=detect_plate(all_text)
+06902:             except Exception: info["plate"]=""
+06903:             try:
+06904:                 codes=[]
+06905:                 for c in extract_codes(all_text):
+06906:                     c=str(c)
+06907:                     if c not in codes: codes.append(c)
+06908:                 info["codes"]=codes[:12]
+06909:             except Exception:
+06910:                 pass
+06911: 
+06912:             # Perguntas do cliente depois da nossa ultima resposta ficam destacadas.
+07119:           }catch(e){return {ok:false,reason:'search_fill_failed'};}
+07120: 
+07121:           return new Promise(resolve=>{
+07122:             let n=0;
+07123:             const timer=setInterval(()=>{
+07124:               n++;
+07125:               if(clickMatch()){clearInterval(timer);resolve({ok:true,via:'search'});return;}
+07126:               if(n>=20){clearInterval(timer);resolve({ok:false,reason:'contact_not_found'});}
+07127:             },250);
+07128:           });
+07129:         })(__NAME__));
+07130:         """.replace('__NAME__',json.dumps(name,ensure_ascii=False))
+07131: 
+07132:         def done(result):
+07133:             ok=bool(result.get("ok")) if isinstance(result,dict) else bool(result)
+07134:             if ok:
+07135:                 QTimer.singleShot(650,lambda:self._attendance_scan(force=True))
+07136:             else:
+07137:                 reason=str((result or {}).get("reason") or "") if isinstance(result,dict) else ""
+07138:                 QMessageBox.information(self,"WhatsApp",f"Não consegui abrir a conversa de {name} automaticamente."+("\n\nMotivo técnico: "+reason if reason else ""))
+07139:         try:self.web.page().runJavaScript(js,done)
+07140:         except Exception:pass
+07141: 
+07142:     def _attendance_open_tool(self,tool):
+07143:         labels={"technical":"Busca Somaforce","lens":"Busca por imagem","audio":"Áudio","plate":"Placa/chassi"}
+07144:         name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07145:         if name:
+07146:             try:
+07147:                 import time
+07148:                 items=self._attendance_data.setdefault("items",{})
+07149:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+07150:                 info["last_tool"]=str(tool)
+07151:                 info["last_tool_label"]=labels.get(str(tool),str(tool))
+07152:                 info["tool_opened_at"]=time.time()
+07153:                 items[name]=info
+07154:                 self._attendance_save()
+07155:                 self.attendance_panel.refresh()
+07156:             except Exception:
+07157:                 pass
+07158:         self._open_quick_tool(tool)
+07159: 
+07160:     def _attendance_open_plate(self):
+07161:         try:
+07162:             name=str(getattr(self,"_attendance_current_name","") or "").strip()
+07163:             if name:
+07164:                 import time
+07165:                 items=self._attendance_data.setdefault("items",{})
+07166:                 info=items.get(name) if isinstance(items.get(name),dict) else {}
+07167:                 info["last_tool"]="plate"; info["last_tool_label"]="Placa/chassi"; info["tool_opened_at"]=time.time()
+07168:                 items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+07169:         except Exception:
+07170:             pass
+07171:         try:
+07172:             # O fluxo novo de placa instalado nas versoes recentes abre um dialogo proprio.
+07173:             _aliyvo_show_plate_dialog(self)
+07174:         except Exception:
+07175:             try:self._open_quick_tool("plate")
+07176:             except Exception:pass
+07177: 
+07178:     def _diagnostic_file(self):
+07179:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+07180:         except Exception: pass
+07181:         return USER_DATA_DIR/"diagnostico_eventos.jsonl"
+07182: 
+07183:     def _diagnostic_log(self,event,**payload):
+07184:         try:
+07185:             import time,datetime
+07186:             row={"ts":time.time(),"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":str(event)}
+07187:             for k,v in payload.items():
+07188:                 if v is not None: row[str(k)]=v
+07189:             with self._diagnostic_file().open("a",encoding="utf-8") as f:
+07260:         # Evita disputar CPU/DOM com a montagem inicial do WhatsApp.
+07261:         QTimer.singleShot(4000,self._diagnostic_scan)
+07262:         self._daily_summary_timer=QTimer(self); self._daily_summary_timer.setInterval(60000)
+07263:         self._daily_summary_timer.timeout.connect(self._diagnostic_daily_check); self._daily_summary_timer.start()
+07264:         QTimer.singleShot(5000,self._diagnostic_daily_check)
+07265:         self._diagnostic_backup_timer=QTimer(self); self._diagnostic_backup_timer.setInterval(600000)
+07266:         self._diagnostic_backup_timer.timeout.connect(self._diagnostic_daily_backup); self._diagnostic_backup_timer.start()
+07267:         QTimer.singleShot(7000,self._diagnostic_daily_backup)
+07268:         try:
+07269:             for attr,tool in (("plate_toggle","plate"),("lens_toggle","image")):
+07270:                 b=getattr(self,attr,None)
+07271:                 if b:b.clicked.connect(lambda _=False,t=tool:self._diagnostic_log("tool_opened",client=getattr(self,"_diagnostic_active_name","") or "",tool=t))
+07272:         except Exception: pass
+07273: 
+07274:     def _diagnostic_scan(self):
+07275:         if getattr(self,"_diagnostic_busy",False): return
+07276:         try:
+07277:             self._diagnostic_busy=True
+07278:             guard=getattr(self,"_diagnostic_guard_script","")
+07279:             if guard:
+07280:                 self.web.page().runJavaScript(guard,self._diagnostic_scan_guard_done)
+07281:             else:
+07282:                 self._diagnostic_scan_guard_done({})
+07283:         except Exception:
+07284:             self._diagnostic_busy=False
+07285: 
+07286:     def _diagnostic_scan_guard_done(self,result):
+07287:         try:
+07288:             # Prioridade absoluta para uso humano do WhatsApp.
+07289:             # Se o cursor esta no editor de mensagem, nao percorremos conversa/lista.
+07290:             if isinstance(result,dict) and (bool(result.get("typing")) or bool(result.get("hidden"))):
+07291:                 self._diagnostic_busy=False
+07292:                 return
+07293:             script=getattr(self,"_diagnostic_extract_script","") or self._attendance_extract_js()
+07294:             self.web.page().runJavaScript(script,self._diagnostic_scan_done)
+07295:         except Exception:
+07296:             self._diagnostic_busy=False
+07297: 
+07298:     def _work_schedule_text(self):
+07299:         return "Seg–Sex • 07:50–12:08 e 13:30–18:00"
+07300: 
+07301:     def _work_is_open(self,when=None):
+07302:         import datetime,time
+07303:         try:
+07304:             if when is None:dt=datetime.datetime.now()
+07305:             elif isinstance(when,datetime.datetime):dt=when
+07306:             else:dt=datetime.datetime.fromtimestamp(float(when))
+07307:         except Exception:return False
+07308:         if dt.weekday()>=5:return False
+07309:         mins=dt.hour*60+dt.minute+(dt.second/60.0)
+07310:         return (470<=mins<728) or (810<=mins<1080)
+07311: 
+07312:     def _work_seconds_between(self,start_ts,end_ts):
+07313:         import datetime
+07314:         try:
+07315:             start=float(start_ts or 0); end=float(end_ts or 0)
+07316:         except Exception:return 0
+07317:         if start<=0 or end<=start:return 0
+07318:         try:
+07319:             a=datetime.datetime.fromtimestamp(start); b=datetime.datetime.fromtimestamp(end)
+07320:         except Exception:return max(0,int(end-start))
+07321:         total=0.0
+07322:         day=a.date(); last=b.date()
+07323:         while day<=last:
+07324:             if day.weekday()<5:
+07325:                 for sh,sm,eh,em in ((7,50,12,8),(13,30,18,0)):
+07326:                     ws=datetime.datetime.combine(day,datetime.time(sh,sm))
+07327:                     we=datetime.datetime.combine(day,datetime.time(eh,em))
+07328:                     lo=max(a,ws); hi=min(b,we)
+07329:                     if hi>lo:total+=(hi-lo).total_seconds()
+07330:             day+=datetime.timedelta(days=1)
+07274:     def _diagnostic_scan(self):
+07275:         if getattr(self,"_diagnostic_busy",False): return
+07276:         try:
+07277:             self._diagnostic_busy=True
+07278:             guard=getattr(self,"_diagnostic_guard_script","")
+07279:             if guard:
+07280:                 self.web.page().runJavaScript(guard,self._diagnostic_scan_guard_done)
+07281:             else:
+07282:                 self._diagnostic_scan_guard_done({})
+07283:         except Exception:
+07284:             self._diagnostic_busy=False
+07285: 
+07286:     def _diagnostic_scan_guard_done(self,result):
+07287:         try:
+07288:             # Prioridade absoluta para uso humano do WhatsApp.
+07289:             # Se o cursor esta no editor de mensagem, nao percorremos conversa/lista.
+07290:             if isinstance(result,dict) and (bool(result.get("typing")) or bool(result.get("hidden"))):
+07291:                 self._diagnostic_busy=False
+07292:                 return
+07293:             script=getattr(self,"_diagnostic_extract_script","") or self._attendance_extract_js()
+07294:             self.web.page().runJavaScript(script,self._diagnostic_scan_done)
+07295:         except Exception:
+07296:             self._diagnostic_busy=False
+07297: 
+07298:     def _work_schedule_text(self):
+07299:         return "Seg–Sex • 07:50–12:08 e 13:30–18:00"
+07300: 
+07301:     def _work_is_open(self,when=None):
+07302:         import datetime,time
+07303:         try:
+07304:             if when is None:dt=datetime.datetime.now()
+07305:             elif isinstance(when,datetime.datetime):dt=when
+07306:             else:dt=datetime.datetime.fromtimestamp(float(when))
+07307:         except Exception:return False
+07308:         if dt.weekday()>=5:return False
+07309:         mins=dt.hour*60+dt.minute+(dt.second/60.0)
+07310:         return (470<=mins<728) or (810<=mins<1080)
+07311: 
+07312:     def _work_seconds_between(self,start_ts,end_ts):
+07313:         import datetime
+07314:         try:
+07315:             start=float(start_ts or 0); end=float(end_ts or 0)
+07316:         except Exception:return 0
+07317:         if start<=0 or end<=start:return 0
+07318:         try:
+07319:             a=datetime.datetime.fromtimestamp(start); b=datetime.datetime.fromtimestamp(end)
+07320:         except Exception:return max(0,int(end-start))
+07321:         total=0.0
+07322:         day=a.date(); last=b.date()
+07323:         while day<=last:
+07324:             if day.weekday()<5:
+07325:                 for sh,sm,eh,em in ((7,50,12,8),(13,30,18,0)):
+07326:                     ws=datetime.datetime.combine(day,datetime.time(sh,sm))
+07327:                     we=datetime.datetime.combine(day,datetime.time(eh,em))
+07328:                     lo=max(a,ws); hi=min(b,we)
+07329:                     if hi>lo:total+=(hi-lo).total_seconds()
+07330:             day+=datetime.timedelta(days=1)
+07331:         return max(0,int(total))
+07332: 
+07333:     def _work_next_open_text(self,when=None):
+07334:         import datetime
+07335:         try:
+07336:             dt=datetime.datetime.now() if when is None else (when if isinstance(when,datetime.datetime) else datetime.datetime.fromtimestamp(float(when)))
+07337:         except Exception:return ""
+07338:         if self._work_is_open(dt):return "em expediente"
+07339:         for add in range(0,8):
+07340:             d=dt.date()+datetime.timedelta(days=add)
+07341:             if d.weekday()>=5:continue
+07342:             morning=datetime.datetime.combine(d,datetime.time(7,50))
+07343:             afternoon=datetime.datetime.combine(d,datetime.time(13,30))
+07344:             if morning>dt:return morning.strftime("%d/%m %H:%M")
+10664:             if(!context.length){
+10665:               return {ok:false,error:'Não consegui localizar mensagens de texto nesta conversa.'};
+10666:             }
+10667: 
+10668:             const recent=context.slice(-20);
+10669:             return {
+10670:               ok:true,
+10671:               name:name||'Cliente',
+10672:               context:recent,
+10673:               messages:recent.map(x => (x.side==='seller'?'Você: ':'Cliente: ')+x.text),
+10674:               customer_messages:recent.filter(x=>x.side==='customer').map(x=>x.text),
+10675:               seller_messages:recent.filter(x=>x.side==='seller').map(x=>x.text),
+10676:               capture_mode:'both-sides-recent'
+10677:             };
+10678:           }catch(e){
+10679:             return {ok:false,error:String(e&&e.message||e)};
+10680:           }
+10681:         })()
+10682:         """
+10683:         try:
+10684:             self.web.page().runJavaScript(js,self._technical_receive_current)
+10685:         except Exception as e:
+10686:             self.technical_panel.render_error(str(e))
+10687: 
+10688:     def _technical_receive_current(self,result):
+10689:         try:
+10690:             self.technical_panel.render_payload(result)
+10691:         except Exception as e:
+10692:             try:self.technical_panel.render_error('Falha ao analisar: '+str(e))
+10693:             except Exception:pass
+10694: 
+10695:     def toggle_technical_expand(self):
+10696:         if not self.technical_panel.isVisible():
+10697:             self._open_quick_tool("technical")
+10698:             return
+10699:         self.technical_panel.expanded=not getattr(self.technical_panel,"expanded",False)
+10700:         self.technical_panel.expand_btn.setText("↩" if self.technical_panel.expanded else "⛶")
+10701:         self._position_quick_tool("technical")
+10702: 
+10703:     def _set_prazo_focus_guard(self,enabled=True,editor=None):
+10704:         enabled=bool(enabled)
+10705:         try:setattr(self.web,"_aliyvo_focus_blocked",enabled)
+10706:         except Exception:pass
+10707:         if enabled:
+10708:             try:self._release_whatsapp_focus()
+10709:             except Exception:pass
+10710:             target=editor
+10711:             if target is None:
+10712:                 try:target=self.prazo_panel.valor
+10713:                 except Exception:target=None
+10714:             if target is not None:
+10715:                 try:QTimer.singleShot(0,lambda t=target:self.prazo_panel._claim_editor_focus(t))
+10716:                 except Exception:pass
+10717: 
+10718:     def _release_whatsapp_focus(self):
+10719:         """
+10720:         WebView2 is a native HWND. Explicitly remove focus before the user
+10721:         interacts with a Qt tool so keyboard input cannot be swallowed by Edge.
+10722:         """
+10723:         try:
+10724:             self.web.clearFocus()
+10725:         except Exception:
+10726:             pass
+10727: 
+10728:         try:
+10729:             # Move Windows keyboard focus away from WebView2 native child.
+10730:             import ctypes
+10731:             hwnd=int(getattr(self.web,"_webview_hwnd",0) or 0)
+10732:             if hwnd:
+10733:                 parent=int(self.winId())
+10734:                 if parent:
+11630:                     )
+11631:                 else:
+11632:                     extra.append(
+11633:                         "ℹ️ WA-JS na página: adormecido (normal até usar Áudio/Disparo)"
+11634:                     )
+11635:                 problems2=list(problems)
+11636:                 if not result.get("app"):
+11637:                     problems2.append("Página do WhatsApp")
+11638: 
+11639:             report=static+"\\n"+"\n".join(extra)
+11640:             summary=(
+11641:                 "✅ Diagnóstico concluído: nenhum problema crítico detectado."
+11642:                 if not problems2 else
+11643:                 "⚠ Diagnóstico concluído: "+str(len(problems2))+
+11644:                 " item(ns) precisam de atenção."
+11645:             )
+11646:             self.diagnostic_panel.set_report(report,summary)
+11647:             self._write_diagnostic_report(report)
+11648: 
+11649:         try:
+11650:             self.web.page().runJavaScript(js,finished)
+11651:         except Exception as e:
+11652:             report=static+"\\n\\n❌ Falha ao consultar WhatsApp: "+str(e)
+11653:             self.diagnostic_panel.set_report(
+11654:                 report,
+11655:                 "⚠ Diagnóstico concluído com falha na consulta do WhatsApp."
+11656:             )
+11657:             self._write_diagnostic_report(report)
+11658: 
+11659: 
+11660:     def _reload_user_campaign_lists(self):
+11661:         try:
+11662:             self.campaign_panel.lists_file=CAMPAIGN_LISTS_FILE
+11663:             self.campaign_panel._load_saved_lists()
+11664:             self.campaign_panel.contacts=[]
+11665:             self.campaign_panel.selected_list_name=None
+11666:             self.campaign_panel._refresh_saved_combo()
+11667:             self.campaign_panel._refresh_current_list()
+11668:         except Exception:
+11669:             pass
+11670: 
+11671:     def backup_user_data(self):
+11672:         """
+11673:         Exporta apenas dados/configurações do usuário.
+11674:         Não inclui sessão/cookies do WhatsApp.
+11675:         """
+11676:         from datetime import datetime
+11677: 
+11678:         default_name=(
+11679:             "ALIYVO_BACKUP_"+
+11680:             datetime.now().strftime("%Y-%m-%d_%H-%M")+
+11681:             ".zip"
+11682:         )
+11683: 
+11684:         path,_=QFileDialog.getSaveFileName(
+11685:             self,
+11686:             "Backup dos meus dados",
+11687:             str(Path.home()/"Downloads"/default_name),
+11688:             "Backup ALIYVO (*.zip)"
+11689:         )
+11690:         if not path:
+11691:             return
+11692:         if not str(path).lower().endswith(".zip"):
+11693:             path=str(path)+".zip"
+11694: 
+11695:         try:
+11696:             USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+11697: 
+11698:             manifest={
+11699:                 "type":"ALIYVO_USER_BACKUP",
+11700:                 "format":1,
+12710:               if(window.__aliyvoThemeObserver){
+12711:                 window.__aliyvoThemeObserver.disconnect();
+12712:                 delete window.__aliyvoThemeObserver;
+12713:               }
+12714:             }catch(e){}
+12715: 
+12716:             return {
+12717:               ok:true,
+12718:               mode:"turbo-dark-completo-no-observer"
+12719:             };
+12720: 
+12721:           }catch(e){
+12722:             return {
+12723:               ok:false,
+12724:               error:String(e)
+12725:             };
+12726:           }
+12727:         })();
+12728:         """
+12729:         try:
+12730:             self.web.page().runJavaScript(js)
+12731:         except Exception:
+12732:             pass
+12733: 
+12734: 
+12735:     def _check_whatsapp_stuck(self):
+12736:         js = r"""
+12737:         (() => {
+12738:           try {
+12739:             const txt=(document.body && (document.body.innerText || document.body.textContent) || "").toLowerCase();
+12740:             const loading =
+12741:               txt.includes("carregando suas conversas") ||
+12742:               txt.includes("loading your chats") ||
+12743:               txt.includes("loading chats");
+12744:             const ready =
+12745:               !!document.querySelector("#pane-side") ||
+12746:               !!document.querySelector("[aria-label*='lista de conversas' i]") ||
+12747:               !!document.querySelector("[aria-label*='chat list' i]");
+12748:             const qr =
+12749:               !!document.querySelector("canvas") &&
+12750:               (txt.includes("escaneie") || txt.includes("scan"));
+12751:             return {loading,ready,qr};
+12752:           } catch(e) {
+12753:             return {loading:false,ready:false,qr:false,error:String(e)};
+12754:           }
+12755:         })();
+12756:         """
+12757:         try:
+12758:             self.web.page().runJavaScript(js, self._handle_whatsapp_health)
+12759:         except:
+12760:             pass
+12761: 
+12762:     def _handle_whatsapp_health(self, result):
+12763:         if not result:
+12764:             return
+12765: 
+12766:         if result.get("ready"):
+12767:             self._wa_ready_seen=True
+12768:             self._wa_recovery_attempts=0
+12769:             self.web_status.setText("WhatsApp carregado")
+12770:             return
+12771: 
+12772:         if result.get("qr"):
+12773:             self.web_status.setText("WhatsApp aguardando login")
+12774:             return
+12775: 
+12776:         if not result.get("loading"):
+12777:             return
+12778: 
+12779:         self._wa_recovery_attempts += 1
+12780: 
+12738:           try {
+12739:             const txt=(document.body && (document.body.innerText || document.body.textContent) || "").toLowerCase();
+12740:             const loading =
+12741:               txt.includes("carregando suas conversas") ||
+12742:               txt.includes("loading your chats") ||
+12743:               txt.includes("loading chats");
+12744:             const ready =
+12745:               !!document.querySelector("#pane-side") ||
+12746:               !!document.querySelector("[aria-label*='lista de conversas' i]") ||
+12747:               !!document.querySelector("[aria-label*='chat list' i]");
+12748:             const qr =
+12749:               !!document.querySelector("canvas") &&
+12750:               (txt.includes("escaneie") || txt.includes("scan"));
+12751:             return {loading,ready,qr};
+12752:           } catch(e) {
+12753:             return {loading:false,ready:false,qr:false,error:String(e)};
+12754:           }
+12755:         })();
+12756:         """
+12757:         try:
+12758:             self.web.page().runJavaScript(js, self._handle_whatsapp_health)
+12759:         except:
+12760:             pass
+12761: 
+12762:     def _handle_whatsapp_health(self, result):
+12763:         if not result:
+12764:             return
+12765: 
+12766:         if result.get("ready"):
+12767:             self._wa_ready_seen=True
+12768:             self._wa_recovery_attempts=0
+12769:             self.web_status.setText("WhatsApp carregado")
+12770:             return
+12771: 
+12772:         if result.get("qr"):
+12773:             self.web_status.setText("WhatsApp aguardando login")
+12774:             return
+12775: 
+12776:         if not result.get("loading"):
+12777:             return
+12778: 
+12779:         self._wa_recovery_attempts += 1
+12780: 
+12781:         if self._wa_recovery_attempts == 1:
+12782:             self.web_status.setText("WhatsApp sincronizando... tentando recarregar")
+12783:             try:
+12784:                 self.web.reload()
+12785:             except:
+12786:                 pass
+12787:             return
+12788: 
+12789:         if self._wa_recovery_attempts == 2:
+12790:             self.web_status.setText("WhatsApp preso na sincronização • limpando cache")
+12791:             try:
+12792:                 self.web.page().profile().clearHttpCache()
+12793:             except:
+12794:                 pass
+12795:             QTimer.singleShot(1200, self._reload_whatsapp_url)
+12796:             return
+12797: 
+12798:         if self._wa_recovery_attempts >= 3:
+12799:             self.web_status.setText("WhatsApp ainda sincronizando • reiniciando página")
+12800:             self._wa_recovery_attempts=0
+12801:             self._reload_whatsapp_url()
+12802: 
+12803:     def _reload_whatsapp_url(self):
+12804:         try:
+12805:             self.web.setUrl(QUrl("https://web.whatsapp.com/"))
+12806:         except:
+12807:             try:
+12808:                 self.web.reload()
+12844:             }
+12845: 
+12846:             const canvas=document.createElement("canvas");
+12847:             const scale=(target.nw && target.nh) ? 1 : 2.5;
+12848:             canvas.width=Math.max(1,Math.round((target.nw||target.w)*scale));
+12849:             canvas.height=Math.max(1,Math.round((target.nh||target.h)*scale));
+12850:             const ctx=canvas.getContext("2d");
+12851:             ctx.imageSmoothingEnabled=true;
+12852:             ctx.imageSmoothingQuality="high";
+12853:             ctx.drawImage(img,0,0,canvas.width,canvas.height);
+12854:             return {
+12855:               ok:true,data:canvas.toDataURL("image/png"),
+12856:               width:canvas.width,height:canvas.height,source:"canvas"
+12857:             };
+12858:           }catch(e){
+12859:             return {ok:false,error:String(e)};
+12860:           }
+12861:         })();
+12862:         """
+12863:         try:
+12864:             self.web.page().runJavaScript(js, self._save_captured_whatsapp_image)
+12865:         except Exception as e:
+12866:             self.copilot.analysis.setPlainText(
+12867:                 "Não consegui capturar a imagem aberta.\n\n"
+12868:                 f"Detalhe: {e}"
+12869:             )
+12870: 
+12871:     def _save_captured_whatsapp_image(self, result):
+12872:         if not result or not result.get("ok"):
+12873:             self.copilot.analysis.setPlainText(
+12874:                 "Não consegui capturar a foto aberta no WhatsApp.\n\n"
+12875:                 + (result or {}).get("error","Sem detalhe técnico.")
+12876:             )
+12877:             return
+12878: 
+12879:         data=result.get("data") or ""
+12880:         if "," not in data:
+12881:             self.copilot.analysis.setPlainText("A imagem foi localizada, mas o conteúdo não pôde ser convertido.")
+12882:             return
+12883: 
+12884:         try:
+12885:             header,b64=data.split(",",1)
+12886:             raw=base64.b64decode(b64)
+12887: 
+12888:             folder=USER_CACHE_DIR/"captured_images"
+12889:             folder.mkdir(exist_ok=True)
+12890: 
+12891:             from datetime import datetime
+12892:             name="whatsapp_"+datetime.now().strftime("%Y%m%d_%H%M%S")+".png"
+12893:             path=folder/name
+12894:             path.write_bytes(raw)
+12895: 
+12896:             self.web_status.setText(
+12897:                 f"Imagem capturada • {result.get('width','?')}x{result.get('height','?')} • {result.get('source','')}"
+12898:             )
+12899:             self.copilot.analyze_captured_image(path)
+12900: 
+12901:         except Exception as e:
+12902:             self.copilot.analysis.setPlainText(
+12903:                 "A foto foi encontrada, mas não consegui salvar/analisar.\n\n"
+12904:                 f"Detalhe: {e}"
+12905:             )
+12906: 
+12907: 
+12908: 
+12909: 
+12910: 
+12911:     def _show_image_in_copilot(self, path):
+12912:         pix=QPixmap(str(path))
+12913:         if pix.isNull():
+12914:             self.copilot.image_preview.setText("Não consegui abrir a imagem.")
+12942:             if(!imgs.length) return {ok:false,error:"Nenhuma imagem grande aberta."};
+12943: 
+12944:             const t=imgs[0], img=t.img;
+12945:             const canvas=document.createElement("canvas");
+12946:             canvas.width=Math.max(1,t.nw || Math.round(t.w));
+12947:             canvas.height=Math.max(1,t.nh || Math.round(t.h));
+12948:             const ctx=canvas.getContext("2d");
+12949:             ctx.drawImage(img,0,0,canvas.width,canvas.height);
+12950: 
+12951:             return {
+12952:               ok:true,
+12953:               data:canvas.toDataURL("image/png"),
+12954:               width:canvas.width,
+12955:               height:canvas.height
+12956:             };
+12957:           }catch(e){
+12958:             return {ok:false,error:String(e)};
+12959:           }
+12960:         })();
+12961:         """
+12962:         self.web.page().runJavaScript(js, self._receive_image_for_analysis)
+12963: 
+12964:     def _receive_image_for_analysis(self, result):
+12965:         if not result or not result.get("ok"):
+12966:             self.copilot.analysis.setPlainText(
+12967:                 "Não consegui localizar a imagem aberta.\n\n" +
+12968:                 (result or {}).get("error","")
+12969:             )
+12970:             return
+12971:         try:
+12972:             import base64
+12973:             from datetime import datetime
+12974:             data=result.get("data") or ""
+12975:             raw=base64.b64decode(data.split(",",1)[1])
+12976:             folder=USER_CACHE_DIR/"captured_images"
+12977:             folder.mkdir(exist_ok=True)
+12978:             path=folder/("analysis_"+datetime.now().strftime("%Y%m%d_%H%M%S")+".png")
+12979:             path.write_bytes(raw)
+12980:             self.web_status.setText(
+12981:                 f"Imagem enviada ao ALIYVO • {result.get('width','?')}x{result.get('height','?')}"
+12982:             )
+12983:             self._show_image_in_copilot(path)
+12984:             return
+12985:         except Exception as e:
+12986:             self.copilot.analysis.setPlainText(
+12987:                 "A imagem foi encontrada, mas não consegui carregar no ALIYVO.\n\n"
+12988:                 f"Detalhe: {e}"
+12989:             )
+12990: 
+12991:     def choose_image_file(self):
+12992:         path,_=QFileDialog.getOpenFileName(
+12993:             self,
+12994:             "Escolher foto",
+12995:             "",
+12996:             "Imagens (*.png *.jpg *.jpeg *.webp *.bmp)"
+12997:         )
+12998:         if not path:
+12999:             return
+13000:         self._external_image_path=path
+13001:         self.copilot.analysis.setPlainText(
+13002:             "Foto selecionada.\n\n"
+13003:             "Você pode:\n"
+13004:             "• clicar DIGITALIZAR FOTO LOCAL para tentar ler texto/código;\n"
+13005:             "• ou clicar PESQUISAR PEÇA NO GOOGLE LENS para identificar visualmente."
+13006:         )
+13007:         self.web_status.setText("Modo leve • foto local selecionada")
+13008: 
+13009:     def paste_image_from_clipboard(self):
+13010:         img=QApplication.clipboard().image()
+13011:         if img.isNull():
+13012:             self.copilot.analysis.setPlainText(
+13130:                   fr.onerror=reject;
+13131:                   fr.readAsDataURL(blob);
+13132:                 });
+13133:                 if(data) return {ok:true,data:data,width:target.nw||target.w,height:target.nh||target.h,source:"fetch"};
+13134:               }catch(e){}
+13135:             }
+13136: 
+13137:             const canvas=document.createElement("canvas");
+13138:             const scale=(target.nw && target.nh) ? 1 : 2.5;
+13139:             canvas.width=Math.max(1,Math.round((target.nw||target.w)*scale));
+13140:             canvas.height=Math.max(1,Math.round((target.nh||target.h)*scale));
+13141:             const ctx=canvas.getContext("2d");
+13142:             ctx.drawImage(img,0,0,canvas.width,canvas.height);
+13143:             return {ok:true,data:canvas.toDataURL("image/png"),width:canvas.width,height:canvas.height,source:"canvas"};
+13144:           }catch(e){
+13145:             return {ok:false,error:String(e)};
+13146:           }
+13147:         })();
+13148:         """
+13149:         try:
+13150:             self.web.page().runJavaScript(js, self._prepare_lens_image)
+13151:         except Exception as e:
+13152:             self.copilot.analysis.setPlainText("Não consegui preparar a foto para pesquisa visual.\n\nDetalhe: "+str(e))
+13153: 
+13154:     def _prepare_lens_image(self, result):
+13155:         if not result or not result.get("ok"):
+13156:             self.copilot.analysis.setPlainText(
+13157:                 "Abra a foto da peça no WhatsApp e tente novamente.\n\n" +
+13158:                 (result or {}).get("error","")
+13159:             )
+13160:             return
+13161:         try:
+13162:             import base64
+13163:             from datetime import datetime
+13164:             data=result.get("data") or ""
+13165:             if "," not in data:
+13166:                 raise RuntimeError("Imagem sem conteúdo válido.")
+13167:             raw=base64.b64decode(data.split(",",1)[1])
+13168:             folder=USER_CACHE_DIR/"captured_images"
+13169:             folder.mkdir(exist_ok=True)
+13170:             path=folder/("lens_"+datetime.now().strftime("%Y%m%d_%H%M%S")+".png")
+13171:             path.write_bytes(raw)
+13172: 
+13173:             img=QImage(str(path))
+13174:             if img.isNull():
+13175:                 raise RuntimeError("Não consegui carregar a imagem capturada.")
+13176:             QApplication.clipboard().setImage(img)
+13177: 
+13178:             self.web_status.setText(
+13179:                 f"Foto pronta para Lens • {result.get('width','?')}x{result.get('height','?')}"
+13180:             )
+13181:             self.copilot.analysis.setPlainText(
+13182:                 "PESQUISA VISUAL PREPARADA\n\n"
+13183:                 "✅ Foto copiada para a área de transferência.\n"
+13184:                 "✅ Google Lens será aberto no navegador.\n\n"
+13185:                 "Se a imagem não aparecer automaticamente, pressione Ctrl+V no Google Lens.\n\n"
+13186:                 "Quando encontrar referências, copie e cole no campo do ALIYVO e clique ANALISAR para conferir na Base Soma."
+13187:             )
+13188:             QDesktopServices.openUrl(QUrl("https://lens.google.com/"))
+13189:         except Exception as e:
+13190:             self.copilot.analysis.setPlainText(
+13191:                 "Consegui localizar a foto, mas não consegui preparar a pesquisa no Google Lens.\n\nDetalhe: "+str(e)
+13192:             )
+13193: 
+13194: 
+13195: 
+13196: 
+13197:     def _handle_whatsapp_media_download(self, path):
+13198:         try:
+13199:             ext=Path(path).suffix.lower()
+13200:             audio_exts={".ogg",".opus",".mp3",".m4a",".wav",".webm",".aac"}
+13304:               const digits=(name.match(/\d/g)||[]).join("");
+13305:               let phone="";
+13306:               if (digits.length >= 10 && digits.length <= 15) {
+13307:                 phone=digits;
+13308:                 if (phone.length === 10 || phone.length === 11) {
+13309:                   phone="55"+phone;
+13310:                 }
+13311:               }
+13312: 
+13313:               out.push({name,phone});
+13314:             }
+13315: 
+13316:             return {ok:true,items:out.slice(0,100)};
+13317:           } catch(e) {
+13318:             return {ok:false,error:String(e)};
+13319:           }
+13320:         })();
+13321:         """
+13322: 
+13323:         try:
+13324:             self.web.page().runJavaScript(js, self._show_campaign_contact_picker)
+13325:         except Exception as e:
+13326:             self.campaign_panel.status.setText("Erro ao ler WhatsApp: "+str(e))
+13327: 
+13328:     def _show_campaign_contact_picker(self,result):
+13329:         if not result or not result.get("ok"):
+13330:             err=(result or {}).get("error","Não consegui ler as conversas do WhatsApp.")
+13331:             self.campaign_panel.status.setText("⚠ "+err)
+13332:             QMessageBox.warning(self,"Escolher do WhatsApp",err)
+13333:             return
+13334: 
+13335:         items=result.get("items") or []
+13336: 
+13337:         if not items:
+13338:             msg=(
+13339:                 "Não encontrei conversas visíveis.\n\n"
+13340:                 "Deixe a coluna de contatos do WhatsApp aparecendo, "
+13341:                 "role a lista para mostrar os clientes e clique novamente em "
+13342:                 "💬 Escolher do WhatsApp."
+13343:             )
+13344:             self.campaign_panel.status.setText("Nenhum cliente visível encontrado.")
+13345:             QMessageBox.information(self,"Escolher do WhatsApp",msg)
+13346:             return
+13347: 
+13348:         dlg=QDialog(self)
+13349:         dlg.setWindowTitle("Selecionar clientes do WhatsApp")
+13350:         dlg.resize(470,560)
+13351:         dlg.setStyleSheet("background-color:#FFFFFF;")
+13352: 
+13353:         lay=QVBoxLayout(dlg)
+13354: 
+13355:         head=QLabel(f"💬 {len(items)} conversas visíveis")
+13356:         head.setStyleSheet(
+13357:             "background-color:#128C7E;color:white;font-weight:700;"
+13358:             "padding:10px;border-radius:5px;"
+13359:         )
+13360:         lay.addWidget(head)
+13361: 
+13362:         info=QLabel(
+13363:             "Selecione os clientes que deseja colocar na lista.\n"
+13364:             "Use Ctrl para marcar vários ou clique em 'Selecionar todos'."
+13365:         )
+13366:         info.setWordWrap(True)
+13367:         lay.addWidget(info)
+13368: 
+13369:         lst=QListWidget()
+13370:         lst.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+13371: 
+13372:         for item in items:
+13373:             name=item.get("name","Cliente")
+13374:             phone=item.get("phone","")
+13527:         """.replace("TERM",term_json)
+13528: 
+13529:         def done(result):
+13530:             if result and result.get("ok"):
+13531:                 self.campaign_panel.status.setText(
+13532:                     "✅ Busca feita. Clique no contato correto no WhatsApp e depois "
+13533:                     "em ➕ Adicionar conversa atual."
+13534:                 )
+13535:             else:
+13536:                 err=(result or {}).get(
+13537:                     "error","Não consegui pesquisar no WhatsApp."
+13538:                 )
+13539:                 self.campaign_panel.status.setText("ERRO B01 — "+err)
+13540:                 QMessageBox.warning(
+13541:                     self,
+13542:                     "Buscar no WhatsApp",
+13543:                     err
+13544:                 )
+13545: 
+13546:         try:
+13547:             self.web.page().runJavaScript(js,done)
+13548:         except Exception as e:
+13549:             self.campaign_panel.status.setText(
+13550:                 "ERRO B02 — Erro ao executar busca: "+str(e)
+13551:             )
+13552: 
+13553:     def _campaign_add_current_chat(self):
+13554:         """
+13555:         Identificação em etapas.
+13556:         Evita Promise/async dentro de runJavaScript, que em algumas versões
+13557:         do Qt WebEngine retorna None antes da conclusão.
+13558:         """
+13559:         self.campaign_panel.status.setText(
+13560:             "📞 Etapa 1/3 — identificando a conversa..."
+13561:         )
+13562: 
+13563:         js_stage1=r"""
+13564:         (() => {
+13565:           try {
+13566:             const main=document.querySelector("#main");
+13567:             if(!main){
+13568:               return {ok:false,code:"N01",error:"Nenhuma conversa está aberta."};
+13569:             }
+13570: 
+13571:             const header=main.querySelector("header");
+13572:             if(!header){
+13573:               return {ok:false,code:"N02",error:"Cabeçalho da conversa não encontrado."};
+13574:             }
+13575: 
+13576:             const banned=[
+13577:               "adicionar à lista","add to list",
+13578:               "dados do perfil","profile data",
+13579:               "clique para mostrar os dados do contato",
+13580:               "click to show contact info",
+13581:               "online","digitando","typing",
+13582:               "pesquisar","search",
+13583:               "ligação de voz","voice call",
+13584:               "chamada de vídeo","video call"
+13585:             ];
+13586: 
+13587:             function validName(v){
+13588:               if(!v) return false;
+13589:               v=String(v).trim();
+13590:               if(v.length<1 || v.length>120) return false;
+13591:               const low=v.toLowerCase();
+13592:               if(banned.some(x=>low===x || low.includes(x))) return false;
+13593:               if(/^\d{1,2}:\d{2}$/.test(v)) return false;
+13594:               return true;
+13595:             }
+13596: 
+13597:             function normalizePhone(raw){
+===== ExecuteScript =====
+===== Navigate( =====
+===== Source= =====
+00308:                     child/"_app"/"whatsapp_profile",
+00309:                     child/"whatsapp_profile",
+00310:                 ):
+00311:                     if candidate.exists():
+00312:                         candidates.append(candidate)
+00313:         except Exception:
+00314:             pass
+00315: 
+00316:         usable=[]
+00317:         for c in candidates:
+00318:             try:
+00319:                 if any(c.iterdir()):
+00320:                     usable.append((c.stat().st_mtime,c))
+00321:             except Exception:
+00322:                 pass
+00323: 
+00324:         PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+00325: 
+00326:         if usable:
+00327:             usable.sort(reverse=True,key=lambda x:x[0])
+00328:             source=usable[0][1]
+00329:             import shutil as _shutil
+00330:             _shutil.copytree(source,PROFILE_DIR,dirs_exist_ok=True)
+00331: 
+00332:         marker.write_text("ok",encoding="utf-8")
+00333:     except Exception:
+00334:         try:
+00335:             PROFILE_DIR.mkdir(parents=True,exist_ok=True)
+00336:         except Exception:
+00337:             pass
+00338: 
+00339: _prepare_stable_whatsapp_profile()
+00340: 
+00341: 
+00342: def norm(v):
+00343:     return re.sub(r"[^A-Z0-9]", "", (v or "").upper())
+00344: 
+00345: def detect_plate(text):
+00346:     m = re.search(r"\b([A-Z]{3}[0-9][A-Z0-9][0-9]{2})\b", (text or "").upper().replace("-", ""))
+00347:     return m.group(1) if m else ""
+00348: 
+00349: def extract_codes(text):
+00350:     raw = re.findall(r"\b[A-Z0-9][A-Z0-9\.\-\/]{2,}\b", (text or "").upper())
+00351:     stop = {"BOM","DIA","BOA","TARDE","NOITE","TEM","UMA","PARA","COM","SEM","VALOR","PRECO","PECA","PECAS","PLACA"}
+00352:     out=[]
+00353:     for p in raw:
+00354:         p=p.strip(".-/")
+00355:         if p in stop: continue
+00356:         if not any(ch.isdigit() for ch in p): continue
+00357:         if len(norm(p))<3: continue
+00358:         if p not in out: out.append(p)
+00359:     return out[:30]
+00360: 
+00361: 
+00362: def extract_measurements(text):
+00363:     t=(text or "").lower()
+00364:     out=[]
+00365:     # polegadas escritas como "8 polegadas", 8", 8 pol
+00366:     pats = re.findall(r"\b\d+(?:[.,]\d+)?\s*(?:polegadas?|pol|\"|mm|cm)\b", t)
+00367:     for p in pats:
+00368:         p=p.strip()
+00369:         if p not in out:
+00370:             out.append(p)
+00371:     return out[:10]
+00372: 
+00373: def is_probable_code(token):
+00374:     n=norm(token)
+00375:     if len(n) < 4:
+00376:         return False
+00377:     # números curtos usados como medidas/quantidades não devem virar código
+00378:     if token.isdigit() and len(token) <= 3:
+05622:                         rows=list(rows)+list(rows2)
+05623:                     for r in rows:
+05624:                         if r[0] not in seen:
+05625:                             seen.add(r[0]); exact.append(r)
+05626:                 con.close()
+05627:             except Exception:
+05628:                 exact=[]
+05629: 
+05630:         if codes:
+05631:             display_refs=[]
+05632:             for c in codes[:8]:
+05633:                 k=re.sub(r"[^A-Z0-9]","",str(c).upper())
+05634:                 label=str(c)
+05635:                 display_refs.append(label if label.upper()==k else f"{label} → {k}")
+05636:             lines += ["","REFERÊNCIAS DETECTADAS"," • ".join(display_refs)]
+05637: 
+05638:         # Busca simples de catálogo (ex.: DOT 4 / DOT4 / DOT-4).
+05639:         # Usa prioritariamente mensagens do cliente para não confundir preços/respostas antigas do vendedor.
+05640:         simple_results=[]
+05641:         simple_query_label=""
+05642:         simple_source="\n".join(customer_messages[-10:]) if customer_messages else text
+05643:         simple_candidates=[]
+05644: 
+05645:         # Detecta expressões letra+número que funcionam como nome/especificação de produto.
+05646:         for mm in re.finditer(r"(?i)\b([a-z]{2,12})\s*[-./]?\s*(\d{1,4})\b",simple_source):
+05647:             a=mm.group(1).strip(); b=mm.group(2).strip()
+05648:             if a.lower() in {"ano","mod","modelo","cod","codigo","soma","r","rs","qtd","qtde"}:
+05649:                 continue
+05650:             label=(a+" "+b).upper()
+05651:             compact=re.sub(r"[^A-Z0-9]","",label)
+05652:             if len(compact)>=4 and label not in simple_candidates:
+05653:                 simple_candidates.append(label)
+05654: 
+05655:         if not priority_soma_codes:
+05656:             for label in simple_candidates[:8]:
+05657:                 compact=re.sub(r"[^A-Z0-9]","",label.upper())
+05658:                 # Se a frase já fala explicitamente de veículo/aplicação, deixa a lógica técnica normal decidir.
+05659:                 if re.search(r"(?i)\b(?:ano|modelo|mod|chassi|placa|motor)\b",simple_source):
+05660:                     continue
+05661:                 try:
+05662:                     con=sqlite3.connect(DB_PATH); cur=con.cursor()
+05663:                     expr_desc="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(descricao,'')),' ',''),'-',''),'.',''),'/','')"
+05664:                     expr_comp="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(compldesc,'')),' ',''),'-',''),'.',''),'/','')"
+05665:                     expr_ref="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(refforn,'')),' ',''),'-',''),'.',''),'/','')"
+05666:                     expr_marca="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(marca,'')),' ',''),'-',''),'.',''),'/','')"
+05667:                     sql=("SELECT id,codprod,refforn,marca,descricao,compldesc,88 AS score FROM produtos WHERE "
+05668:                          +expr_desc+" LIKE ? OR "+expr_comp+" LIKE ? OR "+expr_ref+" LIKE ? OR "+expr_marca+
+05669:                          " LIKE ? ORDER BY CAST(COALESCE(codprod,'0') AS INTEGER), codprod LIMIT 40")
+05670:                     like="%"+compact+"%"
+05671:                     rows=cur.execute(sql,(like,like,like,like)).fetchall()
+05672:                     con.close()
+05673:                     if rows:
+05674:                         seen_simple=set()
+05675:                         for r in rows:
+05676:                             if r[0] not in seen_simple:
+05677:                                 seen_simple.add(r[0]); simple_results.append(r)
+05678:                         simple_query_label=label
+05679:                         break
+05680:                 except Exception:
+05681:                     simple_results=[]
+05682:         part_words={
+05683:             "servo","cilindro","embreagem","cano","tubo","compressor","retentor","cruzeta","filtro","pastilha","disco",
+05684:             "cubo","rolamento","sensor","valvula","bomba","reparo","mola","cuica","terminal","barra","amortecedor",
+05685:             "bolsa","balao","junta","anel","pistao","bucha","radiador","suporte","eixo","mangueira","diafragma",
+05686:             "catraca","freio","embreagem","atuador","volante","coroa","pinhao","sincronizado","garfo"
+05687:         }
+05688:         parts=[t for t in tokens if t in part_words]
+05689:         query_pairs=[]
+05690:         for pword in parts[:5]:
+05691:             for other in tokens[:10]:
+05692:                 if other==pword: continue
+07419:             md=datetime.datetime.fromtimestamp(mts).date(); nd=datetime.datetime.fromtimestamp(now).date()
+07420:             if "ontem" in low:
+07421:                 return md==(nd-datetime.timedelta(days=1))
+07422:             # Quando a barra lateral mostra HH:MM, esse horario e a referencia mais confiavel.
+07423:             times=re.findall(r"(?<!\\d)([01]?\\d|2[0-3]):([0-5]\\d)(?!\\d)",sn)
+07424:             if times:
+07425:                 hh,mm=map(int,times[0])
+07426:                 base=datetime.datetime.combine(nd,datetime.time(hh,mm))
+07427:                 cand=base.timestamp()
+07428:                 return abs(mts-cand)<=20*60
+07429:         except Exception:pass
+07430:         return True
+07431: 
+07432:     def _diagnostic_finish_live_call(self,now=None,reason="overlay_gone"):
+07433:         import time
+07434:         now=float(now or time.time());cur=getattr(self,"_diagnostic_live_call",None)
+07435:         if not isinstance(cur,dict):self._diagnostic_live_call=None;self._diagnostic_live_missing=0;return
+07436:         client=str(cur.get("client") or "").strip() or "Contato";start=float(cur.get("start_ts") or now)
+07437:         duration=max(max(0,int(cur.get("duration_seconds") or 0)),max(0,int(now-start)))
+07438:         session=str(cur.get("session_id") or f"live|{client}|{int(start)}")
+07439:         self._diagnostic_log("call",client=client,direction=str(cur.get("direction") or "unknown"),call_type=str(cur.get("call_type") or "voice"),missed=False,duration_seconds=duration,call_key=session,source="live_overlay",started_ts=start,ended_ts=now,end_reason=reason)
+07440:         recent=list(getattr(self,"_diagnostic_recent_live_calls",[]) or []);recent.append({"client":client,"ended_ts":now,"duration_seconds":duration,"call_type":str(cur.get("call_type") or "voice")})
+07441:         self._diagnostic_recent_live_calls=[x for x in recent[-12:] if now-float(x.get("ended_ts") or now)<900]
+07442:         self._diagnostic_live_call=None;self._diagnostic_live_missing=0
+07443: 
+07444:     def _diagnostic_live_call_update(self,live,now=None,fallback_name=""):
+07445:         import time
+07446:         now=float(now or time.time())
+07447:         if isinstance(live,dict) and bool(live.get("active")):
+07448:             self._diagnostic_live_missing=0;client=str(live.get("client") or fallback_name or "").strip() or "Contato";duration=max(0,int(live.get("duration_seconds") or 0));ctype=str(live.get("call_type") or "voice")
+07449:             cur=getattr(self,"_diagnostic_live_call",None)
+07450:             if isinstance(cur,dict) and str(cur.get("client") or "").strip()!=client:self._diagnostic_finish_live_call(now,"contact_changed");cur=None
+07451:             if not isinstance(cur,dict):
+07452:                 start=now-duration if duration>0 else now;session=f"live|{client}|{int(start)}";cur={"client":client,"start_ts":start,"duration_seconds":duration,"last_seen_ts":now,"call_type":ctype,"direction":"unknown","session_id":session};self._diagnostic_live_call=cur
+07453:                 self._diagnostic_log("call_live_started",client=client,call_type=ctype,started_ts=start,visible_duration_seconds=duration,call_key=session)
+07454:             else:
+07455:                 cur["last_seen_ts"]=now;cur["duration_seconds"]=max(int(cur.get("duration_seconds") or 0),duration);cur["call_type"]=ctype or str(cur.get("call_type") or "voice")
+07456:                 if duration>0:
+07457:                     estimated=now-duration
+07458:                     if estimated<float(cur.get("start_ts") or now):cur["start_ts"]=estimated
+07459:             return
+07460:         cur=getattr(self,"_diagnostic_live_call",None)
+07461:         if isinstance(cur,dict):
+07462:             self._diagnostic_live_missing=int(getattr(self,"_diagnostic_live_missing",0) or 0)+1
+07463:             if self._diagnostic_live_missing>=2:self._diagnostic_finish_live_call(now,"overlay_gone")
+07464:         else:self._diagnostic_live_missing=0
+07465: 
+07466:     def _diagnostic_live_row(self):
+07467:         import time,datetime
+07468:         live=getattr(self,"_diagnostic_live_call",None)
+07469:         if not isinstance(live,dict):return None
+07470:         now=time.time();start=float(live.get("start_ts") or now);dur=max(int(live.get("duration_seconds") or 0),max(0,int(now-start)))
+07471:         return {"ts":now,"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":"call","client":str(live.get("client") or ""),"direction":str(live.get("direction") or "unknown"),"call_type":str(live.get("call_type") or "voice"),"missed":False,"duration_seconds":dur,"source":"live_overlay","live":True}
+07472: 
+07473:     def _diagnostic_update_whatsapp_overview(self,result,now=None):
+07474:         import time
+07475:         now=float(now or time.time())
+07476:         groups=set(getattr(self,"_diagnostic_groups",set()) or set())
+07477:         rows=result.get("unread") if isinstance(result,dict) else []
+07478:         if not isinstance(rows,list):rows=[]
+07479:         try:total=max(0,int(result.get("unread_total") or 0))
+07480:         except Exception:total=0
+07481:         registry=dict(getattr(self,"_diagnostic_unread_registry",{}) or {})
+07482:         current=set(); visible_messages=0
+07483:         for row in rows:
+07484:             if not isinstance(row,dict):continue
+07485:             name=str(row.get("name") or "").strip()
+07486:             if not name or name in groups or bool(row.get("is_group")):continue
+07487:             snippet=str(row.get("snippet") or row.get("row_text") or "").strip()
+07488:             try:count=max(1,int(row.get("unread_count") or 1))
+07489:             except Exception:count=1
+07607:             self._diagnostic_last_active=name
+07608: 
+07609:             for _pn,_pd in list(self._diagnostic_pending.items()):
+07610:                 if not isinstance(_pd,dict) or _pn==name or _pn in groups: continue
+07611:                 if _pd.get("opened_ts"):
+07612:                     _pd["other_chat_opens"]=int(_pd.get("other_chat_opens") or 0)+1
+07613:                     _ch=list(_pd.get("other_chats") or [])
+07614:                     if name and name not in _ch:
+07615:                         _ch.append(name); _pd["other_chats"]=_ch[-20:]
+07616: 
+07617:             _prev_pending=self._diagnostic_pending.get(previous)
+07618:             if previous and previous!=name and previous not in groups and isinstance(_prev_pending,dict) and _prev_pending.get("opened_ts"):
+07619:                 _prev_pending["interruptions"]=int(_prev_pending.get("interruptions") or 0)+1
+07620:                 _prev_pending["last_interruption_ts"]=now
+07621:                 self._diagnostic_log("attendance_interrupted",client=previous,switched_to=name,interruptions=int(_prev_pending.get("interruptions") or 0),wait_so_far_seconds=max(0,int(now-float(_prev_pending.get("received_ts") or now))))
+07622: 
+07623:             p=self._diagnostic_pending.get(name)
+07624:             if isinstance(p,dict) and not p.get("opened_ts"):
+07625:                 p["opened_ts"]=now
+07626:                 wait=max(0,int(now-float(p.get("received_ts") or now)))
+07627:                 self._diagnostic_log("pending_opened",client=name,until_open_seconds=wait,source=str(p.get("source") or ""))
+07628: 
+07629:         if name and name not in groups and context:
+07630:             seen=getattr(self,"_diagnostic_seen_calls",set())
+07631:             for idx,x in enumerate(context):
+07632:                 if not isinstance(x,dict) or not x.get("is_call"): continue
+07633:                 side=str(x.get("side") or ""); raw=str(x.get("text") or "").strip(); base=str(x.get("call_key") or raw or f"call-{idx}")
+07634:                 call_key=(name+'|'+side+'|'+base)[-900:]
+07635:                 if call_key in seen:continue
+07636:                 _hist_dur=max(0,int(x.get("duration_seconds") or 0));_dup_live=False
+07637:                 for _lc in list(getattr(self,"_diagnostic_recent_live_calls",[]) or []):
+07638:                     try:
+07639:                         if str(_lc.get("client") or "").strip()==name and now-float(_lc.get("ended_ts") or 0)<=600:
+07640:                             _ld=max(0,int(_lc.get("duration_seconds") or 0))
+07641:                             if _hist_dur<=0 or _ld<=0 or abs(_hist_dur-_ld)<=180:_dup_live=True;break
+07642:                     except Exception:pass
+07643:                 if _dup_live:seen.add(call_key);continue
+07644:                 seen.add(call_key); direction="outgoing" if side=="seller" else "incoming" if side=="customer" else "unknown"
+07645:                 _call_msg_ts=float(x.get("message_ts") or 0); _call_duration=int(x.get("duration_seconds") or 0)
+07646:                 self._diagnostic_log("call",client=name,direction=direction,call_type=str(x.get("call_type") or "voice"),missed=bool(x.get("missed")),duration_seconds=_call_duration,text=raw[:500],call_key=call_key,message_ts=_call_msg_ts or None)
+07647:                 if _call_msg_ts>0:
+07648:                     for _pn,_pd in list(self._diagnostic_pending.items()):
+07649:                         if not isinstance(_pd,dict): continue
+07650:                         _recv=float(_pd.get("received_ts") or now)
+07651:                         if _recv<=_call_msg_ts<=now:
+07652:                             _pd["calls_during_wait"]=int(_pd.get("calls_during_wait") or 0)+1
+07653:                             _pd["call_seconds_during_wait"]=int(_pd.get("call_seconds_during_wait") or 0)+max(0,_call_duration)
+07654:                 if direction=="incoming" and bool(x.get("missed")) and name not in self._diagnostic_pending:
+07655:                     self._diagnostic_pending[name]={"received_ts":now,"opened_ts":now if name==self._diagnostic_active_name else None,"source":"missed_call"}
+07656:             self._diagnostic_seen_calls=seen
+07657: 
+07658:             last=context[-1] if isinstance(context[-1],dict) else {}; side=str(last.get("side") or ""); msg=str(last.get("text") or "").strip(); mts=float(last.get("message_ts") or 0)
+07659:             closing=bool(side=="customer" and not last.get("is_call") and self._diagnostic_is_closing_message(msg))
+07660: 
+07661:             if side=="customer" and not last.get("is_call") and not closing:
+07662:                 p=self._diagnostic_pending.get(name)
+07663:                 if isinstance(p,dict) and self._diagnostic_plausible_message_ts(mts,now,p):
+07664:                     old=float(p.get("received_ts") or now)
+07665:                     if str(p.get("source") or "")!="message_timestamp" or mts<old:
+07666:                         p["received_ts"]=mts; p["source"]="message_timestamp"; p["timestamp_validated"]=True
+07667:                         if p.get("opened_ts"):
+07668:                             self._diagnostic_log("pending_refined",client=name,received_ts=mts,until_open_seconds=max(0,int(float(p.get("opened_ts"))-mts)))
+07669: 
+07670:             sig=(side+"|"+msg)[-1800:]; prev=self._diagnostic_signatures.get(name)
+07671:             if prev is None:
+07672:                 self._diagnostic_signatures[name]=sig
+07673:                 if side=="customer" and not last.get("is_call"):
+07674:                     if closing:
+07675:                         if self._diagnostic_pending.pop(name,None) is not None:
+07676:                             self._diagnostic_log("customer_closing_message",client=name,text=msg[:200],action="cleared_pending")
+07677:                     # Primeira leitura so cria espera se a conversa estava realmente nao lida
+07691:                     if side=="customer":
+07692:                         if closing:
+07693:                             had=self._diagnostic_pending.pop(name,None)
+07694:                             self._diagnostic_log("customer_closing_message",client=name,text=msg[:200],action="cleared_pending" if had else "no_reply_needed")
+07695:                         else:
+07696:                             p=self._diagnostic_pending.get(name)
+07697:                             recv=mts if self._diagnostic_plausible_message_ts(mts,now,p) else now
+07698:                             if not isinstance(p,dict):
+07699:                                 self._diagnostic_pending[name]={"received_ts":recv,"opened_ts":now,"source":"message_timestamp" if recv==mts and mts>0 else "active_detection","timestamp_validated":bool(recv==mts and mts>0)}
+07700:                             else:
+07701:                                 if self._diagnostic_plausible_message_ts(mts,now,p) and mts<float(p.get("received_ts") or now):p["received_ts"]=mts;p["source"]="message_timestamp";p["timestamp_validated"]=True
+07702:                                 if not p.get("opened_ts"):p["opened_ts"]=now
+07703:                     elif side=="seller":
+07704:                         p=self._diagnostic_pending.pop(name,None)
+07705:                         if isinstance(p,dict):
+07706:                             received=float(p.get("received_ts") or now); opened=float(p.get("opened_ts") or now)
+07707:                             if opened<received:opened=received
+07708:                             total=max(0,int(now-received)); until_open=max(0,int(opened-received)); after_open=max(0,int(now-opened))
+07709:                             # Ultima trava de seguranca: nunca grava um tempo absurdo vindo de contexto antigo.
+07710:                             if total<=48*3600:
+07711:                                 self._diagnostic_log("response",client=name,response_seconds=total,total_wait_seconds=total,until_open_seconds=until_open,after_open_seconds=after_open,received_ts=received,opened_ts=opened,response_ts=now,source=str(p.get("source") or ""),interruptions=int(p.get("interruptions") or 0),other_chat_opens=int(p.get("other_chat_opens") or 0),other_chats=list(p.get("other_chats") or [])[-20:],max_unread_during_wait=int(p.get("max_unread_during_wait") or 0),calls_during_wait=int(p.get("calls_during_wait") or 0),call_seconds_during_wait=int(p.get("call_seconds_during_wait") or 0),timestamp_validated=bool(p.get("timestamp_validated")))
+07712:                             else:
+07713:                                 self._diagnostic_log("response_timing_discarded",client=name,discarded_seconds=total,reason="timestamp_antigo_inconsistente")
+07714: 
+07715:         unread_now=set(unread_rows); old=(set(getattr(self,"_diagnostic_unread",set()) or set())-groups); new_names=unread_now-old; cleared=old-unread_now
+07716:         _unread_count=len(unread_now)
+07717:         for _pn,_pd in list(self._diagnostic_pending.items()):
+07718:             if isinstance(_pd,dict):_pd["max_unread_during_wait"]=max(int(_pd.get("max_unread_during_wait") or 0),_unread_count)
+07719:         for n in new_names:
+07720:             row=unread_rows.get(n) or {}; snippet=str(row.get("snippet") or "")
+07721:             if self._diagnostic_unread_is_closing(snippet):
+07722:                 had=self._diagnostic_pending.pop(n,None)
+07723:                 self._diagnostic_log("customer_closing_message",client=n,text=snippet[-180:],action="cleared_pending" if had else "no_reply_needed")
+07724:                 continue
+07725:             if not isinstance(self._diagnostic_pending.get(n),dict):
+07726:                 self._diagnostic_pending[n]={"received_ts":now,"opened_ts":None,"source":"unread_detection","unread_snippet":snippet,"unread_detected_ts":now}
+07727:                 self._diagnostic_log("customer_wait_started",client=n,received_ts=now,source="unread_detection",snippet=snippet[:240])
+07728:         if unread_now!=old:
+07729:             self._diagnostic_log("unread_snapshot",count=len(unread_now),names=sorted(unread_now)[:40],new=sorted(new_names)[:20],cleared=sorted(cleared)[:20]); self._diagnostic_unread=unread_now
+07730: 
+07731:     def _diagnostic_read(self):
+07732:         # O arquivo cresce durante todo o uso. Rele-lo inteiro em cada refresh/backup
+07733:         # travava a thread da interface conforme o historico aumentava.
+07734:         cached=getattr(self,"_diagnostic_cache_rows",None)
+07735:         if isinstance(cached,list):
+07736:             return list(cached)
+07737:         rows=[]
+07738:         try:
+07739:             f=self._diagnostic_file()
+07740:             if f.exists():
+07741:                 for line in f.read_text(encoding="utf-8",errors="ignore").splitlines():
+07742:                     try:
+07743:                         x=json.loads(line)
+07744:                         if not isinstance(x,dict):continue
+07745:                         if x.get("event")=="response":
+07746:                             try:
+07747:                                 secs=int(x.get("total_wait_seconds") or x.get("response_seconds") or 0)
+07748:                                 if secs>48*3600:continue
+07749:                             except Exception:pass
+07750:                         rows.append(x)
+07751:                     except Exception:pass
+07752:         except Exception:pass
+07753:         self._diagnostic_cache_rows=rows
+07754:         return list(rows)
+07755: 
+07756:     def _diagnostic_summary_text(self,rows):
+07757:         rows=self._diagnostic_rows_worktime(rows)
+07758:         import datetime,statistics
+07759:         today=datetime.date.today().isoformat(); day=[x for x in rows if str(x.get("time") or "").startswith(today)]
+07760:         clients=set(str(x.get("client") or "") for x in day if x.get("client")); resp_rows=[x for x in day if x.get("event")=="response"]
+07761:         responses=[max(0,int(x.get("total_wait_seconds") if x.get("total_wait_seconds") is not None else x.get("response_seconds") or 0)) for x in resp_rows]
+07707:                             if opened<received:opened=received
+07708:                             total=max(0,int(now-received)); until_open=max(0,int(opened-received)); after_open=max(0,int(now-opened))
+07709:                             # Ultima trava de seguranca: nunca grava um tempo absurdo vindo de contexto antigo.
+07710:                             if total<=48*3600:
+07711:                                 self._diagnostic_log("response",client=name,response_seconds=total,total_wait_seconds=total,until_open_seconds=until_open,after_open_seconds=after_open,received_ts=received,opened_ts=opened,response_ts=now,source=str(p.get("source") or ""),interruptions=int(p.get("interruptions") or 0),other_chat_opens=int(p.get("other_chat_opens") or 0),other_chats=list(p.get("other_chats") or [])[-20:],max_unread_during_wait=int(p.get("max_unread_during_wait") or 0),calls_during_wait=int(p.get("calls_during_wait") or 0),call_seconds_during_wait=int(p.get("call_seconds_during_wait") or 0),timestamp_validated=bool(p.get("timestamp_validated")))
+07712:                             else:
+07713:                                 self._diagnostic_log("response_timing_discarded",client=name,discarded_seconds=total,reason="timestamp_antigo_inconsistente")
+07714: 
+07715:         unread_now=set(unread_rows); old=(set(getattr(self,"_diagnostic_unread",set()) or set())-groups); new_names=unread_now-old; cleared=old-unread_now
+07716:         _unread_count=len(unread_now)
+07717:         for _pn,_pd in list(self._diagnostic_pending.items()):
+07718:             if isinstance(_pd,dict):_pd["max_unread_during_wait"]=max(int(_pd.get("max_unread_during_wait") or 0),_unread_count)
+07719:         for n in new_names:
+07720:             row=unread_rows.get(n) or {}; snippet=str(row.get("snippet") or "")
+07721:             if self._diagnostic_unread_is_closing(snippet):
+07722:                 had=self._diagnostic_pending.pop(n,None)
+07723:                 self._diagnostic_log("customer_closing_message",client=n,text=snippet[-180:],action="cleared_pending" if had else "no_reply_needed")
+07724:                 continue
+07725:             if not isinstance(self._diagnostic_pending.get(n),dict):
+07726:                 self._diagnostic_pending[n]={"received_ts":now,"opened_ts":None,"source":"unread_detection","unread_snippet":snippet,"unread_detected_ts":now}
+07727:                 self._diagnostic_log("customer_wait_started",client=n,received_ts=now,source="unread_detection",snippet=snippet[:240])
+07728:         if unread_now!=old:
+07729:             self._diagnostic_log("unread_snapshot",count=len(unread_now),names=sorted(unread_now)[:40],new=sorted(new_names)[:20],cleared=sorted(cleared)[:20]); self._diagnostic_unread=unread_now
+07730: 
+07731:     def _diagnostic_read(self):
+07732:         # O arquivo cresce durante todo o uso. Rele-lo inteiro em cada refresh/backup
+07733:         # travava a thread da interface conforme o historico aumentava.
+07734:         cached=getattr(self,"_diagnostic_cache_rows",None)
+07735:         if isinstance(cached,list):
+07736:             return list(cached)
+07737:         rows=[]
+07738:         try:
+07739:             f=self._diagnostic_file()
+07740:             if f.exists():
+07741:                 for line in f.read_text(encoding="utf-8",errors="ignore").splitlines():
+07742:                     try:
+07743:                         x=json.loads(line)
+07744:                         if not isinstance(x,dict):continue
+07745:                         if x.get("event")=="response":
+07746:                             try:
+07747:                                 secs=int(x.get("total_wait_seconds") or x.get("response_seconds") or 0)
+07748:                                 if secs>48*3600:continue
+07749:                             except Exception:pass
+07750:                         rows.append(x)
+07751:                     except Exception:pass
+07752:         except Exception:pass
+07753:         self._diagnostic_cache_rows=rows
+07754:         return list(rows)
+07755: 
+07756:     def _diagnostic_summary_text(self,rows):
+07757:         rows=self._diagnostic_rows_worktime(rows)
+07758:         import datetime,statistics
+07759:         today=datetime.date.today().isoformat(); day=[x for x in rows if str(x.get("time") or "").startswith(today)]
+07760:         clients=set(str(x.get("client") or "") for x in day if x.get("client")); resp_rows=[x for x in day if x.get("event")=="response"]
+07761:         responses=[max(0,int(x.get("total_wait_seconds") if x.get("total_wait_seconds") is not None else x.get("response_seconds") or 0)) for x in resp_rows]
+07762:         split=[x for x in resp_rows if x.get("until_open_seconds") is not None and x.get("after_open_seconds") is not None]
+07763:         until_open=[max(0,int(x.get("until_open_seconds") or 0)) for x in split]; after_open=[max(0,int(x.get("after_open_seconds") or 0)) for x in split]
+07764:         tools={}
+07765:         for x in day:
+07766:             if x.get("event")=="tool_opened":t=str(x.get("tool") or "outro");tools[t]=tools.get(t,0)+1
+07767:         calls=[x for x in day if x.get("event")=="call"]; incoming=sum(1 for x in calls if x.get("direction")=="incoming"); outgoing=sum(1 for x in calls if x.get("direction")=="outgoing"); missed=sum(1 for x in calls if bool(x.get("missed"))); voice=sum(1 for x in calls if str(x.get("call_type") or "voice")=="voice"); video=sum(1 for x in calls if str(x.get("call_type") or "")=="video"); call_seconds=sum(max(0,int(x.get("duration_seconds") or 0)) for x in calls)
+07768:         max_unread=max([int(x.get("count") or 0) for x in day if x.get("event")=="unread_snapshot"] or [0]); cust=sum(1 for x in day if x.get("event")=="message_customer"); seller=sum(1 for x in day if x.get("event")=="message_seller"); opens=sum(1 for x in day if x.get("event")=="chat_opened")
+07769:         def fmt(s):
+07770:             s=int(round(float(s or 0))); h=s//3600;m=(s%3600)//60;sec=s%60
+07771:             if h:return f"{h}h {m:02d}m"
+07772:             if m:return f"{m}m {sec:02d}s"
+07773:             return f"{sec}s"
+07774:         avg=(sum(responses)/len(responses)) if responses else 0; med=statistics.median(responses) if responses else 0
+07775:         fastest=min(responses) if responses else 0; slowest=max(responses) if responses else 0; over5=sum(1 for s in responses if s>=300); over15=sum(1 for s in responses if s>=900)
+07776:         avg_open=(sum(until_open)/len(until_open)) if until_open else 0; avg_after=(sum(after_open)/len(after_open)) if after_open else 0
+07777:         per={}
+11811:             USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+11812:             for old_file in USER_DATA_DIR.rglob("*"):
+11813:                 if old_file.is_file() and old_file.name!="migration_v1.done":
+11814:                     try:
+11815:                         old_file.unlink()
+11816:                     except Exception:
+11817:                         pass
+11818: 
+11819:             if restored_data.exists():
+11820:                 shutil.copytree(
+11821:                     restored_data,
+11822:                     USER_DATA_DIR,
+11823:                     dirs_exist_ok=True
+11824:                 )
+11825: 
+11826:             (USER_DATA_DIR/"migration_v1.done").write_text(
+11827:                 "ok",
+11828:                 encoding="utf-8"
+11829:             )
+11830: 
+11831:             channel_source=temp/"preferencias"/"channel.json"
+11832:             if channel_source.exists():
+11833:                 channel_target=self._update_channel_file()
+11834:                 channel_target.parent.mkdir(parents=True,exist_ok=True)
+11835:                 shutil.copy2(channel_source,channel_target)
+11836: 
+11837:             self._reload_user_campaign_lists()
+11838:             self._load_update_channel_into_ui()
+11839: 
+11840:             self.update_panel.status.setText(
+11841:                 "✅ Backup restaurado. "
+11842:                 "Suas listas e configurações já foram recarregadas."
+11843:             )
+11844:         except Exception as e:
+11845:             self.update_panel.show_error(
+11846:                 "Não consegui restaurar o backup: "+str(e)
+11847:             )
+11848:         finally:
+11849:             shutil.rmtree(temp,ignore_errors=True)
+11850: 
+11851: 
+11852:     def toggle_update_expand(self):
+11853:         if not self.update_panel.isVisible():
+11854:             self._open_quick_tool("update")
+11855:             return
+11856:         self.update_panel.expanded=not getattr(
+11857:             self.update_panel,"expanded",False
+11858:         )
+11859:         self.update_panel.expand_btn.setText(
+11860:             "↩" if self.update_panel.expanded else "⛶"
+11861:         )
+11862:         self._position_quick_tool("update")
+11863: 
+11864:     def _update_dir(self):
+11865:         folder=ALIYVO_USER_DIR/"update"
+11866:         try:
+11867:             folder.mkdir(parents=True,exist_ok=True)
+11868:         except Exception:
+11869:             pass
+11870:         return folder
+11871: 
+11872:     def _update_channel_file(self):
+11873:         return self._update_dir()/"channel.json"
+11874: 
+11875:     def _get_update_channel(self):
+11876:         """Canal oficial fixo do ALIYVO."""
+11877:         return ALIYVO_OFFICIAL_UPDATE_CHANNEL
+11878: 
+11879:     def _load_update_channel_into_ui(self):
+11880:         try:
+11881:             url=self._get_update_channel()
+===== source = =====
+03930:         super().resizeEvent(event)
+03931: 
+03932:     def paintEvent(self, event):
+03933:         p = QPainter(self)
+03934:         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+03935:         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+03936: 
+03937:         w = self.width()
+03938:         h = self.height()
+03939: 
+03940:         # Fundo exato da faixa superior do mockup
+03941:         grad = QLinearGradient(0,0,w,0)
+03942:         grad.setColorAt(0.00, QColor("#020B14"))
+03943:         grad.setColorAt(0.70, QColor("#031420"))
+03944:         grad.setColorAt(1.00, QColor("#031B27"))
+03945:         p.fillRect(self.rect(), grad)
+03946: 
+03947:         # Marca: reprodução direta do mockup aprovado, sem redesenhar fonte/logo.
+03948:         if not self.brand.isNull():
+03949:             # O crop original tem 360x48. Exibe na altura original.
+03950:             source = self.brand.rect()
+03951:             target = QRect(0, 0, 360, 48)
+03952:             p.drawPixmap(target, self.brand, source)
+03953: 
+03954:         # Oculta eventual trecho verde do crop após a área real da marca.
+03955:         p.fillRect(350, 0, max(0,w-350), h, QColor("#031420"))
+03956: 
+03957:         # Linha azul inferior
+03958:         p.setPen(QPen(QColor("#0A5E78"), 1))
+03959:         p.drawLine(0, h-1, w, h-1)
+03960: 
+03961:         # Linha Z: coordenadas proporcionais ao mockup original
+03962:         # Ref. 756px: começa aprox. x365/y44, diagonal até x615/y14.
+03963:         start_x = max(360, int(w * 0.36))
+03964:         low_y = h - 4
+03965:         top_y = 13
+03966: 
+03967:         diagonal_start = start_x + max(120, int(w * 0.14))
+03968:         diagonal_end = diagonal_start + 35
+03969: 
+03970:         path = QPainterPath()
+03971:         path.moveTo(start_x, low_y)
+03972:         path.lineTo(diagonal_start, low_y)
+03973:         path.lineTo(diagonal_end, top_y)
+03974:         path.lineTo(w-112, top_y)
+03975: 
+03976:         p.setPen(QPen(QColor(14,226,132,38), 5))
+03977:         p.drawPath(path)
+03978:         p.setPen(QPen(QColor("#13DC82"), 1.4))
+03979:         p.drawPath(path)
+03980: 
+03981:         p.end()
+03982: 
+03983: 
+03984: class DiagnosticPanel(QWidget):
+03985:     """Diagnóstico interno do ALIYVO, sem dependências pesadas."""
+03986:     def __init__(self, parent=None):
+03987:         super().__init__(parent)
+03988:         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+03989:         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+03990:         self.setAutoFillBackground(True)
+03991:         self.setStyleSheet("background-color:#FFFFFF;")
+03992:         self.expanded=False
+03993:         self.on_refresh=None
+03994:         self.on_open_folder=None
+03995:         self.report_text=""
+03996: 
+03997:         lay=QVBoxLayout(self)
+03998:         lay.setContentsMargins(8,8,8,8)
+03999:         lay.setSpacing(7)
+04000: 
