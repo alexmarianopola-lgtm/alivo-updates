@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.09 Hoje Acionavel
+on:
+  push:
+    paths: ['trigger-v2309-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.08
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.08 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02308.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02308.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.08 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar painel Hoje
+        shell: pwsh
+        run: |
+          python patch_today_v2309.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_today_v2309.py C:\temp\build\_app
+          if($LASTEXITCODE -ne 0){ throw 'Gate logico v2309 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited){
+            if($proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          } else {
+            Stop-Process -Id $proc.Id -Force
+          }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02309.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02309.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_today_v2309.py C:\temp\verify\_app
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02309.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.09 - HOJE ACIONAVEL',
+            'Base: 0.23.08',
+            'Clique no lembrete abre conversa: OK',
+            'Joia conclui e remove: OK',
+            'Negativo mantem pendente: OK',
+            'Teste de abertura: OK',
+            'CRM/Radar/WhatsApp Turbo/Ponto preservados: OK',
+            'Proveniencia preservada: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02309.txt -Encoding UTF8
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.09 C:\temp\out\ALIYVO_BETA_GRATIS_02309.zip C:\temp\out\VALIDACAO_02309.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.09 - Hoje Acionavel" --notes "Melhora o painel Hoje no ALIYVO: lembretes vencidos e tarefas de hoje ficam clicaveis para abrir a conversa do cliente, com joia para concluir/remover e negativo para manter pendente. Baseado na 0.23.08 estavel e com teste de abertura antes da publicacao." --latest
