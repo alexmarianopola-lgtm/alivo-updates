@@ -1,0 +1,1626 @@
+===== campanha_contatos =====
+02903:             phone=re.sub(r"\D","",(chat.get("phone") or "").strip())
+02904: 
+02905:             if phone:
+02906:                 resolved+=1
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02930: 
+02931:         con.commit()
+02932:         con.close()
+02933: 
+02934:         self.refresh_campaign_contacts()
+02935:         QMessageBox.information(
+02936:             self,
+02937:             "WhatsApp",
+02938:             f"{len(chosen)} contatos processados.\n\n"
+03029:         cur=con.cursor()
+03030: 
+03031:         if phone:
+03032:             # atualiza eventual placeholder pelo nome
+03033:             cur.execute("""
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03033:             cur.execute("""
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03059: 
+03060:         if phone:
+03061:             QMessageBox.information(self,"WhatsApp",f"{name} adicionado com telefone identificado.")
+03062:         else:
+03063:             QMessageBox.information(
+03089:             for row in csv.DictReader(f,dialect=dialect):
+03090:                 nome=(row.get("nome") or row.get("Nome") or "").strip()
+03091:                 tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+03092:                 grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+03093:                 if nome and tel:
+03094:                     cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+03095:                                    VALUES(?,?,?,1,1)
+03096:                                    ON CONFLICT(telefone) DO UPDATE SET
+03097:                                    nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+03098:                     n+=1
+03099:         con.commit(); con.close()
+03100:         self.refresh_campaign_contacts()
+03101:         QMessageBox.information(self,"Importação",f"{n} contatos importados.")
+03102: 
+03103:     def refresh_campaign_contacts(self):
+03104:         if not hasattr(self,"contact_table"):
+03105:             return
+03106:         con=self.db()
+03103:     def refresh_campaign_contacts(self):
+03104:         if not hasattr(self,"contact_table"):
+03105:             return
+03106:         con=self.db()
+03107:         rows=con.execute("""SELECT id,nome,telefone,grupo,opt_in
+03108:                             FROM campanha_contatos
+03109:                             WHERE ativo=1 ORDER BY nome""").fetchall()
+03110:         con.close()
+03111:         self.contact_table.setRowCount(0)
+03112:         for r in rows:
+03113:             row=self.contact_table.rowCount()
+03114:             self.contact_table.insertRow(row)
+03115:             it=QTableWidgetItem("")
+03116:             it.setData(Qt.ItemDataRole.UserRole,r[0])
+03117:             it.setFlags(it.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+03118:             it.setCheckState(Qt.CheckState.Checked if r[4] else Qt.CheckState.Unchecked)
+03119:             self.contact_table.setItem(row,0,it)
+03120:             self.contact_table.setItem(row,1,QTableWidgetItem(r[1] or ""))
+===== whatsapp_nome =====
+02904: 
+02905:             if phone:
+02906:                 resolved+=1
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02930: 
+02931:         con.commit()
+02932:         con.close()
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02930: 
+02931:         con.commit()
+02932:         con.close()
+02933: 
+02934:         self.refresh_campaign_contacts()
+02935:         QMessageBox.information(
+02936:             self,
+02937:             "WhatsApp",
+02938:             f"{len(chosen)} contatos processados.\n\n"
+02939:             f"Telefone identificado: {resolved}\n"
+03030: 
+03031:         if phone:
+03032:             # atualiza eventual placeholder pelo nome
+03033:             cur.execute("""
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03059: 
+03060:         if phone:
+03061:             QMessageBox.information(self,"WhatsApp",f"{name} adicionado com telefone identificado.")
+03062:         else:
+03063:             QMessageBox.information(
+03064:                 self,
+===== def _attendance_open_chat =====
+07035:         if ok:
+07036:             import time
+07037:             info["note"]=str(value or "").strip(); info["updated_at"]=time.time()
+07038:             items[name]=info; self._attendance_save(); self.attendance_panel.refresh()
+07039: 
+07040:     def _attendance_open_chat(self,name):
+07041:         name=str(name or "").strip()
+07042:         if not name:return
+07043:         js=r"""
+07044:         ((wanted)=>{
+07045:           const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+07046:           const digits=t=>String(t||'').replace(/\D+/g,'');
+07047:           const same=(a,b)=>{
+07048:             a=clean(a);b=clean(b);
+07049:             if(!a||!b)return false;
+07050:             if(a===b)return true;
+07051:             const da=digits(a),db=digits(b);
+07052:             if(da.length>=8 && db.length>=8 && (da===db || da.endsWith(db) || db.endsWith(da)))return true;
+===== def add_current_chat_to_campaign =====
+02938:             f"{len(chosen)} contatos processados.\n\n"
+02939:             f"Telefone identificado: {resolved}\n"
+02940:             f"Telefone pendente: {pending}"
+02941:         )
+02942: 
+02943:     def add_current_chat_to_campaign(self):
+02944:         js = r"""
+02945:         (() => {
+02946:           try {
+02947:             const main=document.querySelector("#main");
+02948:             if(!main) return {ok:false,error:"Nenhuma conversa aberta"};
+02949: 
+02950:             // Se uma tela/painel secundário estiver cobrindo a conversa,
+02951:             // não tenta interpretar a página inteira.
+02952:             const hasConversation =
+02953:                 main.querySelector(".message-in, .message-out, [data-pre-plain-text], [data-id]");
+02954:             if(!hasConversation){
+02955:                 return {ok:false,error:"A conversa não está visível. Feche o painel extra do WhatsApp e tente novamente."};
+===== phone =====
+00714:             self.saved_combo.addItem(name)
+00715: 
+00716:     def _refresh_current_list(self):
+00717:         self.current_list.clear()
+00718: 
+00719:         def looks_like_phone(value):
+00720:             d="".join(ch for ch in str(value or "") if ch.isdigit())
+00721:             return len(d)>=10 and len(d)>=max(10,len(str(value or "").replace(" ","").replace("+","").replace("-",""))-3)
+00722: 
+00723:         for i,c in enumerate(self.contacts,1):
+00724:             phone=(c.get("phone") or "").strip()
+00725:             name=(c.get("name") or "").strip()
+00726: 
+00727:             if not name or looks_like_phone(name):
+00728:                 name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00719:         def looks_like_phone(value):
+00720:             d="".join(ch for ch in str(value or "") if ch.isdigit())
+00721:             return len(d)>=10 and len(d)>=max(10,len(str(value or "").replace(" ","").replace("+","").replace("-",""))-3)
+00722: 
+00723:         for i,c in enumerate(self.contacts,1):
+00724:             phone=(c.get("phone") or "").strip()
+00725:             name=(c.get("name") or "").strip()
+00726: 
+00727:             if not name or looks_like_phone(name):
+00728:                 name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00722: 
+00723:         for i,c in enumerate(self.contacts,1):
+00724:             phone=(c.get("phone") or "").strip()
+00725:             name=(c.get("name") or "").strip()
+00726: 
+00727:             if not name or looks_like_phone(name):
+00728:                 name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00737: 
+00738:         self.contacts_label.setText(
+00739:             f"{len(self.contacts)} clientes na lista atual"
+00723:         for i,c in enumerate(self.contacts,1):
+00724:             phone=(c.get("phone") or "").strip()
+00725:             name=(c.get("name") or "").strip()
+00726: 
+00727:             if not name or looks_like_phone(name):
+00728:                 name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00737: 
+00738:         self.contacts_label.setText(
+00739:             f"{len(self.contacts)} clientes na lista atual"
+00740:         )
+00725:             name=(c.get("name") or "").strip()
+00726: 
+00727:             if not name or looks_like_phone(name):
+00728:                 name=("Contato ••••"+phone[-4:]) if phone else "Contato"
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00737: 
+00738:         self.contacts_label.setText(
+00739:             f"{len(self.contacts)} clientes na lista atual"
+00740:         )
+00741: 
+00742:     def new_list(self):
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00737: 
+00738:         self.contacts_label.setText(
+00739:             f"{len(self.contacts)} clientes na lista atual"
+00740:         )
+00741: 
+00742:     def new_list(self):
+00743:         name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+00744:         if not ok or not name.strip():
+00745:             return
+00746:         self.contacts=[]
+00785:         if not contact:
+00786:             self.status.setText("ERRO P30 — Contato vazio.")
+00787:             return
+00788: 
+00789:         name=(contact.get("name") or "Contato").strip()
+00790:         phone=(contact.get("phone") or "").strip()
+00791:         chat_id=(contact.get("chat_id") or "").strip()
+00792: 
+00793:         if not phone:
+00794:             self.status.setText(
+00795:                 f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+00796:             )
+00797:             return
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00788: 
+00789:         name=(contact.get("name") or "Contato").strip()
+00790:         phone=(contact.get("phone") or "").strip()
+00791:         chat_id=(contact.get("chat_id") or "").strip()
+00792: 
+00793:         if not phone:
+00794:             self.status.setText(
+00795:                 f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+00796:             )
+00797:             return
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00795:                 f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+00796:             )
+00797:             return
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00806:             "chat_id":chat_id
+00807:         }
+00808: 
+00809:         self.contacts=list(existing.values())
+00810:         self._refresh_current_list()
+00811: 
+00812:         if already:
+00797:             return
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00806:             "chat_id":chat_id
+00807:         }
+00808: 
+00809:         self.contacts=list(existing.values())
+00810:         self._refresh_current_list()
+00811: 
+00812:         if already:
+00813:             self.status.setText(
+00814:                 f"ℹ {name} / {phone} já estava na lista."
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00806:             "chat_id":chat_id
+00807:         }
+00808: 
+00809:         self.contacts=list(existing.values())
+00810:         self._refresh_current_list()
+00811: 
+00812:         if already:
+00813:             self.status.setText(
+00814:                 f"ℹ {name} / {phone} já estava na lista."
+00815:             )
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00806:             "chat_id":chat_id
+00807:         }
+00808: 
+00809:         self.contacts=list(existing.values())
+00810:         self._refresh_current_list()
+00811: 
+00812:         if already:
+00813:             self.status.setText(
+00814:                 f"ℹ {name} / {phone} já estava na lista."
+00815:             )
+00816:         else:
+00817:             self.status.setText(
+00809:         self.contacts=list(existing.values())
+00810:         self._refresh_current_list()
+00811: 
+00812:         if already:
+00813:             self.status.setText(
+00814:                 f"ℹ {name} / {phone} já estava na lista."
+00815:             )
+00816:         else:
+00817:             self.status.setText(
+00818:                 f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+00819:             )
+00820: 
+00821:     def save_current_list(self):
+00822:         if not self.contacts:
+00823:             QMessageBox.information(self,"Lista","A lista atual está vazia.")
+00824:             return
+00825: 
+00826:         name=self.selected_list_name
+00813:             self.status.setText(
+00814:                 f"ℹ {name} / {phone} já estava na lista."
+00815:             )
+00816:         else:
+00817:             self.status.setText(
+00818:                 f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+00819:             )
+00820: 
+00821:     def save_current_list(self):
+00822:         if not self.contacts:
+00823:             QMessageBox.information(self,"Lista","A lista atual está vazia.")
+00824:             return
+00825: 
+00826:         name=self.selected_list_name
+00827:         if not name:
+00828:             name,ok=QInputDialog.getText(self,"Salvar lista","Nome da lista:")
+00829:             if not ok or not name.strip():
+00830:                 return
+00965:             QMessageBox.information(self,"Teste","Digite uma mensagem de teste.")
+00966:             return
+00967: 
+00968:         valid=[
+00969:             c for c in self.contacts
+00970:             if c.get("phone") or c.get("chat_id")
+00971:         ]
+00972:         if not valid:
+00973:             QMessageBox.information(
+00974:                 self,
+00975:                 "Teste",
+00976:                 "Ainda não há contato com telefone/ID resolvido."
+00977:             )
+00978:             return
+00979: 
+00980:         cb=getattr(self,"on_test_one",None)
+00981:         if cb:
+00982:             cb(valid[0],text)
+01016:             )
+01017:             return
+01018: 
+01019:         unresolved=sum(
+01020:             1 for c in self.contacts
+01021:             if not c.get("phone") and not c.get("chat_id")
+01022:         )
+01023:         if unresolved:
+01024:             QMessageBox.information(
+01025:                 self,
+01026:                 "Campanha",
+01027:                 f"A lista possui {unresolved} contato(s) sem telefone/identificador.\n\n"
+01028:                 "Nesta etapa estamos validando a criação das listas. "
+01029:                 "Depois vamos resolver os identificadores para o envio."
+01030:             )
+01031:             return
+01032: 
+01033:         ans=QMessageBox.question(
+02025:             uri=str(getattr(args,"Uri","") or "").lower()
+02026:             if "whatsapp.com" not in uri and "whatsapp.net" not in uri:
+02027:                 return
+02028:             kind=str(getattr(args,"PermissionKind","") or "").lower()
+02029:             allow_kinds=(
+02030:                 "microphone","camera","autoplay",
+02031:                 "windowmanagement","window management",
+02032:                 "notifications","persistentstorage","persistent storage",
+02033:                 "clipboard","other sensors",
+02034:             )
+02035:             allowed=any(x in kind for x in allow_kinds)
+02036:             # Log tecnico sem dados da conversa, apenas permissao/origem.
+02037:             try:
+02038:                 log_dir=ALIYVO_USER_DIR/"logs"; log_dir.mkdir(parents=True,exist_ok=True)
+02039:                 import time as _time
+02040:                 with (log_dir/"WEBVIEW2_MEDIA.log").open("a",encoding="utf-8") as f:
+02041:                     f.write("["+_time.strftime("%Y-%m-%d %H:%M:%S")+"] "+kind+" | "+uri[:180]+" | allow="+str(allowed)+"\n")
+02042:             except Exception:pass
+02733:             );
+02734: 
+02735:             const chats=[];
+02736:             const seen=new Set();
+02737: 
+02738:             function cleanPhone(s){
+02739:               if(!s) return "";
+02740:               const digits=String(s).replace(/\D/g,"");
+02741:               return digits.length>=10 ? digits : "";
+02742:             }
+02743: 
+02744:             function extractFromAttrs(el){
+02745:               const attrs=["data-id","data-testid","id","title","aria-label","href"];
+02746:               for(const a of attrs){
+02747:                 const v=el.getAttribute && el.getAttribute(a);
+02748:                 if(!v) continue;
+02749: 
+02750:                 // JIDs comuns: 5548999999999@c.us / @s.whatsapp.net
+02776:               const low=name.toLowerCase();
+02777:               if(low.includes("arquiv")||low.includes("status")||low.includes("comunidades")||low.includes("canais")) continue;
+02778:               if(seen.has(name)) continue;
+02779:               seen.add(name);
+02780: 
+02781:               let phone="";
+02782: 
+02783:               // tenta no próprio row
+02784:               phone=extractFromAttrs(row);
+02785: 
+02786:               // tenta nos descendentes
+02787:               if(!phone){
+02788:                 const descendants=Array.from(row.querySelectorAll("*"));
+02789:                 for(const el of descendants){
+02790:                   phone=extractFromAttrs(el);
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02779:               seen.add(name);
+02780: 
+02781:               let phone="";
+02782: 
+02783:               // tenta no próprio row
+02784:               phone=extractFromAttrs(row);
+02785: 
+02786:               // tenta nos descendentes
+02787:               if(!phone){
+02788:                 const descendants=Array.from(row.querySelectorAll("*"));
+02789:                 for(const el of descendants){
+02790:                   phone=extractFromAttrs(el);
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02782: 
+02783:               // tenta no próprio row
+02784:               phone=extractFromAttrs(row);
+02785: 
+02786:               // tenta nos descendentes
+02787:               if(!phone){
+02788:                 const descendants=Array.from(row.querySelectorAll("*"));
+02789:                 for(const el of descendants){
+02790:                   phone=extractFromAttrs(el);
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02785: 
+02786:               // tenta nos descendentes
+02787:               if(!phone){
+02788:                 const descendants=Array.from(row.querySelectorAll("*"));
+02789:                 for(const el of descendants){
+02790:                   phone=extractFromAttrs(el);
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02786:               // tenta nos descendentes
+02787:               if(!phone){
+02788:                 const descendants=Array.from(row.querySelectorAll("*"));
+02789:                 for(const el of descendants){
+02790:                   phone=extractFromAttrs(el);
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02803:             }
+02791:                   if(phone) break;
+02792:                 }
+02793:               }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02803:             }
+02804: 
+02805:             return {ok:true,chats:chats};
+02806:           } catch(e){
+02807:             return {ok:false,error:String(e)};
+02808:           }
+02794: 
+02795:               // tenta texto visível caso o chat esteja salvo por número
+02796:               if(!phone){
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02803:             }
+02804: 
+02805:             return {ok:true,chats:chats};
+02806:           } catch(e){
+02807:             return {ok:false,error:String(e)};
+02808:           }
+02809:         })();
+02810:         """
+02811:         self.window().web.page().runJavaScript(js, callback)
+02797:                 const txt=(row.innerText||row.textContent||"");
+02798:                 const m=txt.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+02799:                 if(m) phone=cleanPhone(m[0]);
+02800:               }
+02801: 
+02802:               chats.push({name:name,phone:phone});
+02803:             }
+02804: 
+02805:             return {ok:true,chats:chats};
+02806:           } catch(e){
+02807:             return {ok:false,error:String(e)};
+02808:           }
+02809:         })();
+02810:         """
+02811:         self.window().web.page().runJavaScript(js, callback)
+02812: 
+02813:     def choose_whatsapp_contacts(self):
+02814:         self._extract_visible_whatsapp_chats(self._show_whatsapp_contact_picker)
+02848:         lay.addWidget(search)
+02849: 
+02850:         lst=QListWidget()
+02851:         for chat in chats:
+02852:             name=chat.get("name","")
+02853:             phone=chat.get("phone","")
+02854:             label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+02855:             item=QListWidgetItem(label)
+02856:             item.setData(Qt.ItemDataRole.UserRole, chat)
+02857:             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+02858:             item.setCheckState(Qt.CheckState.Unchecked)
+02859:             lst.addItem(item)
+02860:         lay.addWidget(lst,1)
+02861: 
+02862:         def filt(txt):
+02863:             t=(txt or "").lower()
+02864:             for i in range(lst.count()):
+02865:                 it=lst.item(i)
+02849: 
+02850:         lst=QListWidget()
+02851:         for chat in chats:
+02852:             name=chat.get("name","")
+02853:             phone=chat.get("phone","")
+02854:             label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+02855:             item=QListWidgetItem(label)
+02856:             item.setData(Qt.ItemDataRole.UserRole, chat)
+02857:             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+02858:             item.setCheckState(Qt.CheckState.Unchecked)
+02859:             lst.addItem(item)
+02860:         lay.addWidget(lst,1)
+02861: 
+02862:         def filt(txt):
+02863:             t=(txt or "").lower()
+02864:             for i in range(lst.count()):
+02865:                 it=lst.item(i)
+02866:                 it.setHidden(t not in it.text().lower())
+02898:         resolved=0
+02899:         pending=0
+02900: 
+02901:         for chat in chosen:
+02902:             nome=(chat.get("name") or "").strip()
+02903:             phone=re.sub(r"\D","",(chat.get("phone") or "").strip())
+02904: 
+02905:             if phone:
+02906:                 resolved+=1
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02900: 
+02901:         for chat in chosen:
+02902:             nome=(chat.get("name") or "").strip()
+02903:             phone=re.sub(r"\D","",(chat.get("phone") or "").strip())
+02904: 
+02905:             if phone:
+02906:                 resolved+=1
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02930: 
+02931:         con.commit()
+02932:         con.close()
+02933: 
+02969:                          !x.includes("business account");
+02970:                 });
+02971:               if(candidates.length) name=candidates[0];
+02972:             }
+02973: 
+02974:             let phone="";
+02975: 
+02976:             function scanValue(v){
+02977:               if(!v) return "";
+02978:               const s=String(v);
+02979:               const m1=s.match(/(\d{10,15})@(c\.us|s\.whatsapp\.net)/i);
+02980:               if(m1) return m1[1];
+02981:               const m2=s.match(/(?:^|[^0-9])(\d{10,15})(?:[^0-9]|$)/);
+02982:               if(m2) return m2[1];
+02983:               return "";
+02984:             }
+02985: 
+02986:             const all=Array.from(main.querySelectorAll("*"));
+02986:             const all=Array.from(main.querySelectorAll("*"));
+02987:             for(const el of all){
+02988:               const attrs=["data-id","id","title","aria-label","href"];
+02989:               for(const a of attrs){
+02990:                 const v=el.getAttribute && el.getAttribute(a);
+02991:                 phone=scanValue(v);
+02992:                 if(phone) break;
+02993:               }
+02994:               if(phone) break;
+02995:             }
+02996: 
+02997:             if(!phone){
+02998:               const text=(main.innerText||main.textContent||"");
+02999:               const m=text.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+03000:               if(m) phone=m[0].replace(/\D/g,"");
+03001:             }
+03002: 
+03003:             return {ok:true,name:name,phone:phone};
+02987:             for(const el of all){
+02988:               const attrs=["data-id","id","title","aria-label","href"];
+02989:               for(const a of attrs){
+02990:                 const v=el.getAttribute && el.getAttribute(a);
+02991:                 phone=scanValue(v);
+02992:                 if(phone) break;
+02993:               }
+02994:               if(phone) break;
+02995:             }
+02996: 
+02997:             if(!phone){
+02998:               const text=(main.innerText||main.textContent||"");
+02999:               const m=text.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+03000:               if(m) phone=m[0].replace(/\D/g,"");
+03001:             }
+03002: 
+03003:             return {ok:true,name:name,phone:phone};
+03004:           } catch(e){
+02989:               for(const a of attrs){
+02990:                 const v=el.getAttribute && el.getAttribute(a);
+02991:                 phone=scanValue(v);
+02992:                 if(phone) break;
+02993:               }
+02994:               if(phone) break;
+02995:             }
+02996: 
+02997:             if(!phone){
+02998:               const text=(main.innerText||main.textContent||"");
+02999:               const m=text.match(/\+?\d[\d\s\-\(\)]{8,}\d/);
+03000:               if(m) phone=m[0].replace(/\D/g,"");
+03001:             }
+03002: 
+03003:             return {ok:true,name:name,phone:phone};
+03004:           } catch(e){
+03005:             return {ok:false,error:String(e)};
+03006:           }
+===== telefone =====
+00586:         lay.addWidget(search_title)
+00587: 
+00588:         self.search_contact=QLineEdit()
+00589:         self.search_contact.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+00590:         self.search_contact.setPlaceholderText(
+00591:             "Digite nome ou telefone. Ex.: Nelson Torres"
+00592:         )
+00593:         lay.addWidget(self.search_contact)
+00594: 
+00595:         row2=QHBoxLayout()
+00596:         self.search_whatsapp_btn=QPushButton("🔎 Tentar busca automática")
+00597:         self.search_whatsapp_btn.setVisible(False)
+00598:         self.add_current_btn=QPushButton("➕ Adicionar conversa atual")
+00599:         row2.addWidget(self.search_whatsapp_btn)
+00600:         row2.addWidget(self.add_current_btn)
+00601:         lay.addLayout(row2)
+00602: 
+00603:         hint=QLabel(
+00729: 
+00730:             masked=("••••"+phone[-4:]) if phone else "sem número"
+00731:             label=f"{i}. {name}  •  📞 {masked}"
+00732: 
+00733:             it=QListWidgetItem(label)
+00734:             it.setToolTip("Telefone: "+phone if phone else "Sem telefone")
+00735:             it.setData(Qt.ItemDataRole.UserRole,c)
+00736:             self.current_list.addItem(it)
+00737: 
+00738:         self.contacts_label.setText(
+00739:             f"{len(self.contacts)} clientes na lista atual"
+00740:         )
+00741: 
+00742:     def new_list(self):
+00743:         name,ok=QInputDialog.getText(self,"Nova lista","Nome da lista:")
+00744:         if not ok or not name.strip():
+00745:             return
+00746:         self.contacts=[]
+00749:         self.status.setText(f"Nova lista: {self.selected_list_name}")
+00750: 
+00751:     def request_search_whatsapp(self):
+00752:         term=self.search_contact.text().strip()
+00753:         if not term:
+00754:             self.status.setText("Digite o nome ou telefone do cliente.")
+00755:             return
+00756: 
+00757:         cb=getattr(self,"on_search_whatsapp",None)
+00758:         if not cb:
+00759:             self.status.setText("⚠ Busca do WhatsApp não conectada.")
+00760:             QMessageBox.warning(
+00761:                 self,
+00762:                 "Buscar no WhatsApp",
+00763:                 "A função de busca não está conectada nesta sessão."
+00764:             )
+00765:             return
+00766: 
+00790:         phone=(contact.get("phone") or "").strip()
+00791:         chat_id=(contact.get("chat_id") or "").strip()
+00792: 
+00793:         if not phone:
+00794:             self.status.setText(
+00795:                 f"ERRO P31 — {name} não tem telefone. Não foi adicionado."
+00796:             )
+00797:             return
+00798: 
+00799:         # Número passa a ser a chave principal da lista.
+00800:         existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
+00801: 
+00802:         already=phone in existing
+00803:         existing[phone]={
+00804:             "name":name,
+00805:             "phone":phone,
+00806:             "chat_id":chat_id
+00807:         }
+00971:         ]
+00972:         if not valid:
+00973:             QMessageBox.information(
+00974:                 self,
+00975:                 "Teste",
+00976:                 "Ainda não há contato com telefone/ID resolvido."
+00977:             )
+00978:             return
+00979: 
+00980:         cb=getattr(self,"on_test_one",None)
+00981:         if cb:
+00982:             cb(valid[0],text)
+00983: 
+00984:     def autosave_current_list(self):
+00985:         """
+00986:         Salva automaticamente a lista atual antes/depois da campanha.
+00987:         Se ainda não houver nome, usa 'Lista campanha'.
+00988:         """
+01022:         )
+01023:         if unresolved:
+01024:             QMessageBox.information(
+01025:                 self,
+01026:                 "Campanha",
+01027:                 f"A lista possui {unresolved} contato(s) sem telefone/identificador.\n\n"
+01028:                 "Nesta etapa estamos validando a criação das listas. "
+01029:                 "Depois vamos resolver os identificadores para o envio."
+01030:             )
+01031:             return
+01032: 
+01033:         ans=QMessageBox.question(
+01034:             self,
+01035:             "Iniciar campanha",
+01036:             f"Iniciar envio para {len(self.contacts)} clientes?"
+01037:         )
+01038:         if ans != QMessageBox.StandardButton.Yes:
+01039:             return
+02593:         ar.addWidget(bcur)
+02594:         ar.addWidget(br)
+02595:         l3.addLayout(ar)
+02596: 
+02597:         self.contact_table=QTableWidget(0,5)
+02598:         self.contact_table.setHorizontalHeaderLabels(["Usar","Nome","Telefone","Grupo","Opt-in"])
+02599:         self.contact_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.ResizeMode.Stretch)
+02600:         l3.addWidget(self.contact_table,1)
+02601: 
+02602:         rr=QHBoxLayout()
+02603:         self.interval_spin=QSpinBox()
+02604:         self.interval_spin.setRange(20,300)
+02605:         self.interval_spin.setValue(45)
+02606:         self.interval_spin.setSuffix(" s")
+02607:         self.campaign_progress=QLabel("Fila parada")
+02608:         self.start_campaign_btn=QPushButton("INICIAR CAMPANHA")
+02609:         self.start_campaign_btn.clicked.connect(self.start_campaign)
+02610:         self.stop_campaign_btn=QPushButton("Parar")
+02836:         dlg.resize(600,680)
+02837:         lay=QVBoxLayout(dlg)
+02838: 
+02839:         info=QLabel(
+02840:             "Marque os clientes para salvar na lista de campanhas.\n"
+02841:             "O ALIYVO agora tenta descobrir o telefone pelos identificadores internos do WhatsApp."
+02842:         )
+02843:         info.setWordWrap(True)
+02844:         lay.addWidget(info)
+02845: 
+02846:         search=QLineEdit()
+02847:         search.setPlaceholderText("Filtrar...")
+02848:         lay.addWidget(search)
+02849: 
+02850:         lst=QListWidget()
+02851:         for chat in chats:
+02852:             name=chat.get("name","")
+02853:             phone=chat.get("phone","")
+02849: 
+02850:         lst=QListWidget()
+02851:         for chat in chats:
+02852:             name=chat.get("name","")
+02853:             phone=chat.get("phone","")
+02854:             label=name + (f"   •   {phone}" if phone else "   •   telefone pendente")
+02855:             item=QListWidgetItem(label)
+02856:             item.setData(Qt.ItemDataRole.UserRole, chat)
+02857:             item.setFlags(item.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+02858:             item.setCheckState(Qt.CheckState.Unchecked)
+02859:             lst.addItem(item)
+02860:         lay.addWidget(lst,1)
+02861: 
+02862:         def filt(txt):
+02863:             t=(txt or "").lower()
+02864:             for i in range(lst.count()):
+02865:                 it=lst.item(i)
+02866:                 it.setHidden(t not in it.text().lower())
+02904: 
+02905:             if phone:
+02906:                 resolved+=1
+02907:                 cur.execute("""
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02908:                     DELETE FROM campanha_contatos
+02909:                     WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02910:                 """,(nome,))
+02911:                 cur.execute("""
+02912:                     INSERT INTO campanha_contatos
+02913:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02914:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02915:                     ON CONFLICT(telefone) DO UPDATE SET
+02916:                       nome=excluded.nome,
+02917:                       grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+02918:                       ativo=1,
+02919:                       origem='whatsapp',
+02920:                       whatsapp_nome=excluded.whatsapp_nome
+02921:                 """,(nome,phone,grupo,nome))
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02922:             else:
+02923:                 pending+=1
+02924:                 placeholder="pendente:"+nome.lower()
+02925:                 cur.execute("""
+02926:                     INSERT OR IGNORE INTO campanha_contatos
+02927:                     (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+02928:                     VALUES(?,?,?,1,1,'whatsapp',?)
+02929:                 """,(nome,placeholder,grupo,nome))
+02930: 
+02931:         con.commit()
+02932:         con.close()
+02933: 
+02934:         self.refresh_campaign_contacts()
+02935:         QMessageBox.information(
+02936:             self,
+02937:             "WhatsApp",
+02938:             f"{len(chosen)} contatos processados.\n\n"
+02939:             f"Telefone identificado: {resolved}\n"
+02934:         self.refresh_campaign_contacts()
+02935:         QMessageBox.information(
+02936:             self,
+02937:             "WhatsApp",
+02938:             f"{len(chosen)} contatos processados.\n\n"
+02939:             f"Telefone identificado: {resolved}\n"
+02940:             f"Telefone pendente: {pending}"
+02941:         )
+02942: 
+02943:     def add_current_chat_to_campaign(self):
+02944:         js = r"""
+02945:         (() => {
+02946:           try {
+02947:             const main=document.querySelector("#main");
+02948:             if(!main) return {ok:false,error:"Nenhuma conversa aberta"};
+02949: 
+02950:             // Se uma tela/painel secundário estiver cobrindo a conversa,
+02951:             // não tenta interpretar a página inteira.
+02935:         QMessageBox.information(
+02936:             self,
+02937:             "WhatsApp",
+02938:             f"{len(chosen)} contatos processados.\n\n"
+02939:             f"Telefone identificado: {resolved}\n"
+02940:             f"Telefone pendente: {pending}"
+02941:         )
+02942: 
+02943:     def add_current_chat_to_campaign(self):
+02944:         js = r"""
+02945:         (() => {
+02946:           try {
+02947:             const main=document.querySelector("#main");
+02948:             if(!main) return {ok:false,error:"Nenhuma conversa aberta"};
+02949: 
+02950:             // Se uma tela/painel secundário estiver cobrindo a conversa,
+02951:             // não tenta interpretar a página inteira.
+02952:             const hasConversation =
+03030: 
+03031:         if phone:
+03032:             # atualiza eventual placeholder pelo nome
+03033:             cur.execute("""
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03034:                 DELETE FROM campanha_contatos
+03035:                 WHERE whatsapp_nome=? AND telefone LIKE 'pendente:%'
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03036:             """,(name,))
+03037:             cur.execute("""
+03038:                 INSERT INTO campanha_contatos
+03039:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03040:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03041:                 ON CONFLICT(telefone) DO UPDATE SET
+03042:                     nome=excluded.nome,
+03043:                     grupo=CASE WHEN excluded.grupo<>'' THEN excluded.grupo ELSE campanha_contatos.grupo END,
+03044:                     ativo=1,
+03045:                     origem='whatsapp',
+03046:                     whatsapp_nome=excluded.whatsapp_nome
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03047:             """,(name,phone,group,name))
+03048:         else:
+03049:             placeholder="pendente:"+name.lower()
+03050:             cur.execute("""
+03051:                 INSERT OR IGNORE INTO campanha_contatos
+03052:                 (nome,telefone,grupo,opt_in,ativo,origem,whatsapp_nome)
+03053:                 VALUES(?,?,?,1,1,'whatsapp',?)
+03054:             """,(name,placeholder,group,name))
+03055: 
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03059: 
+03060:         if phone:
+03061:             QMessageBox.information(self,"WhatsApp",f"{name} adicionado com telefone identificado.")
+03062:         else:
+03063:             QMessageBox.information(
+03064:                 self,
+03056:         con.commit()
+03057:         con.close()
+03058:         self.refresh_campaign_contacts()
+03059: 
+03060:         if phone:
+03061:             QMessageBox.information(self,"WhatsApp",f"{name} adicionado com telefone identificado.")
+03062:         else:
+03063:             QMessageBox.information(
+03064:                 self,
+03065:                 "WhatsApp",
+03066:                 f"{name} foi adicionado.\n\n"
+03067:                 "O telefone não ficou exposto nesta tela do WhatsApp e foi marcado como pendente."
+03068:             )
+03069: 
+03070: 
+03071:     def select_campaign_image(self):
+03072:         p,_=QFileDialog.getOpenFileName(self,"Selecionar imagem","","Imagens (*.jpg *.jpeg *.png *.webp)")
+03073:         if p:
+03062:         else:
+03063:             QMessageBox.information(
+03064:                 self,
+03065:                 "WhatsApp",
+03066:                 f"{name} foi adicionado.\n\n"
+03067:                 "O telefone não ficou exposto nesta tela do WhatsApp e foi marcado como pendente."
+03068:             )
+03069: 
+03070: 
+03071:     def select_campaign_image(self):
+03072:         p,_=QFileDialog.getOpenFileName(self,"Selecionar imagem","","Imagens (*.jpg *.jpeg *.png *.webp)")
+03073:         if p:
+03074:             self.camp_img_path=p
+03075:             self.camp_img_lbl.setText(Path(p).name)
+03076: 
+03077:     def import_contacts_csv(self):
+03078:         p,_=QFileDialog.getOpenFileName(self,"Importar CSV","","CSV (*.csv)")
+03079:         if not p:
+03086:                 dialect=csv.Sniffer().sniff(sample,delimiters=";,")
+03087:             except:
+03088:                 dialect=csv.excel
+03089:             for row in csv.DictReader(f,dialect=dialect):
+03090:                 nome=(row.get("nome") or row.get("Nome") or "").strip()
+03091:                 tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+03092:                 grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+03093:                 if nome and tel:
+03094:                     cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+03095:                                    VALUES(?,?,?,1,1)
+03096:                                    ON CONFLICT(telefone) DO UPDATE SET
+03097:                                    nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+03098:                     n+=1
+03099:         con.commit(); con.close()
+03100:         self.refresh_campaign_contacts()
+03101:         QMessageBox.information(self,"Importação",f"{n} contatos importados.")
+03102: 
+03103:     def refresh_campaign_contacts(self):
+03089:             for row in csv.DictReader(f,dialect=dialect):
+03090:                 nome=(row.get("nome") or row.get("Nome") or "").strip()
+03091:                 tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+03092:                 grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+03093:                 if nome and tel:
+03094:                     cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+03095:                                    VALUES(?,?,?,1,1)
+03096:                                    ON CONFLICT(telefone) DO UPDATE SET
+03097:                                    nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+03098:                     n+=1
+03099:         con.commit(); con.close()
+03100:         self.refresh_campaign_contacts()
+03101:         QMessageBox.information(self,"Importação",f"{n} contatos importados.")
+03102: 
+03103:     def refresh_campaign_contacts(self):
+03104:         if not hasattr(self,"contact_table"):
+03105:             return
+03106:         con=self.db()
+03091:                 tel=re.sub(r"\D","",(row.get("telefone") or row.get("Telefone") or "").strip())
+03092:                 grupo=(row.get("grupo") or row.get("Grupo") or "").strip()
+03093:                 if nome and tel:
+03094:                     cur.execute("""INSERT INTO campanha_contatos(nome,telefone,grupo,opt_in,ativo)
+03095:                                    VALUES(?,?,?,1,1)
+03096:                                    ON CONFLICT(telefone) DO UPDATE SET
+03097:                                    nome=excluded.nome,grupo=excluded.grupo,ativo=1""",(nome,tel,grupo))
+03098:                     n+=1
+03099:         con.commit(); con.close()
+03100:         self.refresh_campaign_contacts()
+03101:         QMessageBox.information(self,"Importação",f"{n} contatos importados.")
+03102: 
+03103:     def refresh_campaign_contacts(self):
+03104:         if not hasattr(self,"contact_table"):
+03105:             return
+03106:         con=self.db()
+03107:         rows=con.execute("""SELECT id,nome,telefone,grupo,opt_in
+03108:                             FROM campanha_contatos
+03102: 
+03103:     def refresh_campaign_contacts(self):
+03104:         if not hasattr(self,"contact_table"):
+03105:             return
+03106:         con=self.db()
+03107:         rows=con.execute("""SELECT id,nome,telefone,grupo,opt_in
+03108:                             FROM campanha_contatos
+03109:                             WHERE ativo=1 ORDER BY nome""").fetchall()
+03110:         con.close()
+03111:         self.contact_table.setRowCount(0)
+03112:         for r in rows:
+03113:             row=self.contact_table.rowCount()
+03114:             self.contact_table.insertRow(row)
+03115:             it=QTableWidgetItem("")
+03116:             it.setData(Qt.ItemDataRole.UserRole,r[0])
+03117:             it.setFlags(it.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+03118:             it.setCheckState(Qt.CheckState.Checked if r[4] else Qt.CheckState.Unchecked)
+03119:             self.contact_table.setItem(row,0,it)
+03118:             it.setCheckState(Qt.CheckState.Checked if r[4] else Qt.CheckState.Unchecked)
+03119:             self.contact_table.setItem(row,0,it)
+03120:             self.contact_table.setItem(row,1,QTableWidgetItem(r[1] or ""))
+03121:             tel_display = r[2] or ""
+03122:             if tel_display.startswith("pendente:"):
+03123:                 tel_display = "⚠ telefone pendente"
+03124:             self.contact_table.setItem(row,2,QTableWidgetItem(tel_display))
+03125:             self.contact_table.setItem(row,3,QTableWidgetItem(r[3] or ""))
+03126:             self.contact_table.setItem(row,4,QTableWidgetItem("Sim" if r[4] else "Não"))
+03127: 
+03128:     def start_campaign(self):
+03129:         msg=self.camp_msg.toPlainText().strip()
+03130:         if not msg:
+03131:             QMessageBox.warning(self,"Campanha","Escreva a mensagem.")
+03132:             return
+03133:         queue=[]
+03134:         for row in range(self.contact_table.rowCount()):
+03135:             it=self.contact_table.item(row,0)
+03141:                     it.data(Qt.ItemDataRole.UserRole),
+03142:                     self.contact_table.item(row,1).text(),
+03143:                     tel
+03144:                 ))
+03145:         if not queue:
+03146:             QMessageBox.warning(self,"Campanha","Nenhum contato com telefone identificado e opt-in selecionado.")
+03147:             return
+03148:         if QMessageBox.question(
+03149:             self,"Confirmar",
+03150:             f"Processar {len(queue)} contatos selecionados?",
+03151:             QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No
+03152:         ) != QMessageBox.StandardButton.Yes:
+03153:             return
+03154: 
+03155:         from datetime import datetime
+03156:         con=self.db(); cur=con.cursor()
+03157:         cur.execute("""INSERT INTO campanhas(nome,mensagem,imagem,criado_em,status)
+03158:                        VALUES(?,?,?,?,?)""",(
+09581:         return sorted(names,key=str.lower)
+09582: 
+09583:     def _radar_match_name(self,a,b):
+09584:         import re,difflib
+09585:         na=self._radar_norm(a);nb=self._radar_norm(b)
+09586:         # Remove blocos numericos longos (CNPJ/CPF/telefone) para comparar o nome comercial.
+09587:         ca=re.sub(r'\b\d{7,}\b',' ',na);cb=re.sub(r'\b\d{7,}\b',' ',nb)
+09588:         ca=re.sub(r'\s+',' ',ca).strip();cb=re.sub(r'\s+',' ',cb).strip()
+09589:         if not ca or not cb:return 0.0
+09590:         if ca==cb:return 1.0
+09591:         # Se um lado contem o outro e o trecho e razoavelmente descritivo, confianca alta.
+09592:         if len(min((ca,cb),key=len))>=8 and (ca in cb or cb in ca):return 0.97
+09593:         return difflib.SequenceMatcher(None,ca,cb).ratio()
+09594: 
+09595:     def _radar_links_reverse(self):
+09596:         data=self._radar_load();rev={}
+09597:         for wa,key in (data.get("links",{}) or {}).items():
+09598:             if str(key or ""):rev[str(key)]=str(wa or "")
+13299:               ) continue;
+13300: 
+13301:               if (seen.has(name)) continue;
+13302:               seen.add(name);
+13303: 
+13304:               // Se o próprio nome visível já for telefone, guardamos.
+13305:               const digits=(name.match(/\d/g)||[]).join("");
+13306:               let phone="";
+13307:               if (digits.length >= 10 && digits.length <= 15) {
+13308:                 phone=digits;
+13309:                 if (phone.length === 10 || phone.length === 11) {
+13310:                   phone="55"+phone;
+13311:                 }
+13312:               }
+13313: 
+13314:               out.push({name,phone});
+13315:             }
+13316: 
+13932:             }
+13933: 
+13934:             return {
+13935:               ok:false,
+13936:               code:"N30",
+13937:               error:"O painel abriu, mas nenhum telefone foi encontrado.",
+13938:               debug:debug
+13939:             };
+13940: 
+13941:           }catch(e){
+13942:             return {
+13943:               ok:false,
+13944:               code:"N39",
+13945:               error:String(e)
+13946:             };
+13947:           }
+13948:         })();
+13949:         """
+14110:         panel=self.campaign_panel
+14111: 
+14112:         phone=(contact.get("phone") or "").strip()
+14113:         if not phone:
+14114:             panel.status.setText(
+14115:                 "ERRO CWA40 — contato de teste sem telefone."
+14116:             )
+14117:             return
+14118: 
+14119:         # Preserve current UI list; only queue is replaced for this test.
+14120:         panel.queue=[contact]
+14121:         panel.current_index=0
+14122:         panel.running=True
+14123:         panel.start_btn.setEnabled(False)
+14124:         panel.pause_btn.setEnabled(True)
+14125: 
+14126:         self._campaign_wajs_prepare()
+14127: 
+14820:     def _campaign_search_contact_in_whatsapp(self, phone):
+14821:         """
+14822:         v0.15.2:
+14823:         Não depende do HTML da caixa de busca.
+14824:         Clica fisicamente na região visual da pesquisa do WhatsApp,
+14825:         Ctrl+A e cola o telefone usando eventos nativos do Qt.
+14826:         """
+14827:         panel=self.campaign_panel
+14828:         phone="".join(ch for ch in str(phone or "") if ch.isdigit())
+14829: 
+14830:         if not phone:
+14831:             panel.status.setText("ERRO M30A — telefone vazio.")
+14832:             panel.log("ERRO M30A — telefone vazio")
+14833:             panel.pause()
+14834:             return
+14835: 
+14836:         self._campaign_search_phone=phone
+14837:         panel.status.setText(
+14826:         """
+14827:         panel=self.campaign_panel
+14828:         phone="".join(ch for ch in str(phone or "") if ch.isdigit())
+14829: 
+14830:         if not phone:
+14831:             panel.status.setText("ERRO M30A — telefone vazio.")
+14832:             panel.log("ERRO M30A — telefone vazio")
+14833:             panel.pause()
+14834:             return
+14835: 
+14836:         self._campaign_search_phone=phone
+14837:         panel.status.setText(
+14838:             "🔎 Clicando na busca visível do WhatsApp..."
+14839:         )
+14840: 
+14841:         try:
+14842:             # WhatsApp Web mantém a busca na coluna esquerda.
+14843:             # Coordenadas relativas ao QWebEngineView, não à janela inteira.
+14827:         panel=self.campaign_panel
+14828:         phone="".join(ch for ch in str(phone or "") if ch.isdigit())
+14829: 
+14830:         if not phone:
+14831:             panel.status.setText("ERRO M30A — telefone vazio.")
+14832:             panel.log("ERRO M30A — telefone vazio")
+14833:             panel.pause()
+14834:             return
+14835: 
+14836:         self._campaign_search_phone=phone
+14837:         panel.status.setText(
+14838:             "🔎 Clicando na busca visível do WhatsApp..."
+14839:         )
+14840: 
+14841:         try:
+14842:             # WhatsApp Web mantém a busca na coluna esquerda.
+14843:             # Coordenadas relativas ao QWebEngineView, não à janela inteira.
+14844:             vw=max(1,self.web.width())
+14921: 
+14922:             QGuiApplication.sendEvent(self.web,press_v)
+14923:             QGuiApplication.sendEvent(self.web,release_v)
+14924: 
+14925:             panel.status.setText(
+14926:                 "✅ Telefone colocado na busca. Aguardando resultado..."
+14927:             )
+14928: 
+14929:             QTimer.singleShot(
+14930:                 1300,
+14931:                 self._campaign_click_search_result
+14932:             )
+14933: 
+14934:         except Exception as e:
+14935:             msg="ERRO M30C — falha ao preencher a busca: "+str(e)
+14936:             panel.status.setText(msg)
+14937:             panel.log(msg)
+14938:             panel.pause()
