@@ -1,0 +1,76 @@
+name: Publicar ALIYVO 0.23.12 Chat Direto Numero
+on:
+  push:
+    paths: ['trigger-v2312-release.txt']
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.11
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.11 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02311.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02311.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.11 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar abertura direta
+        shell: pwsh
+        run: |
+          python patch_direct_chat_v2312.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_direct_chat_v2312.py C:\temp\build\_app
+          if($LASTEXITCODE -ne 0){ throw 'Gate v2312 falhou' }
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste real de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited){
+            if($proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          } else {
+            Stop-Process -Id $proc.Id -Force
+          }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02312.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02312.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_direct_chat_v2312.py C:\temp\verify\_app
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02312.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.12 - CHAT DIRETO POR NUMERO',
+            'Base: 0.23.11',
+            'Numero no lembrete abre via URL oficial do WhatsApp Web: OK',
+            'Nome tenta resolver telefone no banco do ALIYVO: OK',
+            'Busca por nome fica como fallback: OK',
+            'Teste de abertura: OK',
+            'CRM/Radar/WhatsApp Turbo/Ponto preservados: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02312.txt -Encoding UTF8
+      - name: Publicar
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.12 C:\temp\out\ALIYVO_BETA_GRATIS_02312.zip C:\temp\out\VALIDACAO_02312.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.12 - Chat Direto por Numero" --notes "Ao clicar em lembrete com telefone, o ALIYVO abre a conversa diretamente pela URL oficial do WhatsApp Web, sem depender de a conversa estar visivel ou da busca lateral. Se houver apenas nome, tenta resolver o telefone no banco de contatos do próprio ALIYVO; busca por nome fica como fallback." --latest
