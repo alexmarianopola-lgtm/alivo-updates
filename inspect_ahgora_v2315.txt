@@ -1,0 +1,3197 @@
+===== FILE aliyvo_ponto.py =====
+--- LINES 16-137 ---
+000016: from ctypes.wintypes import DWORD
+000017: from datetime import datetime, timedelta
+000018: from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+000019: from pathlib import Path
+000020: from typing import Any
+000021: 
+000022: from PyQt6.QtCore import QObject, QTimer, Qt, QUrl, pyqtSignal
+000023: from PyQt6.QtWebEngineWidgets import QWebEngineView
+000024: from PyQt6.QtWidgets import (
+000025:     QApplication,
+000026:     QCheckBox,
+000027:     QDialog,
+000028:     QFormLayout,
+000029:     QFrame,
+000030:     QHBoxLayout,
+000031:     QLabel,
+000032:     QLineEdit,
+000033:     QMessageBox,
+000034:     QPushButton,
+000035:     QVBoxLayout,
+000036:     QWidget,
+000037: )
+000038: 
+000039: POINT_MODULE_VERSION = "0.23.01"
+000040: POINT_API_PORT = 17892
+000041: POINT_API_HEADER = "X-ALIYVO-Ponto"
+000042: POINT_API_SECRET = "aliyvo-ponto-02301"
+000043: 
+000044: AHGORA_LOGIN_URL = "https://www.ahgora.com.br/externo/login"
+000045: AHGORA_MIRROR_HOME = "https://app.ahgora.com.br/externo/mirror"
+000046: AHGORA_MIRROR_API = "https://app.ahgora.com.br/api-espelho/apuracao/"
+000047: AHGORA_PUNCH_BASE = "https://app.ahgora.com.br/batidaonline"
+000048: AHGORA_OFFICIAL_PUNCH_PAGE = "https://www.ahgora.com.br/externo/batidas"
+000049: 
+000050: POINT_SLOTS = (
+000051:     {"id": "entrada", "time": "07:50", "label": "Entrada"},
+000052:     {"id": "saida_almoco", "time": "12:08", "label": "Saída para almoço"},
+000053:     {"id": "volta_almoco", "time": "13:30", "label": "Volta do almoço"},
+000054:     {"id": "saida_final", "time": "18:00", "label": "Saída final"},
+000055: )
+000056: RESOLVED_STATUSES = {"confirmed", "missed"}
+000057: 
+000058: 
+000059: def _date_key(now: datetime) -> str:
+000060:     return now.strftime("%Y-%m-%d")
+000061: 
+000062: 
+000063: def _slot_minutes(slot: dict[str, str]) -> int:
+000064:     h, m = slot["time"].split(":")
+000065:     return int(h) * 60 + int(m)
+000066: 
+000067: 
+000068: def _now_minutes(now: datetime) -> int:
+000069:     return now.hour * 60 + now.minute
+000070: 
+000071: 
+000072: def is_workday(now: datetime) -> bool:
+000073:     return now.weekday() < 5
+000074: 
+000075: 
+000076: def normalize_state(raw: Any, now: datetime) -> dict[str, Any]:
+000077:     day = _date_key(now)
+000078:     if not isinstance(raw, dict) or raw.get("date") != day:
+000079:         return {
+000080:             "date": day,
+000081:             "slots": {},
+000082:             "updated_at": None,
+000083:             "ahgora": {
+000084:                 "last_sync_at": None,
+000085:                 "last_sync_ok": False,
+000086:                 "last_error": "",
+000087:                 "punches_today": [],
+000088:             },
+000089:         }
+000090:     if not isinstance(raw.get("slots"), dict):
+000091:         raw["slots"] = {}
+000092:     if not isinstance(raw.get("ahgora"), dict):
+000093:         raw["ahgora"] = {
+000094:             "last_sync_at": None,
+000095:             "last_sync_ok": False,
+000096:             "last_error": "",
+000097:             "punches_today": [],
+000098:         }
+000099:     return raw
+000100: 
+000101: 
+000102: def slot_status(state: dict[str, Any], slot_id: str) -> str:
+000103:     item = (state.get("slots") or {}).get(slot_id)
+000104:     if not isinstance(item, dict):
+000105:         return "open"
+000106:     status = str(item.get("status") or "open")
+000107:     return status if status in {"open", "confirmed", "missed"} else "open"
+000108: 
+000109: 
+000110: def pending_slot_for(now: datetime, state: dict[str, Any]) -> dict[str, str] | None:
+000111:     if not is_workday(now):
+000112:         return None
+000113:     current = _now_minutes(now)
+000114:     for slot in POINT_SLOTS:
+000115:         if current >= _slot_minutes(slot) and slot_status(state, slot["id"]) not in RESOLVED_STATUSES:
+000116:             return dict(slot)
+000117:     return None
+000118: 
+000119: 
+000120: def next_future_slot_for(now: datetime, state: dict[str, Any]) -> dict[str, str] | None:
+000121:     if not is_workday(now):
+000122:         return None
+000123:     current = _now_minutes(now)
+000124:     for slot in POINT_SLOTS:
+000125:         if current < _slot_minutes(slot) and slot_status(state, slot["id"]) not in RESOLVED_STATUSES:
+000126:             return dict(slot)
+000127:     return None
+000128: 
+000129: 
+000130: def missed_slots_for(state: dict[str, Any]) -> list[dict[str, Any]]:
+000131:     out = []
+000132:     for slot in POINT_SLOTS:
+000133:         if slot_status(state, slot["id"]) == "missed":
+000134:             row = dict(slot)
+000135:             row.update((state.get("slots") or {}).get(slot["id"]) or {})
+000136:             out.append(row)
+000137:     return out
+--- LINES 155-526 ---
+000155: def _base_dir() -> Path:
+000156:     root = Path(os.environ.get("LOCALAPPDATA") or Path.home())
+000157:     return root / "ALIYVO"
+000158: 
+000159: 
+000160: class _DATA_BLOB(Structure):
+000161:     _fields_ = [("cbData", DWORD), ("pbData", POINTER(c_char))]
+000162: 
+000163: 
+000164: def _blob_from_bytes(data: bytes):
+000165:     buf = ctypes.create_string_buffer(data, len(data))
+000166:     blob = _DATA_BLOB(len(data), ctypes.cast(buf, POINTER(c_char)))
+000167:     return blob, buf
+000168: 
+000169: 
+000170: def _dpapi_protect(text: str) -> str:
+000171:     if os.name != "nt":
+000172:         raise RuntimeError("Proteção DPAPI disponível somente no Windows.")
+000173:     raw = text.encode("utf-8")
+000174:     in_blob, in_buf = _blob_from_bytes(raw)
+000175:     out_blob = _DATA_BLOB()
+000176:     crypt32 = ctypes.windll.crypt32
+000177:     kernel32 = ctypes.windll.kernel32
+000178:     ok = crypt32.CryptProtectData(
+000179:         byref(in_blob),
+000180:         "ALIYVO Ahgora",
+000181:         None,
+000182:         None,
+000183:         None,
+000184:         0,
+000185:         byref(out_blob),
+000186:     )
+000187:     if not ok:
+000188:         raise ctypes.WinError()
+000189:     try:
+000190:         encrypted = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+000191:     finally:
+000192:         kernel32.LocalFree(c_void_p(ctypes.addressof(out_blob.pbData.contents)))
+000193:     return base64.b64encode(encrypted).decode("ascii")
+000194: 
+000195: 
+000196: def _dpapi_unprotect(encoded: str) -> str:
+000197:     if os.name != "nt":
+000198:         raise RuntimeError("Proteção DPAPI disponível somente no Windows.")
+000199:     raw = base64.b64decode(encoded.encode("ascii"))
+000200:     in_blob, in_buf = _blob_from_bytes(raw)
+000201:     out_blob = _DATA_BLOB()
+000202:     crypt32 = ctypes.windll.crypt32
+000203:     kernel32 = ctypes.windll.kernel32
+000204:     ok = crypt32.CryptUnprotectData(
+000205:         byref(in_blob),
+000206:         None,
+000207:         None,
+000208:         None,
+000209:         None,
+000210:         0,
+000211:         byref(out_blob),
+000212:     )
+000213:     if not ok:
+000214:         raise ctypes.WinError()
+000215:     try:
+000216:         clear = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+000217:     finally:
+000218:         kernel32.LocalFree(c_void_p(ctypes.addressof(out_blob.pbData.contents)))
+000219:     return clear.decode("utf-8")
+000220: 
+000221: 
+000222: def _normalize_punch_time(value: Any) -> str:
+000223:     s = str(value or "").strip()
+000224:     digits = "".join(ch for ch in s if ch.isdigit())
+000225:     if ":" in s:
+000226:         parts = s.split(":")
+000227:         if len(parts) >= 2:
+000228:             try:
+000229:                 return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+000230:             except Exception:
+000231:                 pass
+000232:     if len(digits) == 6:
+000233:         return f"{digits[0:2]}:{digits[2:4]}"
+000234:     if len(digits) >= 4:
+000235:         return f"{digits[0:2]}:{digits[2:4]}"
+000236:     return s
+000237: 
+000238: 
+000239: def extract_today_punches(payload: Any, now: datetime) -> list[str]:
+000240:     """Extrai as batidas reais de hoje da resposta do espelho Ahgora."""
+000241:     if not isinstance(payload, dict):
+000242:         return []
+000243:     days = payload.get("dias")
+000244:     if not isinstance(days, dict):
+000245:         return []
+000246:     day = days.get(_date_key(now))
+000247:     if not isinstance(day, dict):
+000248:         return []
+000249:     punches = day.get("batidas")
+000250:     if not isinstance(punches, list):
+000251:         return []
+000252:     out: list[str] = []
+000253:     for item in punches:
+000254:         if not isinstance(item, dict):
+000255:             continue
+000256:         hour = _normalize_punch_time(item.get("hora"))
+000257:         if hour and hour not in out:
+000258:             out.append(hour)
+000259:     return out
+000260: 
+000261: 
+000262: def _mirror_month_key(now: datetime) -> str:
+000263:     month = now.month + (1 if now.day >= 26 else 0)
+000264:     year = now.year
+000265:     if month == 13:
+000266:         month = 1
+000267:         year += 1
+000268:     return f"{year:04d}-{month:02d}"
+000269: 
+000270: 
+000271: def validate_modern_mirror_payload(
+000272:     index_payload: Any,
+000273:     detail_payload: Any,
+000274:     now: datetime,
+000275:     month_key: str,
+000276: ) -> dict[str, Any]:
+000277:     """Valida o contrato atual do espelho Ahgora (/api-espelho/apuracao)."""
+000278:     if not isinstance(index_payload, dict):
+000279:         raise RuntimeError("O Ahgora não retornou o índice do espelho.")
+000280:     if str(index_payload.get("error") or "").strip():
+000281:         raise RuntimeError("O Ahgora retornou erro no índice: " + str(index_payload.get("error")))
+000282: 
+000283:     months = index_payload.get("meses")
+000284:     if not isinstance(months, dict):
+000285:         raise RuntimeError("Sessão do Ahgora inválida ou espelho indisponível (meses não retornados).")
+000286: 
+000287:     descriptor = months.get(month_key)
+000288:     if not isinstance(descriptor, dict) or not str(descriptor.get("referencia") or "").strip():
+000289:         raise RuntimeError(f"O mês {month_key} não está disponível no espelho do Ahgora.")
+000290: 
+000291:     if not isinstance(detail_payload, dict):
+000292:         raise RuntimeError("O Ahgora não retornou os dados do mês.")
+000293:     if str(detail_payload.get("error") or "").strip():
+000294:         raise RuntimeError("O Ahgora retornou erro no espelho: " + str(detail_payload.get("error")))
+000295: 
+000296:     days = detail_payload.get("dias")
+000297:     if not isinstance(days, dict):
+000298:         raise RuntimeError("O espelho atual não retornou a lista de dias.")
+000299: 
+000300:     day_key = _date_key(now)
+000301:     day = days.get(day_key)
+000302:     if day is None:
+000303:         # Dia ainda sem batidas pode existir ou não no retorno; isso é válido.
+000304:         punch_count = 0
+000305:     elif not isinstance(day, dict):
+000306:         raise RuntimeError("O registro de hoje no espelho possui formato inesperado.")
+000307:     else:
+000308:         raw = day.get("batidas")
+000309:         if raw is None:
+000310:             punch_count = 0
+000311:         elif not isinstance(raw, list):
+000312:             raise RuntimeError("A lista de batidas de hoje possui formato inesperado.")
+000313:         else:
+000314:             punch_count = len(raw)
+000315: 
+000316:     return {
+000317:         "day_key": day_key,
+000318:         "month_key": month_key,
+000319:         "punch_count": punch_count,
+000320:         "session_ok": True,
+000321:         "modern_api": True,
+000322:     }
+000323: 
+000324: 
+000325: def reconcile_real_punches(state: dict[str, Any], punches: list[str], now: datetime) -> dict[str, Any]:
+000326:     """Mapeia 1ª/2ª/3ª/4ª batida real para os quatro eventos do dia."""
+000327:     state = normalize_state(state, now)
+000328:     slots = state.setdefault("slots", {})
+000329:     for index, slot in enumerate(POINT_SLOTS):
+000330:         existing = slots.get(slot["id"]) if isinstance(slots.get(slot["id"]), dict) else {}
+000331:         if index < len(punches):
+000332:             slots[slot["id"]] = {
+000333:                 "status": "confirmed",
+000334:                 "scheduled_time": slot["time"],
+000335:                 "resolved_at": now.isoformat(timespec="seconds"),
+000336:                 "actual_time": punches[index],
+000337:                 "source": "ahgora_sync",
+000338:             }
+000339:         else:
+000340:             # Uma sincronização real bem-sucedida é a fonte de verdade.
+000341:             # Se o espelho não contém esta batida, removemos estados locais antigos
+000342:             # (inclusive "missed" marcado nas versões RC anteriores).
+000343:             slots.pop(slot["id"], None)
+000344:     return state
+000345: 
+000346: 
+000347: def _decode_json_body(body: bytes, context: str) -> dict[str, Any]:
+000348:     try:
+000349:         decoded = json.loads(body.decode("utf-8", "replace"))
+000350:     except Exception as exc:
+000351:         preview = body.decode("utf-8", "replace").strip()
+000352:         raise RuntimeError(f"{context}: resposta inesperada: {preview[:220]}") from exc
+000353:     if not isinstance(decoded, dict):
+000354:         raise RuntimeError(f"{context}: resposta inválida.")
+000355:     return decoded
+000356: 
+000357: 
+000358: def _request_bytes(
+000359:     opener: urllib.request.OpenerDirector,
+000360:     url: str,
+000361:     *,
+000362:     data: bytes | None = None,
+000363:     headers: dict[str, str] | None = None,
+000364:     method: str | None = None,
+000365:     timeout: float = 15.0,
+000366: ) -> bytes:
+000367:     req = urllib.request.Request(
+000368:         url,
+000369:         data=data,
+000370:         headers={
+000371:             "Accept": "application/json, text/plain, */*",
+000372:             "User-Agent": "ALIYVO/0.22.95",
+000373:             **(headers or {}),
+000374:         },
+000375:         method=method,
+000376:     )
+000377:     try:
+000378:         with opener.open(req, timeout=timeout) as resp:
+000379:             return resp.read(3_000_000)
+000380:     except urllib.error.HTTPError as exc:
+000381:         raw = exc.read(250_000)
+000382:         detail = raw.decode("utf-8", "replace").strip()
+000383:         if exc.code in (401, 403):
+000384:             raise RuntimeError("Login do Ahgora não foi aceito ou a sessão expirou.") from exc
+000385:         raise RuntimeError(f"Ahgora HTTP {exc.code}: {detail[:260]}") from exc
+000386:     except urllib.error.URLError as exc:
+000387:         raise RuntimeError(f"Não foi possível conectar ao Ahgora: {exc.reason}") from exc
+000388: 
+000389: 
+000390: def _form_bytes(fields: dict[str, Any]) -> bytes:
+000391:     return urllib.parse.urlencode({k: str(v) for k, v in fields.items()}).encode("utf-8")
+000392: 
+000393: 
+000394: def _new_ahgora_opener() -> urllib.request.OpenerDirector:
+000395:     jar = http.cookiejar.CookieJar()
+000396:     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+000397: 
+000398: 
+000399: def _login_and_fetch_modern_mirror(cfg: dict[str, str], now: datetime) -> dict[str, Any]:
+000400:     """Login oficial web + API atual do espelho Ahgora."""
+000401:     opener = _new_ahgora_opener()
+000402: 
+000403:     # Login legado continua sendo a porta de sessão usada pela interface atual.
+000404:     login_body = _request_bytes(
+000405:         opener,
+000406:         AHGORA_LOGIN_URL,
+000407:         data=_form_bytes({
+000408:             "empresa": cfg["company_id"],
+000409:             "matricula": cfg["registration"],
+000410:             "senha": cfg["password"],
+000411:         }),
+000412:         headers={"Content-Type": "application/x-www-form-urlencoded; charset=utf-8"},
+000413:         method="POST",
+000414:     )
+000415:     # O login pode responder HTML/redirect; o sucesso é validado pela API abaixo.
+000416:     del login_body
+000417: 
+000418:     # Inicializa o contexto app.ahgora.com.br e permite cookies de sessão/SSO.
+000419:     try:
+000420:         _request_bytes(
+000421:             opener,
+000422:             AHGORA_MIRROR_HOME,
+000423:             headers={"Accept": "text/html,application/xhtml+xml,*/*"},
+000424:         )
+000425:     except Exception:
+000426:         # A API é a verificação definitiva; não falha só por HTML intermediário.
+000427:         pass
+000428: 
+000429:     index = _decode_json_body(
+000430:         _request_bytes(opener, AHGORA_MIRROR_API, headers={"Accept": "application/json"}),
+000431:         "Índice do espelho Ahgora",
+000432:     )
+000433:     months = index.get("meses")
+000434:     if not isinstance(months, dict):
+000435:         raise RuntimeError(
+000436:             "O login foi enviado, mas a API atual do espelho não reconheceu a sessão. "
+000437:             "Revise matrícula, senha e código da empresa."
+000438:         )
+000439: 
+000440:     month_key = _mirror_month_key(now)
+000441:     descriptor = months.get(month_key)
+000442:     if not isinstance(descriptor, dict):
+000443:         raise RuntimeError(f"O Ahgora não disponibilizou o mês {month_key} no espelho.")
+000444:     reference = str(descriptor.get("referencia") or "").strip()
+000445:     if not reference:
+000446:         raise RuntimeError(f"O mês {month_key} veio sem referência no espelho.")
+000447: 
+000448:     detail_url = AHGORA_MIRROR_API + urllib.parse.quote(reference, safe="")
+000449:     detail = _decode_json_body(
+000450:         _request_bytes(opener, detail_url, headers={"Accept": "application/json"}),
+000451:         "Espelho mensal Ahgora",
+000452:     )
+000453:     validation = validate_modern_mirror_payload(index, detail, now, month_key)
+000454:     punches = extract_today_punches(detail, now)
+000455:     return {
+000456:         "index": index,
+000457:         "payload": detail,
+000458:         "validation": validation,
+000459:         "punches": punches,
+000460:     }
+000461: 
+000462: 
+000463: def _post_json(
+000464:     url: str,
+000465:     fields: dict[str, Any],
+000466:     *,
+000467:     headers: dict[str, str] | None = None,
+000468:     timeout: float = 15.0,
+000469: ) -> dict[str, Any]:
+000470:     opener = urllib.request.build_opener()
+000471:     raw = _request_bytes(
+000472:         opener,
+000473:         url,
+000474:         data=_form_bytes(fields),
+000475:         headers={
+000476:             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+000477:             **(headers or {}),
+000478:         },
+000479:         method="POST",
+000480:         timeout=timeout,
+000481:     )
+000482:     return _decode_json_body(raw, "Ahgora")
+000483: 
+000484: 
+000485: def _read_tlv(data: bytes, offset: int = 0) -> tuple[int, bytes, int]:
+000486:     if offset >= len(data):
+000487:         raise ValueError("DER incompleto.")
+000488:     tag = data[offset]
+000489:     offset += 1
+000490:     if offset >= len(data):
+000491:         raise ValueError("DER sem tamanho.")
+000492:     first = data[offset]
+000493:     offset += 1
+000494:     if first & 0x80:
+000495:         count = first & 0x7F
+000496:         if count == 0 or count > 4 or offset + count > len(data):
+000497:             raise ValueError("DER com tamanho inválido.")
+000498:         length = int.from_bytes(data[offset:offset + count], "big")
+000499:         offset += count
+000500:     else:
+000501:         length = first
+000502:     end = offset + length
+000503:     if end > len(data):
+000504:         raise ValueError("DER truncado.")
+000505:     return tag, data[offset:end], end
+000506: 
+000507: 
+000508: def _rsa_public_numbers_from_pem(public_key_pem: str) -> tuple[int, int]:
+000509:     body = re.sub(r"-----[^-]+-----", "", public_key_pem)
+000510:     der = base64.b64decode(re.sub(r"\s+", "", body))
+000511:     tag, outer, _ = _read_tlv(der, 0)
+000512:     if tag != 0x30:
+000513:         raise ValueError("Chave pública inválida.")
+000514:     _, _, pos = _read_tlv(outer, 0)  # AlgorithmIdentifier
+000515:     tag, bit_string, _ = _read_tlv(outer, pos)
+000516:     if tag != 0x03 or not bit_string:
+000517:         raise ValueError("Chave pública sem BIT STRING.")
+000518:     rsa_der = bit_string[1:]  # primeiro byte = unused bits
+000519:     tag, rsa_seq, _ = _read_tlv(rsa_der, 0)
+000520:     if tag != 0x30:
+000521:         raise ValueError("RSA público inválido.")
+000522:     tag, n_raw, pos = _read_tlv(rsa_seq, 0)
+000523:     if tag != 0x02:
+000524:         raise ValueError("RSA sem modulus.")
+000525:     tag, e_raw, _ = _read_tlv(rsa_seq, pos)
+000526:     if tag != 0x02:
+--- LINES 537-1711 ---
+000537:     needed = k - len(message) - 3
+000538:     pad = bytearray()
+000539:     while len(pad) < needed:
+000540:         chunk = secrets.token_bytes(needed - len(pad))
+000541:         pad.extend(b for b in chunk if b != 0)
+000542:     encoded = b"\x00\x02" + bytes(pad[:needed]) + b"\x00" + message
+000543:     cipher = pow(int.from_bytes(encoded, "big"), e, n)
+000544:     return base64.b64encode(cipher.to_bytes(k, "big")).decode("ascii")
+000545: 
+000546: 
+000547: def _multipart_body(fields: dict[str, str]) -> tuple[bytes, str]:
+000548:     boundary = "----ALIYVO" + secrets.token_hex(12)
+000549:     parts: list[bytes] = []
+000550:     for name, value in fields.items():
+000551:         parts.append(f"--{boundary}\r\n".encode())
+000552:         parts.append(
+000553:             f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+000554:         )
+000555:         parts.append(str(value).encode("utf-8"))
+000556:         parts.append(b"\r\n")
+000557:     parts.append(f"--{boundary}--\r\n".encode())
+000558:     return b"".join(parts), boundary
+000559: 
+000560: 
+000561: def _legacy_modern_punch_unused(cfg: dict[str, str]) -> tuple[dict[str, Any], dict[str, str]]:
+000562:     """Fluxo atual Batida Online: dispositivo + token + RSA + verifyIdentification."""
+000563:     base = AHGORA_PUNCH_BASE.rstrip("/")
+000564:     device_identity = str(cfg.get("device_identity") or "").strip()
+000565:     activation_key = str(cfg.get("activation_key") or "").strip()
+000566:     public_key = str(cfg.get("public_key") or "").strip()
+000567: 
+000568:     def post(path: str, fields: dict[str, Any], headers: dict[str, str] | None = None):
+000569:         return _post_json(base + path, fields, headers=headers)
+000570: 
+000571:     if not device_identity:
+000572:         created = post(
+000573:             "/activateDeviceOnLineByLoginAndPassword",
+000574:             {
+000575:                 "company": cfg["company_id"],
+000576:                 "enrollment": cfg["registration"],
+000577:                 "password": cfg["password"],
+000578:             },
+000579:         )
+000580:         activation_key = str(
+000581:             created.get("activationKey") or created.get("activation_key") or ""
+000582:         ).strip()
+000583:         if not activation_key:
+000584:             raise RuntimeError(
+000585:                 "O Ahgora não liberou a ativação deste dispositivo para Batida Online."
+000586:             )
+000587:         activated = post("/activateFunctionality", {"key": activation_key})
+000588:         device_identity = str(activated.get("identity") or "").strip()
+000589:         if not device_identity:
+000590:             raise RuntimeError("O Ahgora não retornou identidade do dispositivo.")
+000591: 
+000592:     if not public_key:
+000593:         opener = urllib.request.build_opener()
+000594:         key_url = base + "/getPublicKey?identity=" + urllib.parse.quote(device_identity)
+000595:         public_payload = _decode_json_body(
+000596:             _request_bytes(opener, key_url),
+000597:             "Chave pública Ahgora",
+000598:         )
+000599:         public_key = str(public_payload.get("public_key") or "").strip()
+000600:         if not public_key:
+000601:             raise RuntimeError("O Ahgora não retornou a chave pública do dispositivo.")
+000602: 
+000603:     external = post("/getDefaultExternalInfo", {"identity": device_identity})
+000604:     token = str(external.get("token") or "").strip()
+000605:     if not token:
+000606:         # dispositivo pode ter expirado: força recriação no próximo clique
+000607:         raise RuntimeError(
+000608:             "O dispositivo de Batida Online não está ativo. "
+000609:             "Abra ⚙ Ahgora, salve novamente e tente outra vez."
+000610:         )
+000611: 
+000612:     encrypted_password = _rsa_pkcs1_v15_encrypt_b64(public_key, cfg["password"])
+000613:     body, boundary = _multipart_body(
+000614:         {
+000615:             "account": cfg["registration"],
+000616:             "password": encrypted_password,
+000617:             "identity": device_identity,
+000618:             "origin": "pw2",
+000619:             "app_version": "2.0",
+000620:             "key": "",
+000621:             "enc": "true",
+000622:         }
+000623:     )
+000624:     opener = urllib.request.build_opener()
+000625:     response = _decode_json_body(
+000626:         _request_bytes(
+000627:             opener,
+000628:             base + "/verifyIdentification",
+000629:             data=body,
+000630:             headers={
+000631:                 "Content-Type": f"multipart/form-data; boundary={boundary}",
+000632:                 "Authorization": token,
+000633:             },
+000634:             method="POST",
+000635:         ),
+000636:         "Batida Online Ahgora",
+000637:     )
+000638:     if response.get("result") is not True:
+000639:         msg = (
+000640:             response.get("message")
+000641:             or response.get("mensagem")
+000642:             or response.get("reason")
+000643:             or response.get("error")
+000644:             or "O Ahgora não confirmou a batida."
+000645:         )
+000646:         raise RuntimeError(str(msg))
+000647: 
+000648:     updated = dict(cfg)
+000649:     updated["device_identity"] = device_identity
+000650:     updated["activation_key"] = activation_key
+000651:     updated["public_key"] = public_key
+000652:     return response, updated
+000653: 
+000654: 
+000655: class AliyvoPontoController(QObject):
+000656:     """Controle de ponto com sincronização Ahgora.
+000657: 
+000658:     O ALIYVO nunca registra ponto sozinho. O botão de batida apenas traz o Chrome
+000659:     para frente e aciona o atalho configurado para a extensão oficial
+000660:     Ahgora Ponto Online (Ctrl+Shift+9). A confirmação continua sendo feita pelo usuário.
+000661:     """
+000662: 
+000663:     apiCommand = pyqtSignal(str, str)
+000664:     syncFinished = pyqtSignal(bool, object, str)
+000665:     punchFinished = pyqtSignal(bool, object, str)
+000666: 
+000667:     def __init__(self, owner: QWidget, nav_button: QPushButton | None = None):
+000668:         super().__init__(owner)
+000669:         self.owner = owner
+000670:         self.nav_button = nav_button
+000671:         self._state_file = _base_dir() / "ponto" / "status.json"
+000672:         self._credentials_file = _base_dir() / "ponto" / "ahgora_credentials.dpapi"
+000673:         self._log_file = _base_dir() / "logs" / "DIAGNOSTICO_PONTO_02301.jsonl"
+000674:         self._state: dict[str, Any] = {}
+000675:         self._dialog: QDialog | None = None
+000676:         self._timer = QTimer(self)
+000677:         self._timer.setSingleShot(True)
+000678:         self._timer.timeout.connect(self.check_now)
+000679:         self._last_notified_key = ""
+000680:         self._snapshot_lock = threading.Lock()
+000681:         self._api_snapshot: dict[str, Any] = {}
+000682:         self._api_server: ThreadingHTTPServer | None = None
+000683:         self._api_thread: threading.Thread | None = None
+000684:         self._sync_busy = False
+000685:         self._punch_busy = False
+000686:         self._force_check_after_sync = False
+000687:         self._ahgora_profile: Any = None
+000688:         self._ahgora_sync_view: QWebEngineView | None = None
+000689:         self._ahgora_link_dialog: QDialog | None = None
+000690:         self._ahgora_punch_dialog: QDialog | None = None
+000691:         self._awaiting_chrome_punch = False
+000692:         self._punch_sync_attempts = 0
+000693:         self.apiCommand.connect(self._on_api_command)
+000694:         self.syncFinished.connect(self._on_sync_finished)
+000695:         self.punchFinished.connect(self._on_punch_finished)
+000696: 
+000697:     # ---------- startup / persistence ----------
+000698: 
+000699:     def start(self) -> None:
+000700:         self._load_state()
+000701:         self._update_snapshot()
+000702:         self._refresh_nav_button()
+000703:         self._start_api()
+000704:         app = QApplication.instance()
+000705:         if app is not None:
+000706:             try:
+000707:                 app.applicationStateChanged.connect(self._on_application_state)
+000708:             except Exception:
+000709:                 pass
+000710:         if self._credentials_available():
+000711:             QTimer.singleShot(450, lambda: self.sync_ahgora_async(reason="startup"))
+000712:         else:
+000713:             QTimer.singleShot(350, self.check_now)
+000714: 
+000715:     def _on_application_state(self, state) -> None:
+000716:         try:
+000717:             if state != Qt.ApplicationState.ApplicationActive:
+000718:                 return
+000719:             if self._awaiting_chrome_punch:
+000720:                 QTimer.singleShot(350, lambda: self._verify_after_chrome_punch("focus_return"))
+000721:                 return
+000722:             if self._credentials_available() and self._sync_is_stale(60):
+000723:                 QTimer.singleShot(150, lambda: self.sync_ahgora_async(reason="focus"))
+000724:             else:
+000725:                 QTimer.singleShot(150, self.check_now)
+000726:         except Exception:
+000727:             pass
+000728: 
+000729:     def _load_state(self) -> None:
+000730:         now = datetime.now()
+000731:         raw: Any = {}
+000732:         try:
+000733:             if self._state_file.exists():
+000734:                 raw = json.loads(self._state_file.read_text(encoding="utf-8"))
+000735:         except Exception as exc:
+000736:             self._log("state_read_error", error=repr(exc))
+000737:         self._state = normalize_state(raw, now)
+000738:         self._save_state()
+000739: 
+000740:     def _ensure_today(self) -> None:
+000741:         now = datetime.now()
+000742:         normalized = normalize_state(self._state, now)
+000743:         if normalized.get("date") != self._state.get("date"):
+000744:             self._state = normalized
+000745:             self._last_notified_key = ""
+000746:             self._save_state()
+000747:         else:
+000748:             self._state = normalized
+000749: 
+000750:     def _save_state(self) -> None:
+000751:         try:
+000752:             self._state_file.parent.mkdir(parents=True, exist_ok=True)
+000753:             self._state["updated_at"] = datetime.now().isoformat(timespec="seconds")
+000754:             tmp = self._state_file.with_suffix(".tmp")
+000755:             tmp.write_text(json.dumps(self._state, ensure_ascii=False, indent=2), encoding="utf-8")
+000756:             tmp.replace(self._state_file)
+000757:         except Exception as exc:
+000758:             self._log("state_write_error", error=repr(exc))
+000759:         self._update_snapshot()
+000760:         self._refresh_nav_button()
+000761: 
+000762:     def _log(self, event: str, **data: Any) -> None:
+000763:         try:
+000764:             self._log_file.parent.mkdir(parents=True, exist_ok=True)
+000765:             row = {
+000766:                 "ts": datetime.now().isoformat(timespec="seconds"),
+000767:                 "event": str(event),
+000768:                 "module_version": POINT_MODULE_VERSION,
+000769:             }
+000770:             for key, value in data.items():
+000771:                 if key.lower() in {"password", "senha"}:
+000772:                     continue
+000773:                 if isinstance(value, (str, int, float, bool)) or value is None:
+000774:                     row[str(key)] = value
+000775:             with self._log_file.open("a", encoding="utf-8") as f:
+000776:                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
+000777:         except Exception:
+000778:             pass
+000779: 
+000780:     # ---------- encrypted Ahgora credentials ----------
+000781: 
+000782:     def _credentials_available(self) -> bool:
+000783:         try:
+000784:             cfg = self._load_credentials()
+000785:             return bool(cfg.get("registration") and cfg.get("password") and cfg.get("company_id"))
+000786:         except Exception:
+000787:             return False
+000788: 
+000789:     def _load_credentials(self) -> dict[str, str]:
+000790:         if not self._credentials_file.exists():
+000791:             return {}
+000792:         encrypted = self._credentials_file.read_text(encoding="ascii").strip()
+000793:         if not encrypted:
+000794:             return {}
+000795:         data = json.loads(_dpapi_unprotect(encrypted))
+000796:         if not isinstance(data, dict):
+000797:             return {}
+000798:         return {
+000799:             "registration": str(data.get("registration") or "").strip(),
+000800:             "password": str(data.get("password") or ""),
+000801:             "company_id": str(data.get("company_id") or "").strip(),
+000802:             "device_identity": str(data.get("device_identity") or "").strip(),
+000803:             "activation_key": str(data.get("activation_key") or "").strip(),
+000804:             "public_key": str(data.get("public_key") or ""),
+000805:         }
+000806: 
+000807:     def _save_credentials(self, config: dict[str, str]) -> None:
+000808:         # Preserva dados do dispositivo já ativado quando matrícula/empresa não mudaram.
+000809:         current: dict[str, str] = {}
+000810:         try:
+000811:             current = self._load_credentials()
+000812:         except Exception:
+000813:             pass
+000814: 
+000815:         safe = {
+000816:             "registration": str(config.get("registration") or "").strip(),
+000817:             "password": str(config.get("password") or ""),
+000818:             "company_id": str(config.get("company_id") or "").strip(),
+000819:             "device_identity": str(config.get("device_identity") or "").strip(),
+000820:             "activation_key": str(config.get("activation_key") or "").strip(),
+000821:             "public_key": str(config.get("public_key") or ""),
+000822:         }
+000823:         if not safe["registration"] or not safe["password"] or not safe["company_id"]:
+000824:             raise ValueError("Preencha matrícula, senha e código da empresa.")
+000825: 
+000826:         same_account = (
+000827:             current.get("registration") == safe["registration"]
+000828:             and current.get("company_id") == safe["company_id"]
+000829:         )
+000830:         if same_account:
+000831:             for key in ("device_identity", "activation_key", "public_key"):
+000832:                 if not safe.get(key):
+000833:                     safe[key] = current.get(key, "")
+000834: 
+000835:         self._credentials_file.parent.mkdir(parents=True, exist_ok=True)
+000836:         encrypted = _dpapi_protect(json.dumps(safe, ensure_ascii=False))
+000837:         tmp = self._credentials_file.with_suffix(".tmp")
+000838:         tmp.write_text(encrypted, encoding="ascii")
+000839:         tmp.replace(self._credentials_file)
+000840:         self._log(
+000841:             "ahgora_credentials_saved",
+000842:             company_set=bool(safe["company_id"]),
+000843:             registration_set=True,
+000844:             device_cached=bool(safe.get("device_identity")),
+000845:         )
+000846: 
+000847:     def show_ahgora_settings(self) -> None:
+000848:         try:
+000849:             current = self._load_credentials()
+000850:         except Exception:
+000851:             current = {}
+000852: 
+000853:         dlg = QDialog(self.owner)
+000854:         dlg.setWindowTitle("ALIYVO • Conectar Ahgora")
+000855:         dlg.setMinimumWidth(510)
+000856:         dlg.setStyleSheet(
+000857:             "QDialog{background:#081827;color:#F4FAF8;}"
+000858:             "QLabel{color:#DDE9F2;}"
+000859:             "QLineEdit{background:#10283A;color:#FFFFFF;border:1px solid #284A62;"
+000860:             "border-radius:6px;padding:8px;}"
+000861:             "QPushButton{background:#0B2E35;color:white;border:1px solid #20C77A;"
+000862:             "border-radius:7px;padding:9px 12px;font-weight:800;}"
+000863:             "QPushButton:hover{background:#104037;border-color:#20E983;}"
+000864:         )
+000865:         root = QVBoxLayout(dlg)
+000866:         root.setContentsMargins(22, 20, 22, 20)
+000867:         root.setSpacing(12)
+000868: 
+000869:         title = QLabel("CONECTAR AO AHGORA")
+000870:         title.setStyleSheet("font-size:18px;font-weight:900;color:white;")
+000871:         root.addWidget(title)
+000872: 
+000873:         explain = QLabel(
+000874:             "O ALIYVO usará a consulta do espelho do Ahgora para conferir as batidas reais. "
+000875:             "Sua senha fica criptografada pelo Windows neste computador e não é gravada nos logs."
+000876:         )
+000877:         explain.setWordWrap(True)
+000878:         explain.setStyleSheet("color:#AFC2D0;font-size:11px;")
+000879:         root.addWidget(explain)
+000880: 
+000881:         form = QFormLayout()
+000882:         form.setSpacing(9)
+000883:         registration = QLineEdit(current.get("registration", ""))
+000884:         registration.setPlaceholderText("Sua matrícula no Ahgora")
+000885:         password = QLineEdit(current.get("password", ""))
+000886:         password.setEchoMode(QLineEdit.EchoMode.Password)
+000887:         password.setPlaceholderText("Sua senha do Ahgora")
+000888:         company = QLineEdit(current.get("company_id", ""))
+000889:         company.setPlaceholderText("Código usado no espelho / link externo")
+000890:         form.addRow("Matrícula:", registration)
+000891:         form.addRow("Senha:", password)
+000892:         form.addRow("Código da empresa:", company)
+000893:         root.addLayout(form)
+000894: 
+000895:         hint = QLabel(
+000896:             "Depois de salvar, o ALIYVO abrirá o portal oficial do Ahgora dentro do próprio app. "
+000897:             "Faça o login uma vez nessa janela. A sessão fica salva neste computador e será usada "
+000898:             "somente para ler o espelho de ponto."
+000899:         )
+000900:         hint.setWordWrap(True)
+000901:         hint.setStyleSheet("color:#7F96A8;font-size:10px;")
+000902:         root.addWidget(hint)
+000903: 
+000904:         actions = QHBoxLayout()
+000905:         save = QPushButton("🔐 SALVAR E VINCULAR")
+000906:         cancel = QPushButton("Cancelar")
+000907:         cancel.setStyleSheet(
+000908:             "QPushButton{background:#142A3B;color:#DCE8F1;border:1px solid #2A465B;"
+000909:             "border-radius:7px;padding:9px;font-weight:700;}"
+000910:         )
+000911:         actions.addWidget(save, 1)
+000912:         actions.addWidget(cancel)
+000913:         root.addLayout(actions)
+000914: 
+000915:         def do_save():
+000916:             try:
+000917:                 self._save_credentials(
+000918:                     {
+000919:                         "registration": registration.text(),
+000920:                         "password": password.text(),
+000921:                         "company_id": company.text(),
+000922:                     }
+000923:                 )
+000924:             except Exception as exc:
+000925:                 QMessageBox.warning(dlg, "Não foi possível salvar", str(exc))
+000926:                 return
+000927:             dlg.accept()
+000928:             self.show_ahgora_browser_link()
+000929: 
+000930:         save.clicked.connect(do_save)
+000931:         cancel.clicked.connect(dlg.reject)
+000932:         dlg.exec()
+000933: 
+000934:     # ---------- Ahgora browser session ----------
+000935: 
+000936:     def _ensure_ahgora_profile(self):
+000937:         if self._ahgora_profile is not None:
+000938:             return self._ahgora_profile
+000939:         from PyQt6.QtWebEngineCore import QWebEngineProfile
+000940:         root = _base_dir() / "ahgora_browser_profile"
+000941:         root.mkdir(parents=True, exist_ok=True)
+000942:         profile = QWebEngineProfile("ALIYVO_AHGORA", self)
+000943:         profile.setPersistentStoragePath(str(root / "storage"))
+000944:         profile.setCachePath(str(root / "cache"))
+000945:         try:
+000946:             profile.setPersistentCookiesPolicy(
+000947:                 QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies
+000948:             )
+000949:         except Exception:
+000950:             pass
+000951:         self._ahgora_profile = profile
+000952:         return profile
+000953: 
+000954:     def _new_ahgora_view(self, parent: QWidget | None = None) -> QWebEngineView:
+000955:         from PyQt6.QtWebEngineCore import QWebEnginePage
+000956:         profile = self._ensure_ahgora_profile()
+000957:         view = QWebEngineView(parent)
+000958:         page = QWebEnginePage(profile, view)
+000959:         view.setPage(page)
+000960:         return view
+000961: 
+000962:     def _company_external_url(self) -> str:
+000963:         cfg = self._load_credentials()
+000964:         company = str(cfg.get("company_id") or "").strip()
+000965:         if not company:
+000966:             return "https://www.ahgora.com.br/externo/"
+000967:         return "https://www.ahgora.com.br/externo/index/" + urllib.parse.quote(company, safe="")
+000968: 
+000969:     def show_ahgora_browser_link(self) -> None:
+000970:         """Abre o portal oficial do Ahgora dentro do ALIYVO.
+000971: 
+000972:         O usuário faz o login diretamente na página do Ahgora. O ALIYVO não
+000973:         intercepta os campos desta janela; apenas reutiliza a sessão/cookies.
+000974:         """
+000975:         if self._ahgora_link_dialog is not None and self._ahgora_link_dialog.isVisible():
+000976:             try:
+000977:                 self._ahgora_link_dialog.raise_()
+000978:                 self._ahgora_link_dialog.activateWindow()
+000979:             except Exception:
+000980:                 pass
+000981:             return
+000982: 
+000983:         dlg = QDialog(self.owner)
+000984:         self._ahgora_link_dialog = dlg
+000985:         dlg.setWindowTitle("ALIYVO • Vincular sessão do Ahgora")
+000986:         dlg.resize(980, 720)
+000987:         dlg.setStyleSheet(
+000988:             "QDialog{background:#071827;color:#F4FAF8;}"
+000989:             "QLabel{color:#DDE9F2;}"
+000990:             "QPushButton{background:#0B2E35;color:white;border:1px solid #20C77A;"
+000991:             "border-radius:7px;padding:9px 12px;font-weight:800;}"
+000992:             "QPushButton:hover{background:#104037;border-color:#20E983;}"
+000993:         )
+000994:         root = QVBoxLayout(dlg)
+000995:         root.setContentsMargins(12, 12, 12, 12)
+000996:         root.setSpacing(8)
+000997: 
+000998:         info = QLabel(
+000999:             "Entre no Ahgora normalmente nesta janela. Depois que o portal abrir, clique em "
+001000:             "“JÁ ENTREI — SINCRONIZAR”. Essa sessão fica salva neste computador."
+001001:         )
+001002:         info.setWordWrap(True)
+001003:         info.setStyleSheet("font-size:11px;color:#C6D8E4;padding:4px;")
+001004:         root.addWidget(info)
+001005: 
+001006:         view = self._new_ahgora_view(dlg)
+001007:         root.addWidget(view, 1)
+001008: 
+001009:         bar = QHBoxLayout()
+001010:         reload_btn = QPushButton("↻ Recarregar")
+001011:         sync_btn = QPushButton("✅ JÁ ENTREI — SINCRONIZAR")
+001012:         close_btn = QPushButton("Fechar")
+001013:         close_btn.setStyleSheet(
+001014:             "QPushButton{background:#142A3B;color:#DCE8F1;border:1px solid #2A465B;"
+001015:             "border-radius:7px;padding:9px;font-weight:700;}"
+001016:         )
+001017:         bar.addWidget(reload_btn)
+001018:         bar.addWidget(sync_btn, 1)
+001019:         bar.addWidget(close_btn)
+001020:         root.addLayout(bar)
+001021: 
+001022:         reload_btn.clicked.connect(view.reload)
+001023: 
+001024:         def start_sync():
+001025:             sync_btn.setEnabled(False)
+001026:             sync_btn.setText("Sincronizando...")
+001027:             self._sync_using_view(
+001028:                 view,
+001029:                 reason="browser_link",
+001030:                 done=lambda ok, msg: self._finish_browser_link_sync(
+001031:                     dlg, sync_btn, ok, msg
+001032:                 ),
+001033:             )
+001034: 
+001035:         sync_btn.clicked.connect(start_sync)
+001036:         close_btn.clicked.connect(dlg.close)
+001037: 
+001038:         def finished(_result=0):
+001039:             if self._ahgora_link_dialog is dlg:
+001040:                 self._ahgora_link_dialog = None
+001041: 
+001042:         dlg.finished.connect(finished)
+001043:         view.setUrl(QUrl(self._company_external_url()))
+001044:         dlg.show()
+001045:         try:
+001046:             dlg.raise_()
+001047:             dlg.activateWindow()
+001048:         except Exception:
+001049:             pass
+001050: 
+001051:     def _finish_browser_link_sync(
+001052:         self,
+001053:         dlg: QDialog,
+001054:         button: QPushButton,
+001055:         ok: bool,
+001056:         message: str,
+001057:     ) -> None:
+001058:         if ok:
+001059:             QMessageBox.information(
+001060:                 dlg,
+001061:                 "Ahgora vinculado",
+001062:                 "Sessão do Ahgora vinculada e batidas sincronizadas com sucesso.",
+001063:             )
+001064:             dlg.close()
+001065:             self._rebuild_dialog_if_open()
+001066:         else:
+001067:             button.setEnabled(True)
+001068:             button.setText("✅ JÁ ENTREI — SINCRONIZAR")
+001069:             QMessageBox.warning(
+001070:                 dlg,
+001071:                 "Ainda não vinculou",
+001072:                 message
+001073:                 + "\n\nFaça o login no portal exibido acima e tente novamente.",
+001074:             )
+001075: 
+001076:     def _sync_using_view(
+001077:         self,
+001078:         view: QWebEngineView,
+001079:         *,
+001080:         reason: str,
+001081:         done=None,
+001082:     ) -> None:
+001083:         """Sincroniza navegando diretamente na API com a sessão do próprio Ahgora.
+001084: 
+001085:         Em algumas contas a consulta interna feita pela página é bloqueada pelo navegador
+001086:         (CORS/CSP) mesmo com login válido. A navegação de primeiro nível não sofre
+001087:         esse bloqueio e continua usando os mesmos cookies persistentes.
+001088:         """
+001089:         if self._sync_busy:
+001090:             if done:
+001091:                 done(False, "Já existe uma sincronização em andamento.")
+001092:             return
+001093:         self._sync_busy = True
+001094:         self._log("ahgora_browser_sync_started", reason=reason, mode="top_level_navigation")
+001095: 
+001096:         finished = {"used": False}
+001097: 
+001098:         def fail(message: str):
+001099:             if finished["used"]:
+001100:                 return
+001101:             finished["used"] = True
+001102:             self._sync_busy = False
+001103:             self.syncFinished.emit(False, {"reason": reason}, message)
+001104:             if done:
+001105:                 QTimer.singleShot(50, lambda: done(False, message))
+001106: 
+001107:         def success(data: dict[str, Any]):
+001108:             if finished["used"]:
+001109:                 return
+001110:             finished["used"] = True
+001111:             self._sync_busy = False
+001112:             self.syncFinished.emit(True, data, "")
+001113:             if done:
+001114:                 QTimer.singleShot(50, lambda: done(True, "OK"))
+001115: 
+001116:         def read_page_json(context: str, callback):
+001117:             def got_text(text):
+001118:                 raw = str(text or "").strip()
+001119:                 if not raw:
+001120:                     fail(context + ": página vazia.")
+001121:                     return
+001122:                 # Chromium às vezes envolve JSON em texto simples dentro de <pre>.
+001123:                 try:
+001124:                     data = json.loads(raw)
+001125:                 except Exception:
+001126:                     m = re.search(r"(\{.*\}|\[.*\])", raw, re.S)
+001127:                     if not m:
+001128:                         lower = raw.lower()
+001129:                         if "login" in lower or "entrar" in lower:
+001130:                             fail(
+001131:                                 "A sessão do Ahgora ainda não está autenticada. "
+001132:                                 "Entre no portal nesta janela e tente novamente."
+001133:                             )
+001134:                         else:
+001135:                             fail(context + ": resposta não reconhecida.")
+001136:                         return
+001137:                     try:
+001138:                         data = json.loads(m.group(1))
+001139:                     except Exception:
+001140:                         fail(context + ": JSON inválido.")
+001141:                         return
+001142:                 callback(data)
+001143: 
+001144:             view.page().toPlainText(got_text)
+001145: 
+001146:         def load_detail(index: dict[str, Any]):
+001147:             months = index.get("meses") if isinstance(index, dict) else None
+001148:             if not isinstance(months, dict):
+001149:                 fail(
+001150:                     "O portal abriu, mas a sessão atual não liberou o espelho de ponto. "
+001151:                     "Entre novamente no Ahgora por esta janela."
+001152:                 )
+001153:                 return
+001154: 
+001155:             now = datetime.now()
+001156:             month_key = _mirror_month_key(now)
+001157:             descriptor = months.get(month_key)
+001158:             if not isinstance(descriptor, dict):
+001159:                 fail(f"O mês {month_key} não apareceu no espelho do Ahgora.")
+001160:                 return
+001161:             reference = str(descriptor.get("referencia") or "").strip()
+001162:             if not reference:
+001163:                 fail("O Ahgora retornou o mês sem referência de apuração.")
+001164:                 return
+001165: 
+001166:             detail_url = AHGORA_MIRROR_API + urllib.parse.quote(reference, safe="")
+001167: 
+001168:             def detail_loaded(ok: bool):
+001169:                 try:
+001170:                     view.loadFinished.disconnect(detail_loaded)
+001171:                 except Exception:
+001172:                     pass
+001173:                 if not ok:
+001174:                     fail("Não foi possível abrir o detalhe do espelho do Ahgora.")
+001175:                     return
+001176: 
+001177:                 def use_detail(detail):
+001178:                     try:
+001179:                         validation = validate_modern_mirror_payload(
+001180:                             index, detail, now, month_key
+001181:                         )
+001182:                         punches = extract_today_punches(detail, now)
+001183:                     except Exception as exc:
+001184:                         fail(str(exc))
+001185:                         return
+001186:                     success(
+001187:                         {
+001188:                             "payload": detail,
+001189:                             "punches": punches,
+001190:                             "reason": reason,
+001191:                             "validation": validation,
+001192:                         }
+001193:                     )
+001194: 
+001195:                 read_page_json("Detalhe do espelho Ahgora", use_detail)
+001196: 
+001197:             view.loadFinished.connect(detail_loaded)
+001198:             view.setUrl(QUrl(detail_url))
+001199: 
+001200:         def index_loaded(ok: bool):
+001201:             try:
+001202:                 view.loadFinished.disconnect(index_loaded)
+001203:             except Exception:
+001204:                 pass
+001205:             if not ok:
+001206:                 fail(
+001207:                     "Não foi possível abrir a API do espelho com esta sessão do Ahgora."
+001208:                 )
+001209:                 return
+001210:             read_page_json("Índice do espelho Ahgora", load_detail)
+001211: 
+001212:         try:
+001213:             view.loadFinished.connect(index_loaded)
+001214:             view.setUrl(QUrl(AHGORA_MIRROR_API))
+001215:         except Exception as exc:
+001216:             fail("Falha ao abrir o espelho do Ahgora: " + str(exc))
+001217: 
+001218:     def _sync_via_persistent_browser(self, reason: str = "manual") -> None:
+001219:         if self._sync_busy:
+001220:             return
+001221:         if self._ahgora_sync_view is None:
+001222:             self._ahgora_sync_view = self._new_ahgora_view(self.owner)
+001223:             self._ahgora_sync_view.hide()
+001224:         self._sync_using_view(self._ahgora_sync_view, reason=reason)
+001225: 
+001226:     # ---------- Ahgora network ----------
+001227: 
+001228:     def _sync_is_stale(self, seconds: int) -> bool:
+001229:         ah = self._state.get("ahgora") or {}
+001230:         value = ah.get("last_sync_at")
+001231:         if not value:
+001232:             return True
+001233:         try:
+001234:             dt = datetime.fromisoformat(str(value))
+001235:             return (datetime.now() - dt).total_seconds() >= seconds
+001236:         except Exception:
+001237:             return True
+001238: 
+001239:     def sync_ahgora_async(self, reason: str = "manual") -> None:
+001240:         if not self._credentials_available():
+001241:             if reason in {"manual", "settings"}:
+001242:                 self.show_ahgora_settings()
+001243:             else:
+001244:                 self.check_now()
+001245:             return
+001246:         self._sync_via_persistent_browser(reason=reason)
+001247: 
+001248:     def _on_sync_finished(self, ok: bool, data: object, error: str) -> None:
+001249:         self._sync_busy = False
+001250:         self._ensure_today()
+001251:         ah = self._state.setdefault("ahgora", {})
+001252:         ah["last_sync_at"] = datetime.now().isoformat(timespec="seconds")
+001253:         ah["last_sync_ok"] = bool(ok)
+001254:         ah["last_error"] = "" if ok else str(error)[:500]
+001255: 
+001256:         if ok and isinstance(data, dict):
+001257:             punches = [str(x) for x in data.get("punches", [])][:12]
+001258:             validation = data.get("validation") if isinstance(data.get("validation"), dict) else {}
+001259:             ah["punches_today"] = punches
+001260:             ah["validation"] = {
+001261:                 "day_key": str(validation.get("day_key") or ""),
+001262:                 "month_key": str(validation.get("month_key") or ""),
+001263:                 "punch_count": int(validation.get("punch_count") or 0),
+001264:                 "session_ok": bool(validation.get("session_ok")),
+001265:                 "modern_api": bool(validation.get("modern_api")),
+001266:             }
+001267:             self._state = reconcile_real_punches(self._state, punches, datetime.now())
+001268:             self._log(
+001269:                 "ahgora_sync_ok",
+001270:                 punches_count=len(punches),
+001271:                 day_key=str(validation.get("day_key") or ""),
+001272:                 month_key=str(validation.get("month_key") or ""),
+001273:                 api="api-espelho",
+001274:                 reason=str(data.get("reason") or ""),
+001275:             )
+001276:         else:
+001277:             self._log("ahgora_sync_error", error=str(error)[:300], api="api-espelho")
+001278: 
+001279:         self._save_state()
+001280:         self._rebuild_dialog_if_open()
+001281:         QTimer.singleShot(120, self.check_now)
+001282: 
+001283:     def _find_chrome_window(self) -> int:
+001284:         if os.name != "nt":
+001285:             return 0
+001286:         user32 = ctypes.windll.user32
+001287:         found = {"hwnd": 0}
+001288: 
+001289:         WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+001290: 
+001291:         def enum_proc(hwnd, _lparam):
+001292:             try:
+001293:                 if not user32.IsWindowVisible(hwnd):
+001294:                     return True
+001295:                 size = user32.GetWindowTextLengthW(hwnd)
+001296:                 if size <= 0:
+001297:                     return True
+001298:                 title = ctypes.create_unicode_buffer(size + 1)
+001299:                 user32.GetWindowTextW(hwnd, title, size + 1)
+001300:                 class_name = ctypes.create_unicode_buffer(256)
+001301:                 user32.GetClassNameW(hwnd, class_name, 256)
+001302:                 cls = class_name.value
+001303:                 txt = title.value
+001304:                 if cls.startswith("Chrome_WidgetWin_") and txt:
+001305:                     found["hwnd"] = int(hwnd)
+001306:                     return False
+001307:             except Exception:
+001308:                 pass
+001309:             return True
+001310: 
+001311:         cb = WNDENUMPROC(enum_proc)
+001312:         user32.EnumWindows(cb, 0)
+001313:         return int(found["hwnd"] or 0)
+001314: 
+001315:     def _send_ahgora_chrome_hotkey(self) -> bool:
+001316:         """Ativa Chrome e envia Ctrl+Shift+9 usando SendInput após confirmar o foco."""
+001317:         if os.name != "nt":
+001318:             return False
+001319:         hwnd = self._find_chrome_window()
+001320:         if not hwnd:
+001321:             return False
+001322:         try:
+001323:             user32 = ctypes.windll.user32
+001324:             kernel32 = ctypes.windll.kernel32
+001325:             user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+001326:             user32.BringWindowToTop(hwnd)
+001327:             user32.SetForegroundWindow(hwnd)
+001328: 
+001329:             # O Windows pode recusar a troca de foco no primeiro instante.
+001330:             # Tentamos por até ~1,8 s antes de enviar o atalho.
+001331:             focused = False
+001332:             for _ in range(9):
+001333:                 if int(user32.GetForegroundWindow() or 0) == int(hwnd):
+001334:                     focused = True
+001335:                     break
+001336:                 user32.SetForegroundWindow(hwnd)
+001337:                 kernel32.Sleep(200)
+001338:             if not focused:
+001339:                 self._log(
+001340:                     "ahgora_chrome_focus_not_confirmed",
+001341:                     target_hwnd=int(hwnd),
+001342:                     foreground_hwnd=int(user32.GetForegroundWindow() or 0),
+001343:                 )
+001344:                 return False
+001345: 
+001346:             kernel32.Sleep(450)
+001347: 
+001348:             INPUT_KEYBOARD = 1
+001349:             KEYEVENTF_KEYUP = 0x0002
+001350:             VK_CONTROL = 0x11
+001351:             VK_SHIFT = 0x10
+001352:             VK_9 = 0x39
+001353: 
+001354:             class KEYBDINPUT(ctypes.Structure):
+001355:                 _fields_ = [
+001356:                     ("wVk", ctypes.c_ushort),
+001357:                     ("wScan", ctypes.c_ushort),
+001358:                     ("dwFlags", ctypes.c_ulong),
+001359:                     ("time", ctypes.c_ulong),
+001360:                     ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+001361:                 ]
+001362: 
+001363:             class _INPUTUNION(ctypes.Union):
+001364:                 _fields_ = [("ki", KEYBDINPUT)]
+001365: 
+001366:             class INPUT(ctypes.Structure):
+001367:                 _anonymous_ = ("u",)
+001368:                 _fields_ = [("type", ctypes.c_ulong), ("u", _INPUTUNION)]
+001369: 
+001370:             def key(vk: int, up: bool = False):
+001371:                 return INPUT(
+001372:                     type=INPUT_KEYBOARD,
+001373:                     ki=KEYBDINPUT(
+001374:                         wVk=vk,
+001375:                         wScan=0,
+001376:                         dwFlags=KEYEVENTF_KEYUP if up else 0,
+001377:                         time=0,
+001378:                         dwExtraInfo=None,
+001379:                     ),
+001380:                 )
+001381: 
+001382:             sequence = (INPUT * 6)(
+001383:                 key(VK_CONTROL),
+001384:                 key(VK_SHIFT),
+001385:                 key(VK_9),
+001386:                 key(VK_9, True),
+001387:                 key(VK_SHIFT, True),
+001388:                 key(VK_CONTROL, True),
+001389:             )
+001390:             sent = int(user32.SendInput(6, ctypes.byref(sequence), ctypes.sizeof(INPUT)))
+001391:             self._log(
+001392:                 "ahgora_chrome_hotkey_sent",
+001393:                 sent_inputs=sent,
+001394:                 target_hwnd=int(hwnd),
+001395:             )
+001396:             return sent == 6
+001397:         except Exception as exc:
+001398:             self._log("ahgora_chrome_hotkey_error", error=repr(exc))
+001399:             return False
+001400: 
+001401:     def punch_ahgora(self) -> None:
+001402:         """Abre a extensão oficial licenciada Ahgora Ponto Online no Chrome."""
+001403:         now = datetime.now()
+001404:         pending = pending_slot_for(now, self._state)
+001405:         next_slot = next_future_slot_for(now, self._state)
+001406:         if pending:
+001407:             label = pending["label"] + " • previsto " + pending["time"]
+001408:         elif next_slot:
+001409:             label = next_slot["label"] + " • previsto " + next_slot["time"] + " (adiantado)"
+001410:         else:
+001411:             label = "batida extra / fora da previsão"
+001412: 
+001413:         punches_today = [
+001414:             str(x) for x in (self._state.get("ahgora") or {}).get("punches_today") or []
+001415:         ]
+001416:         previous = " • ".join(punches_today) if punches_today else "nenhuma"
+001417: 
+001418:         ans = QMessageBox.question(
+001419:             self.owner,
+001420:             "Abrir Ahgora Ponto Online?",
+001421:             f"O ALIYVO vai abrir a extensão OFICIAL Ahgora Ponto Online no Chrome.\n\n"
+001422:             f"Horário agora: {now.strftime('%H:%M:%S')}\n"
+001423:             f"Próximo evento: {label}\n"
+001424:             f"Batidas sincronizadas hoje: {previous}\n\n"
+001425:             "Na extensão, informe matrícula/senha e clique em Bater Ponto.\n"
+001426:             "O ALIYVO não preencherá sua senha e não clicará em Bater Ponto por você.\n\n"
+001427:             "Abrir a extensão agora?",
+001428:             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+001429:             QMessageBox.StandardButton.Yes,
+001430:         )
+001431:         if ans != QMessageBox.StandardButton.Yes:
+001432:             return
+001433: 
+001434:         self._awaiting_chrome_punch = True
+001435:         self._punch_sync_attempts = 0
+001436:         self._log(
+001437:             "ahgora_chrome_extension_requested",
+001438:             shortcut="Ctrl+Shift+9",
+001439:             expected_slot=pending["id"] if pending else (next_slot["id"] if next_slot else ""),
+001440:         )
+001441: 
+001442:         # A troca de foco precisa ocorrer depois que a caixa de confirmação fechar.
+001443:         def trigger():
+001444:             if not self._send_ahgora_chrome_hotkey():
+001445:                 self._awaiting_chrome_punch = False
+001446:                 QMessageBox.warning(
+001447:                     self.owner,
+001448:                     "Chrome não encontrado",
+001449:                     "Não consegui ativar o Chrome e enviar o atalho.\n\n"
+001450:                     "Deixe o Chrome aberto e confirme que Ctrl+Shift+9 abre manualmente a extensão Ahgora Ponto Online.",
+001451:                 )
+001452:                 return
+001453:             # Verificação somente leitura; não cria batida.
+001454:             QTimer.singleShot(12_000, lambda: self._verify_after_chrome_punch("timer_12s"))
+001455:             QTimer.singleShot(28_000, lambda: self._verify_after_chrome_punch("timer_28s"))
+001456: 
+001457:         QTimer.singleShot(250, trigger)
+001458: 
+001459:     def _verify_after_chrome_punch(self, reason: str) -> None:
+001460:         if not self._awaiting_chrome_punch:
+001461:             return
+001462:         if self._sync_busy:
+001463:             QTimer.singleShot(2_000, lambda: self._verify_after_chrome_punch(reason + "_retry"))
+001464:             return
+001465: 
+001466:         before = len((self._state.get("ahgora") or {}).get("punches_today") or [])
+001467:         self._punch_sync_attempts += 1
+001468: 
+001469:         # A rotina existente de sincronização é somente leitura.
+001470:         self.sync_ahgora_async(reason="chrome_punch_" + reason)
+001471: 
+001472:         def evaluate():
+001473:             after = len((self._state.get("ahgora") or {}).get("punches_today") or [])
+001474:             if after > before:
+001475:                 self._awaiting_chrome_punch = False
+001476:                 self._log(
+001477:                     "ahgora_chrome_punch_detected",
+001478:                     before_count=before,
+001479:                     after_count=after,
+001480:                     attempt=self._punch_sync_attempts,
+001481:                 )
+001482:                 QMessageBox.information(
+001483:                     self.owner,
+001484:                     "Ponto confirmado",
+001485:                     "O ALIYVO encontrou uma nova batida no espelho do Ahgora.\n\n"
+001486:                     "O Controle de Ponto já foi atualizado.",
+001487:                 )
+001488:                 self._rebuild_dialog_if_open()
+001489:             elif self._punch_sync_attempts >= 3:
+001490:                 self._awaiting_chrome_punch = False
+001491:                 self._log("ahgora_chrome_punch_not_detected", attempts=self._punch_sync_attempts)
+001492:                 QMessageBox.information(
+001493:                     self.owner,
+001494:                     "Ainda não apareceu no espelho",
+001495:                     "Ainda não encontrei uma nova batida no Ahgora.\n\n"
+001496:                     "Se você acabou de bater o ponto, pode haver alguns segundos de atraso. "
+001497:                     "Use SINCRONIZAR AHGORA para conferir novamente.",
+001498:                 )
+001499: 
+001500:         QTimer.singleShot(3_500, evaluate)
+001501: 
+001502:     def _on_punch_finished(self, ok: bool, data: object, error: str) -> None:
+001503:         self._punch_busy = False
+001504:         if not ok:
+001505:             self._log("ahgora_punch_error", error=str(error)[:300])
+001506:             QMessageBox.warning(
+001507:                 self.owner,
+001508:                 "Batida não confirmada",
+001509:                 "O ALIYVO não recebeu confirmação do Ahgora.\n\n"
+001510:                 + str(error)
+001511:                 + "\n\nNão considere o ponto registrado até o Ahgora confirmar.",
+001512:             )
+001513:             self._rebuild_dialog_if_open()
+001514:             return
+001515: 
+001516:         payload = data if isinstance(data, dict) else {}
+001517:         raw_punches = payload.get("batidas_dia")
+001518:         punches: list[str] = []
+001519:         if isinstance(raw_punches, list):
+001520:             punches = [_normalize_punch_time(x) for x in raw_punches if _normalize_punch_time(x)]
+001521:         if punches:
+001522:             ah = self._state.setdefault("ahgora", {})
+001523:             ah["punches_today"] = punches
+001524:             ah["last_sync_at"] = datetime.now().isoformat(timespec="seconds")
+001525:             ah["last_sync_ok"] = True
+001526:             ah["last_error"] = ""
+001527:             self._state = reconcile_real_punches(self._state, punches, datetime.now())
+001528:             self._save_state()
+001529: 
+001530:         self._log("ahgora_punch_ok", returned_punches=len(punches))
+001531:         time_txt = _normalize_punch_time(payload.get("time"))
+001532:         QMessageBox.information(
+001533:             self.owner,
+001534:             "Ponto registrado",
+001535:             "O Ahgora confirmou a batida."
+001536:             + (f"\n\nHorário retornado: {time_txt}" if time_txt else "")
+001537:             + "\n\nO ALIYVO vai sincronizar o espelho para conferir.",
+001538:         )
+001539:         self.sync_ahgora_async(reason="after_punch")
+001540: 
+001541:     # ---------- local state / UI ----------
+001542: 
+001543:     def _status_rows(self) -> list[dict[str, Any]]:
+001544:         rows: list[dict[str, Any]] = []
+001545:         slots_state = self._state.get("slots") or {}
+001546:         now = datetime.now()
+001547:         current = _now_minutes(now)
+001548:         for slot in POINT_SLOTS:
+001549:             item = slots_state.get(slot["id"]) if isinstance(slots_state, dict) else None
+001550:             status = slot_status(self._state, slot["id"])
+001551:             if status == "open":
+001552:                 status = "pending" if is_workday(now) and current >= _slot_minutes(slot) else "future"
+001553:             row: dict[str, Any] = {
+001554:                 "id": slot["id"],
+001555:                 "time": slot["time"],
+001556:                 "label": slot["label"],
+001557:                 "status": status,
+001558:             }
+001559:             if isinstance(item, dict):
+001560:                 for key in ("resolved_at", "actual_time", "source"):
+001561:                     if item.get(key) is not None:
+001562:                         row[key] = item.get(key)
+001563:             rows.append(row)
+001564:         return rows
+001565: 
+001566:     def status_payload(self) -> dict[str, Any]:
+001567:         with self._snapshot_lock:
+001568:             return deepcopy(self._api_snapshot)
+001569: 
+001570:     def _update_snapshot(self) -> None:
+001571:         try:
+001572:             now = datetime.now()
+001573:             state = normalize_state(self._state, now)
+001574:             ah = state.get("ahgora") or {}
+001575:             payload = {
+001576:                 "ok": True,
+001577:                 "module_version": POINT_MODULE_VERSION,
+001578:                 "date": _date_key(now),
+001579:                 "workday": is_workday(now),
+001580:                 "pending": pending_slot_for(now, state),
+001581:                 "next": next_future_slot_for(now, state),
+001582:                 "missed": [
+001583:                     {"id": x.get("id"), "time": x.get("time"), "label": x.get("label")}
+001584:                     for x in missed_slots_for(state)
+001585:                 ],
+001586:                 "slots": self._status_rows(),
+001587:                 "ahgora_configured": self._credentials_available(),
+001588:                 "ahgora_last_sync_at": ah.get("last_sync_at"),
+001589:                 "ahgora_last_sync_ok": bool(ah.get("last_sync_ok")),
+001590:                 "ahgora_punches_today": list(ah.get("punches_today") or []),
+001591:             }
+001592:             with self._snapshot_lock:
+001593:                 self._api_snapshot = payload
+001594:         except Exception:
+001595:             pass
+001596: 
+001597:     def _refresh_nav_button(self) -> None:
+001598:         btn = self.nav_button
+001599:         if btn is None:
+001600:             return
+001601:         try:
+001602:             now = datetime.now()
+001603:             self._ensure_state_no_recursion(now)
+001604:             pending = pending_slot_for(now, self._state)
+001605:             missed = missed_slots_for(self._state)
+001606:             nxt = next_future_slot_for(now, self._state)
+001607:             configured = self._credentials_available()
+001608:             if pending:
+001609:                 btn.setText("🔴  Ponto pendente " + pending["time"])
+001610:                 btn.setStyleSheet(
+001611:                     "QPushButton{background:#3A1720;color:#FFF4F4;border:1px solid #FF5C67;"
+001612:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:800;}"
+001613:                     "QPushButton:hover{background:#52202A;border-color:#FF8991;}"
+001614:                 )
+001615:             elif missed:
+001616:                 btn.setText("🟠  Ponto: ajuste necessário")
+001617:                 btn.setStyleSheet(
+001618:                     "QPushButton{background:#3B2A12;color:#FFF7E6;border:1px solid #F0A43A;"
+001619:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:800;}"
+001620:                     "QPushButton:hover{background:#513817;border-color:#FFC46D;}"
+001621:                 )
+001622:             elif not configured:
+001623:                 btn.setText("⚙  Ponto • conectar Ahgora")
+001624:                 btn.setStyleSheet(
+001625:                     "QPushButton{background:#162C3D;color:#EAF3FA;border:1px solid #5683A3;"
+001626:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:700;}"
+001627:                     "QPushButton:hover{background:#1B374C;border-color:#7EB4D8;}"
+001628:                 )
+001629:             elif not is_workday(now):
+001630:                 btn.setText("✓  Ponto • sincronizado")
+001631:                 btn.setStyleSheet(
+001632:                     "QPushButton{background:#0B2D27;color:#E8FFF5;border:1px solid #20B978;"
+001633:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:700;}"
+001634:                     "QPushButton:hover{background:#104037;border-color:#20E983;}"
+001635:                 )
+001636:             elif nxt:
+001637:                 btn.setText("✓  Ponto OK • próx. " + nxt["time"])
+001638:                 btn.setStyleSheet(
+001639:                     "QPushButton{background:#0B2D27;color:#E8FFF5;border:1px solid #20B978;"
+001640:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:700;}"
+001641:                     "QPushButton:hover{background:#104037;border-color:#20E983;}"
+001642:                 )
+001643:             else:
+001644:                 btn.setText("✓  Ponto OK • dia concluído")
+001645:                 btn.setStyleSheet(
+001646:                     "QPushButton{background:#0B2D27;color:#E8FFF5;border:1px solid #20B978;"
+001647:                     "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:700;}"
+001648:                     "QPushButton:hover{background:#104037;border-color:#20E983;}"
+001649:                 )
+001650:         except Exception:
+001651:             try:
+001652:                 btn.setText("🕒  Ponto")
+001653:             except Exception:
+001654:                 pass
+001655: 
+001656:     def _ensure_state_no_recursion(self, now: datetime) -> None:
+001657:         normalized = normalize_state(self._state, now)
+001658:         if normalized.get("date") != self._state.get("date"):
+001659:             self._state = normalized
+001660: 
+001661:     def check_now(self) -> None:
+001662:         self._ensure_today()
+001663:         now = datetime.now()
+001664: 
+001665:         # Antes de acusar uma batida como esquecida, consulta o Ahgora real.
+001666:         if self._credentials_available() and self._sync_is_stale(55) and not self._sync_busy:
+001667:             self.sync_ahgora_async(reason="due_check")
+001668:             self._schedule_in(7_000)
+001669:             return
+001670: 
+001671:         pending = pending_slot_for(now, self._state)
+001672:         self._update_snapshot()
+001673:         self._refresh_nav_button()
+001674: 
+001675:         if pending:
+001676:             key = _date_key(now) + "|" + pending["id"]
+001677:             if self._last_notified_key != key:
+001678:                 self._last_notified_key = key
+001679:                 self._log("point_due", slot_id=pending["id"], scheduled=pending["time"])
+001680:             if self._dialog is None or not self._dialog.isVisible():
+001681:                 self.show_dialog(manual=False)
+001682:             self._schedule_in(60_000 if self._credentials_available() else 120_000)
+001683:             return
+001684: 
+001685:         target = _next_business_slot_datetime(now, self._state)
+001686:         delay = max(1000, int((target - now).total_seconds() * 1000) + 500)
+001687:         self._timer.start(min(delay, 24 * 60 * 60 * 1000))
+001688: 
+001689:     def _schedule_in(self, ms: int) -> None:
+001690:         self._timer.start(max(1000, min(int(ms), 24 * 60 * 60 * 1000)))
+001691: 
+001692:     def confirm_pending(self, slot_id: str = "", source: str = "manual_fallback") -> bool:
+001693:         self._ensure_today()
+001694:         now = datetime.now()
+001695:         pending = pending_slot_for(now, self._state)
+001696:         if not pending or (slot_id and slot_id != pending["id"]):
+001697:             return False
+001698:         slots = self._state.setdefault("slots", {})
+001699:         slots[pending["id"]] = {
+001700:             "status": "confirmed",
+001701:             "scheduled_time": pending["time"],
+001702:             "resolved_at": now.isoformat(timespec="seconds"),
+001703:             "actual_time": now.strftime("%H:%M:%S"),
+001704:             "source": source,
+001705:         }
+001706:         self._log("point_confirmed_fallback", slot_id=pending["id"], scheduled=pending["time"], source=source)
+001707:         self._save_state()
+001708:         self._after_resolution()
+001709:         return True
+001710: 
+001711:     def mark_missed(self, slot_id: str = "", source: str = "aliyvo") -> bool:
+--- LINES 1719-2152 ---
+001719:             "status": "missed",
+001720:             "scheduled_time": pending["time"],
+001721:             "resolved_at": now.isoformat(timespec="seconds"),
+001722:             "actual_time": now.strftime("%H:%M:%S"),
+001723:             "source": source,
+001724:         }
+001725:         self._log("point_missed_needs_adjustment", slot_id=pending["id"], scheduled=pending["time"], source=source)
+001726:         self._save_state()
+001727:         self._after_resolution()
+001728:         return True
+001729: 
+001730:     def _after_resolution(self) -> None:
+001731:         try:
+001732:             if self._dialog is not None:
+001733:                 self._dialog.close()
+001734:         except Exception:
+001735:             pass
+001736:         self._dialog = None
+001737:         self._last_notified_key = ""
+001738:         QTimer.singleShot(100, self.check_now)
+001739: 
+001740:     def _status_text(self, row: dict[str, Any]) -> str:
+001741:         status = row.get("status")
+001742:         if status == "confirmed":
+001743:             actual = row.get("actual_time") or "--:--"
+001744:             source = "Ahgora" if row.get("source") == "ahgora_sync" else "local"
+001745:             return f"✅ {source} {str(actual)[:5]}"
+001746:         if status == "missed":
+001747:             return "🟠 precisa de ajuste"
+001748:         if status == "pending":
+001749:             return "🔴 pendente"
+001750:         return "⏳ aguardando"
+001751: 
+001752:     def _rebuild_dialog_if_open(self) -> None:
+001753:         if self._dialog is None or not self._dialog.isVisible():
+001754:             return
+001755:         try:
+001756:             self._dialog.close()
+001757:         except Exception:
+001758:             pass
+001759:         self._dialog = None
+001760:         QTimer.singleShot(100, lambda: self.show_dialog(manual=True))
+001761: 
+001762:     def show_dialog(self, manual: bool = True) -> None:
+001763:         self._ensure_today()
+001764:         now = datetime.now()
+001765:         pending = pending_slot_for(now, self._state)
+001766:         configured = self._credentials_available()
+001767: 
+001768:         if self._dialog is not None and self._dialog.isVisible():
+001769:             try:
+001770:                 self._dialog.raise_()
+001771:                 self._dialog.activateWindow()
+001772:             except Exception:
+001773:                 pass
+001774:             return
+001775: 
+001776:         dlg = QDialog(self.owner)
+001777:         self._dialog = dlg
+001778:         dlg.setWindowTitle("ALIYVO • Controle de Ponto")
+001779:         dlg.setModal(False)
+001780:         dlg.setMinimumWidth(560)
+001781:         dlg.setStyleSheet(
+001782:             "QDialog{background:#081827;color:#F4FAF8;}"
+001783:             "QLabel{color:#F4FAF8;}"
+001784:             "QFrame#pontoCard{background:#0C2235;border:1px solid #173B52;border-radius:10px;}"
+001785:             "QCheckBox{color:#F4FAF8;font-size:12px;spacing:9px;}"
+001786:             "QPushButton{background:#0B2E35;color:#F4FAF8;border:1px solid #20C77A;"
+001787:             "border-radius:7px;padding:9px 12px;font-weight:800;}"
+001788:             "QPushButton:hover{background:#104037;border-color:#20E983;}"
+001789:         )
+001790:         lay = QVBoxLayout(dlg)
+001791:         lay.setContentsMargins(22, 20, 22, 20)
+001792:         lay.setSpacing(10)
+001793: 
+001794:         head = QHBoxLayout()
+001795:         title = QLabel("CONTROLE DE PONTO")
+001796:         title.setStyleSheet("font-size:18px;font-weight:900;color:#FFFFFF;")
+001797:         settings = QPushButton("⚙ Ahgora")
+001798:         settings.setMaximumWidth(115)
+001799:         settings.clicked.connect(self.show_ahgora_settings)
+001800:         head.addWidget(title, 1)
+001801:         head.addWidget(settings)
+001802:         lay.addLayout(head)
+001803: 
+001804:         ah = self._state.get("ahgora") or {}
+001805:         if configured and ah.get("last_sync_ok"):
+001806:             count = len(ah.get("punches_today") or [])
+001807:             if count:
+001808:                 sync_text = f"● Ahgora conectado • {count} batida(s) real(is) encontrada(s) hoje"
+001809:             else:
+001810:                 sync_text = "● Ahgora consultado • 0 batidas encontradas hoje"
+001811:             sync_status = QLabel(sync_text)
+001812:             sync_status.setStyleSheet(
+001813:                 "background:#0B2D27;color:#8EF0BA;border:1px solid #1B8E60;"
+001814:                 "border-radius:7px;padding:7px;font-size:11px;font-weight:800;"
+001815:             )
+001816:         elif configured:
+001817:             err = str(ah.get("last_error") or "aguardando sincronização")
+001818:             sync_status = QLabel("● Ahgora configurado • " + err[:110] + " • use VINCULAR / REABRIR AHGORA")
+001819:             sync_status.setStyleSheet(
+001820:                 "background:#3B2A12;color:#FFD58E;border:1px solid #A97628;"
+001821:                 "border-radius:7px;padding:7px;font-size:11px;font-weight:700;"
+001822:             )
+001823:         else:
+001824:             sync_status = QLabel("⚙ Ahgora ainda não conectado ao ALIYVO")
+001825:             sync_status.setStyleSheet(
+001826:                 "background:#142A3B;color:#CFE3F2;border:1px solid #426985;"
+001827:                 "border-radius:7px;padding:7px;font-size:11px;font-weight:700;"
+001828:             )
+001829:         sync_status.setWordWrap(True)
+001830:         lay.addWidget(sync_status)
+001831: 
+001832:         punches = [str(x) for x in ah.get("punches_today") or []]
+001833:         if punches:
+001834:             real = QLabel("Batidas reais hoje:  " + "  •  ".join(punches))
+001835:             real.setStyleSheet("color:#A9EBC9;font-size:11px;font-weight:800;padding:2px 0;")
+001836:             lay.addWidget(real)
+001837: 
+001838:         link_btn = QPushButton("🔗 VINCULAR / REABRIR AHGORA")
+001839:         link_btn.setStyleSheet(
+001840:             "QPushButton{background:#12344A;color:#EAF6FF;border:1px solid #4A91BC;"
+001841:             "border-radius:7px;padding:9px;font-size:10px;font-weight:800;}"
+001842:         )
+001843:         link_btn.clicked.connect(self.show_ahgora_browser_link)
+001844:         lay.addWidget(link_btn)
+001845: 
+001846:         sync_btn = QPushButton("↻ SINCRONIZAR AGORA")
+001847:         sync_btn.clicked.connect(lambda: self.sync_ahgora_async(reason="manual"))
+001848:         lay.addWidget(sync_btn)
+001849: 
+001850:         diag_btn = QPushButton("🔎 DIAGNÓSTICO DA SINCRONIZAÇÃO")
+001851:         diag_btn.setStyleSheet(
+001852:             "QPushButton{background:#142A3B;color:#DCE8F1;border:1px solid #426985;"
+001853:             "border-radius:7px;padding:8px;font-size:10px;font-weight:800;}"
+001854:         )
+001855: 
+001856:         def show_sync_diag():
+001857:             ahg = self._state.get("ahgora") or {}
+001858:             validation = ahg.get("validation") if isinstance(ahg.get("validation"), dict) else {}
+001859:             lines = [
+001860:                 "Última sincronização: " + str(ahg.get("last_sync_at") or "nunca"),
+001861:                 "Consulta válida: " + ("SIM" if ahg.get("last_sync_ok") else "NÃO"),
+001862:                 "Batidas encontradas hoje: " + str(len(ahg.get("punches_today") or [])),
+001863:                 "Dia retornado: " + str(validation.get("day_key") or "-"),
+001864:                 "Sessão web Ahgora válida: " + ("SIM" if validation.get("session_ok") else "-"),
+001865:                 "API atual do espelho: " + ("SIM" if validation.get("modern_api") else "-"),
+001866:                 "Mês consultado: " + str(validation.get("month_key") or "-"),
+001867:             ]
+001868:             if ahg.get("last_error"):
+001869:                 lines.append("Erro: " + str(ahg.get("last_error"))[:500])
+001870:             QMessageBox.information(
+001871:                 dlg,
+001872:                 "Diagnóstico da sincronização",
+001873:                 "\n".join(lines)
+001874:                 + "\n\nEste diagnóstico não mostra sua senha.",
+001875:             )
+001876: 
+001877:         diag_btn.clicked.connect(show_sync_diag)
+001878:         lay.addWidget(diag_btn)
+001879: 
+001880:         if configured and ah.get("last_sync_ok"):
+001881:             next_expected = pending or next_future_slot_for(now, self._state)
+001882:             if next_expected:
+001883:                 punch_caption = (
+001884:                     "🟢  BATER PONTO AGORA  •  "
+001885:                     + now.strftime("%H:%M")
+001886:                     + "  |  próximo: "
+001887:                     + next_expected["label"]
+001888:                     + " "
+001889:                     + next_expected["time"]
+001890:                 )
+001891:             else:
+001892:                 punch_caption = "🟢  BATER PONTO AGORA  •  " + now.strftime("%H:%M")
+001893:             always_punch = QPushButton(punch_caption)
+001894:             always_punch.setToolTip(
+001895:                 "Abre a extensão oficial Ahgora Ponto Online no Chrome usando Ctrl+Shift+9."
+001896:             )
+001897:             always_punch.setStyleSheet(
+001898:                 "QPushButton{background:#087047;color:white;border:1px solid #20E983;"
+001899:                 "border-radius:8px;padding:12px;font-size:12px;font-weight:900;}"
+001900:                 "QPushButton:hover{background:#0A8354;}"
+001901:             )
+001902:             always_punch.clicked.connect(self.punch_ahgora)
+001903:             lay.addWidget(always_punch)
+001904: 
+001905:             early_note = QLabel(
+001906:                 "O botão abre a extensão oficial Ahgora Ponto Online no Chrome (Ctrl+Shift+9). "
+001907:                 "Depois da sua batida, o ALIYVO tenta sincronizar automaticamente o espelho."
+001908:             )
+001909:             early_note.setWordWrap(True)
+001910:             early_note.setStyleSheet("color:#9FCBB7;font-size:10px;padding:1px 2px 3px 2px;")
+001911:             lay.addWidget(early_note)
+001912: 
+001913:         if pending:
+001914:             badge = QLabel("🔴 PONTO PENDENTE • " + pending["label"] + " • " + pending["time"])
+001915:             badge.setStyleSheet(
+001916:                 "background:#3A1720;color:#FFF4F4;border:1px solid #FF5C67;"
+001917:                 "border-radius:8px;padding:10px;font-size:14px;font-weight:900;"
+001918:             )
+001919:             lay.addWidget(badge)
+001920: 
+001921:             if configured and ah.get("last_sync_ok"):
+001922:                 info = QLabel(
+001923:                     "A batida é feita pela extensão oficial Ahgora Ponto Online no Chrome."
+001924:                 )
+001925:             else:
+001926:                 setup = QPushButton("⚙  REVISAR CONEXÃO COM O AHGORA" if configured else "⚙  CONECTAR AO AHGORA")
+001927:                 setup.clicked.connect(self.show_ahgora_settings)
+001928:                 lay.addWidget(setup)
+001929:                 info = QLabel(
+001930:                     "A sincronização precisa ser validada antes de liberar batida direta pelo ALIYVO."
+001931:                     if configured else
+001932:                     "Conecte o Ahgora para o ALIYVO conferir as batidas reais e permitir registrar o ponto aqui."
+001933:                 )
+001934:             info.setWordWrap(True)
+001935:             info.setStyleSheet("color:#AFC2D0;font-size:10px;")
+001936:             lay.addWidget(info)
+001937: 
+001938:             fallback = QCheckBox("Usei o Ahgora oficial e já confirmei a batida (modo de contingência).")
+001939:             lay.addWidget(fallback)
+001940:             confirm = QPushButton("CONFIRMAR MANUALMENTE")
+001941:             confirm.setEnabled(False)
+001942:             confirm.setStyleSheet(
+001943:                 "QPushButton{background:#233441;color:#DDE8EF;border:1px solid #4D6372;"
+001944:                 "border-radius:7px;padding:8px;font-size:10px;font-weight:800;}"
+001945:                 "QPushButton:disabled{color:#71828E;border-color:#334956;}"
+001946:             )
+001947:             fallback.toggled.connect(confirm.setEnabled)
+001948:             confirm.clicked.connect(
+001949:                 lambda _=False, sid=pending["id"]: self.confirm_pending(sid, "manual_fallback")
+001950:             )
+001951:             lay.addWidget(confirm)
+001952: 
+001953:             missed = QPushButton("⚠  PERDI ESSA BATIDA — PRECISO CORRIGIR")
+001954:             missed.setStyleSheet(
+001955:                 "QPushButton{background:#352A18;color:#FFF4DB;border:1px solid #D99A39;"
+001956:                 "border-radius:8px;padding:9px;font-size:11px;font-weight:800;}"
+001957:                 "QPushButton:hover{background:#493820;border-color:#FFC46D;}"
+001958:             )
+001959: 
+001960:             def on_missed(_checked=False, sid=pending["id"]):
+001961:                 ans = QMessageBox.question(
+001962:                     dlg,
+001963:                     "Marcar como perdida?",
+001964:                     "Use somente se você realmente não bateu no Ahgora.\n\n"
+001965:                     "O ALIYVO libera as próximas etapas, mas mantém aviso de ajuste necessário.",
+001966:                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+001967:                     QMessageBox.StandardButton.No,
+001968:                 )
+001969:                 if ans == QMessageBox.StandardButton.Yes:
+001970:                     self.mark_missed(sid, "aliyvo_dialog")
+001971: 
+001972:             missed.clicked.connect(on_missed)
+001973:             lay.addWidget(missed)
+001974:         else:
+001975:             ok = QLabel("✅ Nenhuma batida pendente agora.")
+001976:             ok.setStyleSheet(
+001977:                 "background:#0B2D27;color:#E8FFF5;border:1px solid #20B978;"
+001978:                 "border-radius:8px;padding:10px;font-size:13px;font-weight:800;"
+001979:             )
+001980:             lay.addWidget(ok)
+001981: 
+001982:         sep = QFrame()
+001983:         sep.setFrameShape(QFrame.Shape.HLine)
+001984:         sep.setStyleSheet("color:#173B52;")
+001985:         lay.addWidget(sep)
+001986: 
+001987:         today = QLabel("Hoje")
+001988:         today.setStyleSheet("font-size:13px;font-weight:900;color:#BFEBDD;")
+001989:         lay.addWidget(today)
+001990: 
+001991:         for row in self._status_rows():
+001992:             card = QFrame()
+001993:             card.setObjectName("pontoCard")
+001994:             h = QHBoxLayout(card)
+001995:             h.setContentsMargins(12, 8, 12, 8)
+001996:             t = QLabel(str(row["time"]))
+001997:             t.setStyleSheet("font-size:14px;font-weight:900;color:#FFFFFF;min-width:48px;")
+001998:             name = QLabel(str(row["label"]))
+001999:             name.setStyleSheet("font-size:12px;font-weight:700;color:#D9E6EF;")
+002000:             st = QLabel(self._status_text(row))
+002001:             st.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+002002:             if row.get("status") == "missed":
+002003:                 st.setStyleSheet("font-size:11px;font-weight:800;color:#FFC46D;")
+002004:             elif row.get("status") == "pending":
+002005:                 st.setStyleSheet("font-size:11px;font-weight:800;color:#FF8991;")
+002006:             elif row.get("status") == "confirmed":
+002007:                 st.setStyleSheet("font-size:11px;font-weight:800;color:#66E3A5;")
+002008:             else:
+002009:                 st.setStyleSheet("font-size:11px;color:#8FA3B5;")
+002010:             h.addWidget(t)
+002011:             h.addWidget(name, 1)
+002012:             h.addWidget(st)
+002013:             lay.addWidget(card)
+002014: 
+002015:         note = QLabel(
+002016:             "A sincronização usa os registros reais do Ahgora. O registro pelo ALIYVO só acontece "
+002017:             "após clique + confirmação e pode depender das permissões definidas pela sua empresa."
+002018:         )
+002019:         note.setWordWrap(True)
+002020:         note.setStyleSheet("color:#73889A;font-size:10px;margin-top:3px;")
+002021:         lay.addWidget(note)
+002022: 
+002023:         close_btn = QPushButton("Fechar")
+002024:         close_btn.setStyleSheet(
+002025:             "QPushButton{background:#142A3B;color:#DCE8F1;border:1px solid #2A465B;"
+002026:             "border-radius:7px;padding:8px;font-weight:700;}"
+002027:         )
+002028:         close_btn.clicked.connect(dlg.close)
+002029:         lay.addWidget(close_btn)
+002030: 
+002031:         def finished(_result=0):
+002032:             if self._dialog is dlg:
+002033:                 self._dialog = None
+002034:             if pending_slot_for(datetime.now(), self._state):
+002035:                 self._schedule_in(60_000 if self._credentials_available() else 120_000)
+002036: 
+002037:         dlg.finished.connect(finished)
+002038:         dlg.show()
+002039:         try:
+002040:             dlg.raise_()
+002041:             dlg.activateWindow()
+002042:             QApplication.alert(self.owner, 0)
+002043:         except Exception:
+002044:             pass
+002045:         if not manual and pending:
+002046:             self._log("point_dialog_shown", slot_id=pending["id"], scheduled=pending["time"])
+002047: 
+002048:     # ---------- local bridge for Chrome Sankhya extension ----------
+002049: 
+002050:     def _origin_allowed(self, origin: str) -> bool:
+002051:         return (not origin) or origin.startswith("chrome-extension://")
+002052: 
+002053:     def _start_api(self) -> None:
+002054:         if self._api_server is not None:
+002055:             return
+002056:         controller = self
+002057: 
+002058:         class Handler(BaseHTTPRequestHandler):
+002059:             server_version = "ALIYVO-Ponto/0.23.01"
+002060: 
+002061:             def log_message(self, fmt, *args):
+002062:                 return
+002063: 
+002064:             def _origin(self) -> str:
+002065:                 return str(self.headers.get("Origin") or "")
+002066: 
+002067:             def _authorized(self) -> bool:
+002068:                 if not controller._origin_allowed(self._origin()):
+002069:                     return False
+002070:                 return str(self.headers.get(POINT_API_HEADER) or "") == POINT_API_SECRET
+002071: 
+002072:             def _send(self, code: int, payload: dict[str, Any]):
+002073:                 body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+002074:                 self.send_response(code)
+002075:                 origin = self._origin()
+002076:                 if origin and controller._origin_allowed(origin):
+002077:                     self.send_header("Access-Control-Allow-Origin", origin)
+002078:                     self.send_header("Vary", "Origin")
+002079:                 self.send_header("Content-Type", "application/json; charset=utf-8")
+002080:                 self.send_header("Cache-Control", "no-store")
+002081:                 self.send_header("Content-Length", str(len(body)))
+002082:                 self.end_headers()
+002083:                 self.wfile.write(body)
+002084: 
+002085:             def do_OPTIONS(self):
+002086:                 origin = self._origin()
+002087:                 if not controller._origin_allowed(origin):
+002088:                     self.send_response(403)
+002089:                     self.end_headers()
+002090:                     return
+002091:                 self.send_response(204)
+002092:                 if origin:
+002093:                     self.send_header("Access-Control-Allow-Origin", origin)
+002094:                     self.send_header("Vary", "Origin")
+002095:                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+002096:                 self.send_header("Access-Control-Allow-Headers", POINT_API_HEADER + ", Content-Type")
+002097:                 self.send_header("Access-Control-Max-Age", "600")
+002098:                 self.end_headers()
+002099: 
+002100:             def do_GET(self):
+002101:                 if self.path == "/health":
+002102:                     self._send(200, {"ok": True, "module_version": POINT_MODULE_VERSION})
+002103:                     return
+002104:                 if self.path != "/status":
+002105:                     self._send(404, {"ok": False, "error": "not_found"})
+002106:                     return
+002107:                 if not self._authorized():
+002108:                     self._send(403, {"ok": False, "error": "forbidden"})
+002109:                     return
+002110:                 self._send(200, controller.status_payload())
+002111: 
+002112:             def do_POST(self):
+002113:                 if self.path not in ("/confirm", "/missed", "/sync"):
+002114:                     self._send(404, {"ok": False, "error": "not_found"})
+002115:                     return
+002116:                 if not self._authorized():
+002117:                     self._send(403, {"ok": False, "error": "forbidden"})
+002118:                     return
+002119:                 try:
+002120:                     length = min(int(self.headers.get("Content-Length") or "0"), 4096)
+002121:                     raw = self.rfile.read(length) if length > 0 else b"{}"
+002122:                     data = json.loads(raw.decode("utf-8")) if raw else {}
+002123:                     slot_id = str(data.get("slot_id") or "")
+002124:                 except Exception:
+002125:                     slot_id = ""
+002126:                 action = self.path.lstrip("/")
+002127:                 controller.apiCommand.emit(action, slot_id)
+002128:                 self._send(202, {"ok": True, "queued": True, "action": action, "slot_id": slot_id})
+002129: 
+002130:         try:
+002131:             server = ThreadingHTTPServer(("127.0.0.1", POINT_API_PORT), Handler)
+002132:             server.daemon_threads = True
+002133:             self._api_server = server
+002134:             thread = threading.Thread(target=server.serve_forever, name="ALIYVO-Ponto-Bridge", daemon=True)
+002135:             self._api_thread = thread
+002136:             thread.start()
+002137:             self._log("point_api_started", port=POINT_API_PORT)
+002138:         except Exception as exc:
+002139:             self._api_server = None
+002140:             self._api_thread = None
+002141:             self._log("point_api_start_error", port=POINT_API_PORT, error=repr(exc))
+002142: 
+002143:     def _on_api_command(self, action: str, slot_id: str) -> None:
+002144:         try:
+002145:             if action == "confirm":
+002146:                 self.confirm_pending(slot_id, "chrome_extension_fallback")
+002147:             elif action == "missed":
+002148:                 self.mark_missed(slot_id, "chrome_extension")
+002149:             elif action == "sync":
+002150:                 self.sync_ahgora_async(reason="chrome_extension")
+002151:         except Exception as exc:
+002152:             self._log("point_api_command_error", action=action, error=repr(exc))
+===== FILE main.py =====
+--- LINES 10-86 ---
+000010: from PyQt6.QtCore import Qt, QUrl, QTimer, QProcess, QPointF, QEvent, pyqtSignal, QRect
+000011: from PyQt6.QtGui import QPixmap, QImage, QKeyEvent, QDragEnterEvent, QDropEvent, QPalette, QColor, QPainter, QIcon, QGuiApplication, QMouseEvent, QPen, QPainterPath, QLinearGradient
+000012: from PyQt6.QtWidgets import (
+000013:     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLineEdit,
+000014:     QPushButton, QLabel, QTextEdit, QTableWidget, QTableWidgetItem, QSplitter,
+000015:     QMessageBox, QHeaderView, QTabWidget, QCheckBox, QFileDialog, QSpinBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QComboBox,
+000016:     QInputDialog, QScrollArea, QSizePolicy, QFrame)
+000017: from PyQt6.QtWebEngineWidgets import QWebEngineView
+000018: from qtwebview2 import QtWebView2Widget
+000019: from PyQt6.QtWidgets import QDialog, QComboBox, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton, QMessageBox, QApplication
+000020: from PyQt6.QtCore import QTimer
+000021: from PyQt6.QtCore import QObject, pyqtSignal
+000022: 
+000023: 
+000024: 
+000025: APP_DIR = Path(__file__).parent
+000026: ALIYVO_VERSION = "0.23.15"
+000027: # Proveniencia tecnica do ALIYVO.
+000028: # Nao e mecanismo de seguranca nem substitui registro juridico.
+000029: # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+000030: ALIYVO_ORIGIN_ID = "ALIYVO-ORIGIN-20260924-2302-6F91D2C4A8E73B5C"
+000031: ALIYVO_ORIGIN_REPOSITORY = "alexmarianopola-lgtm/alivo-updates"
+000032: ALIYVO_ORIGIN_SNAPSHOT_DATE = "2026-09-24"
+000033: ALIYVO_ORIGIN_BASE_RELEASE = "v0.23.02"
+000034: try:
+000035:     from aliyvo_ponto import AliyvoPontoController
+000036: except ModuleNotFoundError:
+000037:     import sys as _aliyvo_ponto_sys
+000038:     from pathlib import Path as _AliyvoPontoPath
+000039:     _aliyvo_ponto_appdir=str(_AliyvoPontoPath(__file__).resolve().parent)
+000040:     if _aliyvo_ponto_appdir not in _aliyvo_ponto_sys.path:
+000041:         _aliyvo_ponto_sys.path.insert(0,_aliyvo_ponto_appdir)
+000042:     from aliyvo_ponto import AliyvoPontoController
+000043: 
+000044: # -----------------------------------------------------------------------------
+000045: # ALIYVO HTTPS - ponte segura com os certificados confiaveis do Windows
+000046: # Evita CERTIFICATE_VERIFY_FAILED em PCs onde Python/OpenSSL nao enxerga a mesma
+000047: # cadeia de certificados que Edge/Chrome/Windows. A verificacao SSL continua ativa.
+000048: # -----------------------------------------------------------------------------
+000049: def _aliyvo_install_windows_certificate_bridge():
+000050:     try:
+000051:         import os as _os
+000052:         import ssl as _ssl
+000053:         if _os.name != "nt" or not hasattr(_ssl,"enum_certificates"):
+000054:             return
+000055:         pem=[]
+000056:         seen=set()
+000057:         for store in ("ROOT","CA"):
+000058:             try:
+000059:                 certs=_ssl.enum_certificates(store)
+000060:             except Exception:
+000061:                 certs=[]
+000062:             for cert,encoding,trust in certs:
+000063:                 try:
+000064:                     if encoding != "x509_asn":
+000065:                         continue
+000066:                     key=bytes(cert[:40])
+000067:                     if key in seen:
+000068:                         continue
+000069:                     seen.add(key)
+000070:                     pem.append(_ssl.DER_cert_to_PEM_cert(cert))
+000071:                 except Exception:
+000072:                     pass
+000073:         if not pem:
+000074:             return
+000075:         cadata="\n".join(pem)
+000076:         def _aliyvo_https_context(*args,**kwargs):
+000077:             ctx=_ssl.create_default_context()
+000078:             try:
+000079:                 ctx.load_verify_locations(cadata=cadata)
+000080:             except Exception:
+000081:                 pass
+000082:             return ctx
+000083:         _ssl._create_default_https_context=_aliyvo_https_context
+000084:     except Exception:
+000085:         pass
+000086: 
+--- LINES 5522-5591 ---
+005522:             if not t or t in stop: continue
+005523:             if re.fullmatch(r"(?:19|20)\d{2}",t): continue
+005524:             if len(t)<3 and t not in ("mb",): continue
+005525:             if t not in tokens: tokens.append(t)
+005526: 
+005527:         lines=["PEDIDO CAPTURADO — ÚLTIMAS MENSAGENS RECEBIDAS",f"Cliente: {name}",""]
+005528:         for m in messages[-10:]:
+005529:             lines.append("• "+m[:500])
+005530: 
+005531:         technical=find_technical_knowledge(text,DB_PATH)
+005532:         alias=find_alias_match(text,DB_PATH)
+005533:         if technical or alias:
+005534:             lines += ["","LEITURA TÉCNICA"]
+005535:             if technical:
+005536:                 frase,termo,aplicacao,consulta,obs=technical
+005537:                 lines.append(f"• {termo}")
+005538:                 if aplicacao: lines.append(f"• Aplicação conhecida: {aplicacao}")
+005539:                 if consulta: lines.append(f"• Pesquisa sugerida: {consulta}")
+005540:             if alias:
+005541:                 termo_cliente,termo_tecnico,medida_ctx,cod_pref,obs=alias
+005542:                 lines.append(f"• '{termo_cliente}' pode significar '{termo_tecnico}'")
+005543: 
+005544:         if tokens:
+005545:             lines += ["","TERMOS ÚTEIS"," • ".join(tokens[:10])]
+005546: 
+005547:         # Referências/códigos: aceita variações de ponto, hífen e espaço.
+005548:         # Chave canônica: mantém apenas letras+números (MB309.3 -> MB3093).
+005549:         codes=[]
+005550:         code_keys={}
+005551:         def _add_ref_candidate(value):
+005552:             raw=str(value or "").strip()
+005553:             if not raw:
+005554:                 return
+005555:             key=re.sub(r"[^A-Z0-9]","",raw.upper())
+005556:             if len(key)<5 or not any(ch.isdigit() for ch in key):
+005557:                 return
+005558:             if re.fullmatch(r"(?:19|20)\d{2}",key):
+005559:                 return
+005560:             if key not in code_keys:
+005561:                 code_keys[key]=raw
+005562:                 codes.append(raw)
+005563: 
+005564:         for c in extract_codes_strict(text):
+005565:             _add_ref_candidate(c)
+005566: 
+005567:         # Formas contínuas: MB309.3, MB-309.3, 5168-BG etc.
+005568:         for c in re.findall(r"(?<![A-Za-z0-9])([A-Za-z0-9][A-Za-z0-9./_-]{4,})(?![A-Za-z0-9])",text):
+005569:             _add_ref_candidate(c)
+005570: 
+005571:         # Forma espaçada que clientes digitam no WhatsApp: MB 309 3 / ZL 2050 etc.
+005572:         # Exclui palavras de contexto para não transformar 'MOD 2014' em código.
+005573:         blocked_prefix={"MOD","MODELO","ANO","QTD","QTDE","VALOR","PRECO","REF","COD","CODIGO"}
+005574:         spaced_rx=re.compile(r"(?i)(?<![A-Z0-9])([A-Z]{1,4})\s*[-./]?\s*(\d{2,8})(?:\s*[-./]?\s*([A-Z0-9]{1,4}))?(?![A-Z0-9])")
+005575:         for mm in spaced_rx.finditer(text):
+005576:             prefix=(mm.group(1) or "").upper()
+005577:             if prefix in blocked_prefix:
+005578:                 continue
+005579:             parts=[x for x in mm.groups() if x]
+005580:             _add_ref_candidate("".join(parts))
+005581: 
+005582:         exact=[]
+005583:         if priority_soma_codes:
+005584:             try:
+005585:                 con=sqlite3.connect(DB_PATH); cur=con.cursor(); seen_priority=set()
+005586:                 for scode in priority_soma_codes[:6]:
+005587:                     nq=norm(scode)
+005588:                     rows=cur.execute("""
+005589:                         SELECT id,codprod,refforn,marca,descricao,compldesc,110 AS score
+005590:                         FROM produtos
+005591:                         WHERE codprod=? OR n_codprod=?
+--- LINES 5674-5743 ---
+005674:                 try:
+005675:                     con=sqlite3.connect(DB_PATH); cur=con.cursor()
+005676:                     expr_desc="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(descricao,'')),' ',''),'-',''),'.',''),'/','')"
+005677:                     expr_comp="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(compldesc,'')),' ',''),'-',''),'.',''),'/','')"
+005678:                     expr_ref="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(refforn,'')),' ',''),'-',''),'.',''),'/','')"
+005679:                     expr_marca="REPLACE(REPLACE(REPLACE(REPLACE(UPPER(COALESCE(marca,'')),' ',''),'-',''),'.',''),'/','')"
+005680:                     sql=("SELECT id,codprod,refforn,marca,descricao,compldesc,88 AS score FROM produtos WHERE "
+005681:                          +expr_desc+" LIKE ? OR "+expr_comp+" LIKE ? OR "+expr_ref+" LIKE ? OR "+expr_marca+
+005682:                          " LIKE ? ORDER BY CAST(COALESCE(codprod,'0') AS INTEGER), codprod LIMIT 40")
+005683:                     like="%"+compact+"%"
+005684:                     rows=cur.execute(sql,(like,like,like,like)).fetchall()
+005685:                     con.close()
+005686:                     if rows:
+005687:                         seen_simple=set()
+005688:                         for r in rows:
+005689:                             if r[0] not in seen_simple:
+005690:                                 seen_simple.add(r[0]); simple_results.append(r)
+005691:                         simple_query_label=label
+005692:                         break
+005693:                 except Exception:
+005694:                     simple_results=[]
+005695:         part_words={
+005696:             "servo","cilindro","embreagem","cano","tubo","compressor","retentor","cruzeta","filtro","pastilha","disco",
+005697:             "cubo","rolamento","sensor","valvula","bomba","reparo","mola","cuica","terminal","barra","amortecedor",
+005698:             "bolsa","balao","junta","anel","pistao","bucha","radiador","suporte","eixo","mangueira","diafragma",
+005699:             "catraca","freio","embreagem","atuador","volante","coroa","pinhao","sincronizado","garfo"
+005700:         }
+005701:         parts=[t for t in tokens if t in part_words]
+005702:         query_pairs=[]
+005703:         for pword in parts[:5]:
+005704:             for other in tokens[:10]:
+005705:                 if other==pword: continue
+005706:                 pair=(pword,other)
+005707:                 if pair not in query_pairs:
+005708:                     query_pairs.append(pair)
+005709:                 if len(query_pairs)>=14: break
+005710:             if len(query_pairs)>=14: break
+005711: 
+005712:         fuzzy=[]; fuzzy_seen=set()
+005713:         for pair in query_pairs:
+005714:             try:
+005715:                 rows=search_products_by_words(DB_PATH,list(pair),limit=12)
+005716:             except Exception:
+005717:                 rows=[]
+005718:             for r in rows:
+005719:                 if r[0] not in fuzzy_seen and not any(x[0]==r[0] for x in exact):
+005720:                     fuzzy_seen.add(r[0]); fuzzy.append((r,pair))
+005721:                 if len(fuzzy)>=10: break
+005722:             if len(fuzzy)>=10: break
+005723: 
+005724:         if simple_results or (priority_soma_codes and exact):
+005725:             fuzzy=[]
+005726:             fuzzy_seen=set()
+005727: 
+005728:         # Fallback controlado: uma palavra de peça, ainda sempre como possibilidade.
+005729:         if not exact and not fuzzy and not simple_results and parts and not priority_soma_codes:
+005730:             try:
+005731:                 for r in search_products_by_words(DB_PATH,[parts[0]],limit=8):
+005732:                     if r[0] not in fuzzy_seen:
+005733:                         fuzzy_seen.add(r[0]); fuzzy.append((r,(parts[0],)))
+005734:             except Exception:
+005735:                 pass
+005736: 
+005737:         lines += ["","BASE SOMA"]
+005738:         if exact:
+005739:             lines.append("🟢 CORRESPONDÊNCIA DIRETA DE CÓDIGO/REFERÊNCIA")
+005740:             for r in exact[:8]:
+005741:                 lines.append(f"• Soma {r[1]} | {r[2] or '-'} | {r[3] or '-'}")
+005742:                 lines.append("  "+str(r[4] or "")[:180])
+005743:         if fuzzy:
+--- LINES 6231-6332 ---
+006231:                 border-radius:6px;
+006232:                 padding:6px 15px;
+006233:                 min-height:25px;
+006234:                 font-size:11px;
+006235:                 font-weight:700;
+006236:             }
+006237:             QWidget#aliyvoNav QPushButton:hover{
+006238:                 background:#0B2E35;
+006239:                 border-color:#20E983;
+006240:             }
+006241:         """)
+006242:         nav_lay=QHBoxLayout(nav)
+006243:         nav_lay.setContentsMargins(14,5,14,5)
+006244:         nav_lay.setSpacing(14)
+006245: 
+006246:         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+006247:         self.prazo_toggle=QPushButton("▣  Prazos")
+006248:         self.chat_toggle=QPushButton("◉  Assistente")
+006249:         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+006250:         self.plate_toggle=QPushButton("🚚  Busca placa")
+006251:         self.attendance_toggle=QPushButton("📊  Diagnóstico")
+006252:         self.reminder_toggle=QPushButton("⏰  Lembretes")
+006253:         self.radar_toggle=QPushButton("🎯  Radar da Carteira")
+006254:         self.radar_toggle.setToolTip("Inteligência automática da carteira • histórico 12 meses + recompra")
+006255:         self.radar_toggle.clicked.connect(self._radar_show_dialog)
+006256:         self.ponto_toggle=QPushButton("🕒  Ponto")
+006257:         self.ponto_toggle.setToolTip("Controle de ponto • 07:50 • 12:08 • 13:30 • 18:00")
+006258: 
+006259:         # Primeiro botão destacado como na referência
+006260:         self.campaign_toggle.setStyleSheet("""
+006261:             QPushButton{
+006262:                 background:#061E28;
+006263:                 color:#F3FBF8;
+006264:                 border:1px solid #0CCB72;
+006265:                 border-radius:6px;
+006266:                 padding:6px 15px;
+006267:                 min-height:25px;
+006268:                 font-size:11px;
+006269:                 font-weight:700;
+006270:             }
+006271:             QPushButton:hover{
+006272:                 background:#0A332D;
+006273:                 border-color:#20E983;
+006274:             }
+006275:         """)
+006276: 
+006277:         nav_lay.addWidget(self.campaign_toggle)
+006278:         # 0.23.05: Prazos, Assistente e Busca por imagem já existem na lateral.
+006279:         # Mantemos os objetos vivos para preservar integrações/atalhos existentes,
+006280:         # mas não duplicamos os botões na barra superior.
+006281:         self.prazo_toggle.hide()
+006282:         self.chat_toggle.hide()
+006283:         self.nav_lens_toggle.hide()
+006284:         nav_lay.addWidget(self.plate_toggle)
+006285:         nav_lay.addWidget(self.attendance_toggle)
+006286:         nav_lay.addWidget(self.reminder_toggle)
+006287:         nav_lay.addWidget(self.radar_toggle)
+006288:         nav_lay.addWidget(self.ponto_toggle)
+006289:         nav_lay.addStretch(1)
+006290:         shell_lay.addWidget(nav)
+006291: 
+006292:         # ========== CORPO ==========
+006293:         body=QWidget()
+006294:         body.setObjectName("aliyvoBody")
+006295:         body.setMinimumHeight(0)
+006296:         body.setSizePolicy(
+006297:             QSizePolicy.Policy.Expanding,
+006298:             QSizePolicy.Policy.Expanding
+006299:         )
+006300:         body.setStyleSheet(
+006301:             "QWidget#aliyvoBody{background:#061626;}"
+006302:         )
+006303:         body_lay=QHBoxLayout(body)
+006304:         body_lay.setContentsMargins(0,0,0,0)
+006305:         body_lay.setSpacing(0)
+006306: 
+006307:         self._aliyvo_shutting_down=False
+006308:         self._aliyvo_webviews_shutdown=False
+006309:         self._wa_recovery_attempts=0
+006310:         self._wa_recovery_scheduled=False
+006311:         self._wa_recovery_generation=0
+006312:         self.web=WhatsAppView()
+006313: 
+006314:         self.web_host=QWidget()
+006315:         self.web_host.setObjectName("webHost")
+006316:         self.web_host.setMinimumHeight(0)
+006317:         self.web_host.setSizePolicy(
+006318:             QSizePolicy.Policy.Expanding,
+006319:             QSizePolicy.Policy.Expanding
+006320:         )
+006321:         self.web.setMinimumHeight(0)
+006322:         self.web.setSizePolicy(
+006323:             QSizePolicy.Policy.Expanding,
+006324:             QSizePolicy.Policy.Expanding
+006325:         )
+006326:         self.web_host.setStyleSheet(
+006327:             "QWidget#webHost{background:#061626;border:none;}"
+006328:         )
+006329:         self.web_host_layout=QVBoxLayout(self.web_host)
+006330:         self.web_host_layout.setContentsMargins(0,0,0,0)
+006331:         self.web_host_layout.setSpacing(0)
+006332:         self.web_host_layout.addWidget(self.web)
+--- LINES 6539-6646 ---
+006539:         self.technical_panel.expand_btn.clicked.connect(self.toggle_technical_expand)
+006540:         self.lens_toggle.clicked.connect(lambda: self._open_quick_tool("lens"))
+006541:         self.nav_lens_toggle.clicked.connect(lambda: self._open_quick_tool("lens"))
+006542:         self.chat_toggle.clicked.connect(lambda: self._open_quick_tool("chat"))
+006543:         self.quick_chat.clicked.connect(lambda: self._open_quick_tool("chat"))
+006544:         self.chat_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("chat"))
+006545:         self.chat_panel.expand_btn.clicked.connect(self.toggle_chat_expand)
+006546: 
+006547:         self.prazo_toggle.clicked.connect(lambda: self._open_quick_tool("prazo"))
+006548:         self.quick_prazo.clicked.connect(lambda: self._open_quick_tool("prazo"))
+006549:         self.prazo_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("prazo"))
+006550:         self.prazo_panel.expand_btn.clicked.connect(self.toggle_prazo_expand)
+006551: 
+006552:         self.audio_toggle.clicked.connect(lambda: self._open_quick_tool("audio"))
+006553:         self.audio_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("audio"))
+006554:         self.audio_panel.expand_btn.clicked.connect(self.toggle_audio_expand)
+006555: 
+006556:         self.campaign_toggle.clicked.connect(lambda: self._open_quick_tool("campaign"))
+006557:         self.quick_campaign.clicked.connect(lambda: self._open_quick_tool("campaign"))
+006558:         self.quick_diagnostic.clicked.connect(lambda: self._open_quick_tool("diagnostic"))
+006559:         self.quick_update.clicked.connect(lambda: self._open_quick_tool("update"))
+006560:         self.plate_toggle.clicked.connect(lambda: self._open_quick_tool("plate"))
+006561:         self.quick_plate.clicked.connect(lambda: self._open_quick_tool("plate"))
+006562:         self.attendance_toggle.clicked.connect(self._diagnostic_show_dialog)
+006563:         self.reminder_toggle.clicked.connect(self._reminder_show_dialog)
+006564:         self.ponto_toggle.clicked.connect(
+006565:             lambda: self._ponto_controller.show_dialog(manual=True)
+006566:             if hasattr(self,"_ponto_controller") else None
+006567:         )
+006568:         self.campaign_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("campaign"))
+006569:         self.update_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("update"))
+006570:         self.update_panel.expand_btn.clicked.connect(self.toggle_update_expand)
+006571:         self.plate_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("plate"))
+006572:         self.plate_panel.expand_btn.clicked.connect(self.toggle_plate_expand)
+006573:         self.diagnostic_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("diagnostic"))
+006574:         self.diagnostic_panel.expand_btn.clicked.connect(self.toggle_diagnostic_expand)
+006575:         self.campaign_panel.expand_btn.clicked.connect(self.toggle_campaign_expand)
+006576: 
+006577:         self.lens_panel.expand_btn.clicked.connect(self.toggle_lens_expand)
+006578:         self.lens_panel.close_btn.clicked.connect(lambda: self._close_tool_panel("lens"))
+006579: 
+006580:         # WhatsApp
+006581:         self._wa_ready_seen=False
+006582:         # WhatsApp tem prioridade: nenhuma varredura periódica da página.
+006583:         # Recuperação fica disponível por método, mas sem timer em segundo plano.
+006584:         self._wa_recovery_timer=None
+006585: 
+006586:         self.web.loadFinished.connect(self._on_whatsapp_loaded)
+006587:         QTimer.singleShot(12000,lambda:self._whatsapp_startup_watchdog(0))
+006588: 
+006589:         # Compatibilidade com métodos antigos
+006590:         self.splitter=QSplitter(Qt.Orientation.Horizontal)
+006591:         self.splitter.addWidget(shell)
+006592:         self.splitter.setChildrenCollapsible(False)
+006593:         self.splitter.setHandleWidth(0)
+006594:         self.splitter.setSizes([1])
+006595:         self.panel_expanded=False
+006596:         self.setCentralWidget(self.splitter)
+006597: 
+006598:         # Controle de ponto 0.22.92: módulo independente, sem consultar DOM do WhatsApp.
+006599:         # Usa somente um QTimer single-shot até a próxima batida e um bridge localhost
+006600:         # para a extensão do Chrome que protege o acesso ao Sankhya.
+006601:         self._ponto_controller=AliyvoPontoController(self,self.ponto_toggle)
+006602:         QTimer.singleShot(900,self._ponto_controller.start)
+006603: 
+006604:         QTimer.singleShot(650,self._attendance_bootstrap)
+006605: 
+006606:         QTimer.singleShot(300,self.position_lens_overlay)
+006607: 
+006608:         # WhatsApp tem prioridade. Atualizações só são verificadas depois.
+006609:         QTimer.singleShot(90000,self.check_updates_silent)
+006610: 
+006611: 
+006612: 
+006613: 
+006614:     def _attendance_file(self):
+006615:         try:
+006616:             USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+006617:         except Exception:
+006618:             pass
+006619:         return USER_DATA_DIR/"atendimentos_beta.json"
+006620: 
+006621:     def _attendance_load(self):
+006622:         data={"enabled":True,"items":{}}
+006623:         try:
+006624:             f=self._attendance_file()
+006625:             if f.exists():
+006626:                 loaded=json.loads(f.read_text(encoding="utf-8"))
+006627:                 if isinstance(loaded,dict):
+006628:                     data.update(loaded)
+006629:                     if not isinstance(data.get("items"),dict): data["items"]={}
+006630:         except Exception:
+006631:             pass
+006632:         self._attendance_data=data
+006633:         self._attendance_current_name=""
+006634:         self._attendance_scan_busy=False
+006635: 
+006636:     def _attendance_save(self):
+006637:         try:
+006638:             self._attendance_file().write_text(json.dumps(self._attendance_data,ensure_ascii=False,indent=2),encoding="utf-8")
+006639:         except Exception:
+006640:             pass
+006641: 
+006642:     def _attendance_bootstrap(self):
+006643:         self._attendance_load()
+006644:         self._attendance_data["enabled"]=False
+006645:         self._attendance_save()
+006646:         self._attendance_apply_home()
+--- LINES 7404-7473 ---
+007404:     def _diagnostic_scan(self):
+007405:         if getattr(self,"_diagnostic_busy",False): return
+007406:         try:
+007407:             self._diagnostic_busy=True
+007408:             guard=getattr(self,"_diagnostic_guard_script","")
+007409:             if guard:
+007410:                 self.web.page().runJavaScript(guard,self._diagnostic_scan_guard_done)
+007411:             else:
+007412:                 self._diagnostic_scan_guard_done({})
+007413:         except Exception:
+007414:             self._diagnostic_busy=False
+007415: 
+007416:     def _diagnostic_scan_guard_done(self,result):
+007417:         try:
+007418:             # Prioridade absoluta para uso humano do WhatsApp.
+007419:             # Se o cursor esta no editor de mensagem, nao percorremos conversa/lista.
+007420:             if isinstance(result,dict) and (bool(result.get("typing")) or bool(result.get("hidden"))):
+007421:                 self._diagnostic_busy=False
+007422:                 return
+007423:             script=getattr(self,"_diagnostic_extract_script","") or self._attendance_extract_js()
+007424:             self.web.page().runJavaScript(script,self._diagnostic_scan_done)
+007425:         except Exception:
+007426:             self._diagnostic_busy=False
+007427: 
+007428:     def _work_schedule_text(self):
+007429:         return "Seg–Sex • 07:50–12:08 e 13:30–18:00"
+007430: 
+007431:     def _work_is_open(self,when=None):
+007432:         import datetime,time
+007433:         try:
+007434:             if when is None:dt=datetime.datetime.now()
+007435:             elif isinstance(when,datetime.datetime):dt=when
+007436:             else:dt=datetime.datetime.fromtimestamp(float(when))
+007437:         except Exception:return False
+007438:         if dt.weekday()>=5:return False
+007439:         mins=dt.hour*60+dt.minute+(dt.second/60.0)
+007440:         return (470<=mins<728) or (810<=mins<1080)
+007441: 
+007442:     def _work_seconds_between(self,start_ts,end_ts):
+007443:         import datetime
+007444:         try:
+007445:             start=float(start_ts or 0); end=float(end_ts or 0)
+007446:         except Exception:return 0
+007447:         if start<=0 or end<=start:return 0
+007448:         try:
+007449:             a=datetime.datetime.fromtimestamp(start); b=datetime.datetime.fromtimestamp(end)
+007450:         except Exception:return max(0,int(end-start))
+007451:         total=0.0
+007452:         day=a.date(); last=b.date()
+007453:         while day<=last:
+007454:             if day.weekday()<5:
+007455:                 for sh,sm,eh,em in ((7,50,12,8),(13,30,18,0)):
+007456:                     ws=datetime.datetime.combine(day,datetime.time(sh,sm))
+007457:                     we=datetime.datetime.combine(day,datetime.time(eh,em))
+007458:                     lo=max(a,ws); hi=min(b,we)
+007459:                     if hi>lo:total+=(hi-lo).total_seconds()
+007460:             day+=datetime.timedelta(days=1)
+007461:         return max(0,int(total))
+007462: 
+007463:     def _work_next_open_text(self,when=None):
+007464:         import datetime
+007465:         try:
+007466:             dt=datetime.datetime.now() if when is None else (when if isinstance(when,datetime.datetime) else datetime.datetime.fromtimestamp(float(when)))
+007467:         except Exception:return ""
+007468:         if self._work_is_open(dt):return "em expediente"
+007469:         for add in range(0,8):
+007470:             d=dt.date()+datetime.timedelta(days=add)
+007471:             if d.weekday()>=5:continue
+007472:             morning=datetime.datetime.combine(d,datetime.time(7,50))
+007473:             afternoon=datetime.datetime.combine(d,datetime.time(13,30))
+--- LINES 7527-7596 ---
+007527:         s=str(snippet or "").strip()
+007528:         if not s:return False
+007529:         # A linha do WhatsApp termina normalmente com "texto da mensagem + contador".
+007530:         s=re.sub(r"\\s+\\d+\\s*$","",s).strip()
+007531:         # Testa os ultimos termos, evitando depender do nome/tamanho do contato.
+007532:         words=s.split()
+007533:         for n in range(1,min(7,len(words))+1):
+007534:             if self._diagnostic_is_closing_message(" ".join(words[-n:])):return True
+007535:         return False
+007536: 
+007537:     def _diagnostic_plausible_message_ts(self,mts,now,pending=None,snippet=""):
+007538:         import datetime,re
+007539:         try:mts=float(mts or 0); now=float(now or 0)
+007540:         except Exception:return False
+007541:         if mts<=0 or mts>now+90:return False
+007542:         # Para o diagnostico diario, timestamps com mais de 48h sao tratados como
+007543:         # contexto antigo da conversa, nunca como a nova mensagem que gerou o nao lido.
+007544:         if now-mts>48*3600:return False
+007545:         p=pending if isinstance(pending,dict) else {}
+007546:         sn=str(snippet or p.get("unread_snippet") or "")
+007547:         low=sn.lower()
+007548:         try:
+007549:             md=datetime.datetime.fromtimestamp(mts).date(); nd=datetime.datetime.fromtimestamp(now).date()
+007550:             if "ontem" in low:
+007551:                 return md==(nd-datetime.timedelta(days=1))
+007552:             # Quando a barra lateral mostra HH:MM, esse horario e a referencia mais confiavel.
+007553:             times=re.findall(r"(?<!\\d)([01]?\\d|2[0-3]):([0-5]\\d)(?!\\d)",sn)
+007554:             if times:
+007555:                 hh,mm=map(int,times[0])
+007556:                 base=datetime.datetime.combine(nd,datetime.time(hh,mm))
+007557:                 cand=base.timestamp()
+007558:                 return abs(mts-cand)<=20*60
+007559:         except Exception:pass
+007560:         return True
+007561: 
+007562:     def _diagnostic_finish_live_call(self,now=None,reason="overlay_gone"):
+007563:         import time
+007564:         now=float(now or time.time());cur=getattr(self,"_diagnostic_live_call",None)
+007565:         if not isinstance(cur,dict):self._diagnostic_live_call=None;self._diagnostic_live_missing=0;return
+007566:         client=str(cur.get("client") or "").strip() or "Contato";start=float(cur.get("start_ts") or now)
+007567:         duration=max(max(0,int(cur.get("duration_seconds") or 0)),max(0,int(now-start)))
+007568:         session=str(cur.get("session_id") or f"live|{client}|{int(start)}")
+007569:         self._diagnostic_log("call",client=client,direction=str(cur.get("direction") or "unknown"),call_type=str(cur.get("call_type") or "voice"),missed=False,duration_seconds=duration,call_key=session,source="live_overlay",started_ts=start,ended_ts=now,end_reason=reason)
+007570:         recent=list(getattr(self,"_diagnostic_recent_live_calls",[]) or []);recent.append({"client":client,"ended_ts":now,"duration_seconds":duration,"call_type":str(cur.get("call_type") or "voice")})
+007571:         self._diagnostic_recent_live_calls=[x for x in recent[-12:] if now-float(x.get("ended_ts") or now)<900]
+007572:         self._diagnostic_live_call=None;self._diagnostic_live_missing=0
+007573: 
+007574:     def _diagnostic_live_call_update(self,live,now=None,fallback_name=""):
+007575:         import time
+007576:         now=float(now or time.time())
+007577:         if isinstance(live,dict) and bool(live.get("active")):
+007578:             self._diagnostic_live_missing=0;client=str(live.get("client") or fallback_name or "").strip() or "Contato";duration=max(0,int(live.get("duration_seconds") or 0));ctype=str(live.get("call_type") or "voice")
+007579:             cur=getattr(self,"_diagnostic_live_call",None)
+007580:             if isinstance(cur,dict) and str(cur.get("client") or "").strip()!=client:self._diagnostic_finish_live_call(now,"contact_changed");cur=None
+007581:             if not isinstance(cur,dict):
+007582:                 start=now-duration if duration>0 else now;session=f"live|{client}|{int(start)}";cur={"client":client,"start_ts":start,"duration_seconds":duration,"last_seen_ts":now,"call_type":ctype,"direction":"unknown","session_id":session};self._diagnostic_live_call=cur
+007583:                 self._diagnostic_log("call_live_started",client=client,call_type=ctype,started_ts=start,visible_duration_seconds=duration,call_key=session)
+007584:             else:
+007585:                 cur["last_seen_ts"]=now;cur["duration_seconds"]=max(int(cur.get("duration_seconds") or 0),duration);cur["call_type"]=ctype or str(cur.get("call_type") or "voice")
+007586:                 if duration>0:
+007587:                     estimated=now-duration
+007588:                     if estimated<float(cur.get("start_ts") or now):cur["start_ts"]=estimated
+007589:             return
+007590:         cur=getattr(self,"_diagnostic_live_call",None)
+007591:         if isinstance(cur,dict):
+007592:             self._diagnostic_live_missing=int(getattr(self,"_diagnostic_live_missing",0) or 0)+1
+007593:             if self._diagnostic_live_missing>=2:self._diagnostic_finish_live_call(now,"overlay_gone")
+007594:         else:self._diagnostic_live_missing=0
+007595: 
+007596:     def _diagnostic_live_row(self):
+--- LINES 7900-7969 ---
+007900:             s=int(round(float(s or 0))); h=s//3600;m=(s%3600)//60;sec=s%60
+007901:             if h:return f"{h}h {m:02d}m"
+007902:             if m:return f"{m}m {sec:02d}s"
+007903:             return f"{sec}s"
+007904:         avg=(sum(responses)/len(responses)) if responses else 0; med=statistics.median(responses) if responses else 0
+007905:         fastest=min(responses) if responses else 0; slowest=max(responses) if responses else 0; over5=sum(1 for s in responses if s>=300); over15=sum(1 for s in responses if s>=900)
+007906:         avg_open=(sum(until_open)/len(until_open)) if until_open else 0; avg_after=(sum(after_open)/len(after_open)) if after_open else 0
+007907:         per={}
+007908:         for x in resp_rows:
+007909:             c=str(x.get("client") or "").strip()
+007910:             if not c:continue
+007911:             s=max(0,int(x.get("total_wait_seconds") if x.get("total_wait_seconds") is not None else x.get("response_seconds") or 0)); d=per.setdefault(c,[]); d.append(s)
+007912:         rank=[]
+007913:         for c,vals in per.items():rank.append((max(vals),sum(vals)/len(vals),c,len(vals),sum(1 for s in vals if s>=300),sum(1 for s in vals if s>=900)))
+007914:         rank.sort(reverse=True)
+007915:         rank_lines=[]
+007916:         for i,(mx,av,c,n,o5,o15) in enumerate(rank[:5],1):rank_lines.append(f"{i}. {c} — maior {fmt(mx)} | média {fmt(av)} | {n} resposta(s) | >5min: {o5} | >15min: {o15}")
+007917:         rank_text="\n".join(rank_lines) if rank_lines else "Ainda sem respostas suficientes para montar o ranking."
+007918:         tool_line=", ".join(f"{k}: {v}" for k,v in sorted(tools.items(),key=lambda z:-z[1])) or "nenhuma registrada"; call_line=(f"{len(calls)} total • {incoming} recebidas • {outgoing} feitas • {missed} não atendidas • {fmt(call_seconds)} detectados" if calls else "nenhuma detectada ainda")
+007919:         return (f"DIAGNÓSTICO DE HOJE\n\n"
+007920:                 f"Clientes observados: {len(clients)}\nTrocas/aberturas de conversa: {opens}\nMensagens novas de clientes detectadas: {cust}\nRespostas suas detectadas: {seller}\nMaior quantidade de não lidos observada: {max_unread}\n\n"
+007921:                 f"TEMPO DE RESPOSTA\nEspera total média: {fmt(avg) if responses else 'ainda sem amostra'}\nMediana: {fmt(med) if responses else 'ainda sem amostra'}\nMais rápido: {fmt(fastest) if responses else '-'}\nMais demorado: {fmt(slowest) if responses else '-'}\nAcima de 5 min úteis: {over5} • Acima de 15 min: {over15}\nTempo médio até você abrir: {fmt(avg_open) if until_open else 'começa a medir nesta versão'}\nTempo médio depois de abrir até responder: {fmt(avg_after) if after_open else 'começa a medir nesta versão'}\n\n"
+007922:                 f"CLIENTES QUE MAIS ESPERARAM\n{rank_text}\n\n"
+007923:                 f"LIGAÇÕES DO WHATSAPP\n{call_line}\nVoz: {voice} • Vídeo: {video}\n\n"
+007924:                 f"Ferramentas usadas: {tool_line}\n\nEventos guardados no histórico: {len(rows)}\n\n"
+007925:                 "Medição: mensagem do cliente → abertura da conversa → sua resposta. Quando o WhatsApp expõe o horário da mensagem, o ALIYVO usa esse horário; caso contrário usa o primeiro instante em que detectou o não lido.")
+007926: 
+007927:     def _contact_categories_file(self):
+007928:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+007929:         except Exception: pass
+007930:         return USER_DATA_DIR/"categorias_contatos.json"
+007931: 
+007932:     def _contact_categories_load(self):
+007933:         try:
+007934:             f=self._contact_categories_file()
+007935:             if f.exists():
+007936:                 x=json.loads(f.read_text(encoding="utf-8"))
+007937:                 if isinstance(x,dict): return x
+007938:         except Exception: pass
+007939:         return {}
+007940: 
+007941:     def _contact_categories_save(self,data):
+007942:         try:self._contact_categories_file().write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
+007943:         except Exception:pass
+007944: 
+007945:     def _contact_category(self,name):
+007946:         name=str(name or "").strip()
+007947:         if not name:return ""
+007948:         return str(self._contact_categories_load().get(name) or "").strip()
+007949: 
+007950:     def _contact_classify_current(self,parent=None,on_done=None):
+007951:         from PyQt6.QtWidgets import QInputDialog,QMessageBox
+007952:         name=str(getattr(self,"_diagnostic_active_name","") or "").strip()
+007953:         if not name:
+007954:             QMessageBox.information(parent or self,"Classificar","Abra primeiro a conversa que deseja classificar no WhatsApp."); return
+007955:         opts=["Cliente","Interno","Pessoal","Grupo"]
+007956:         current=self._contact_category(name); idx=opts.index(current) if current in opts else 0
+007957:         val,ok=QInputDialog.getItem(parent or self,"Classificar conversa",f"{name}\n\nTipo:",opts,idx,False)
+007958:         if not ok:return
+007959:         data=self._contact_categories_load(); data[name]=str(val); self._contact_categories_save(data)
+007960:         try:self._diagnostic_log("contact_classified",client=name,category=str(val))
+007961:         except Exception:pass
+007962:         if callable(on_done):on_done()
+007963: 
+007964:     def _diagnostic_groups_file(self):
+007965:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+007966:         except Exception: pass
+007967:         return USER_DATA_DIR/"grupos_diagnostico.json"
+007968: 
+007969:     def _diagnostic_groups_load(self):
+--- LINES 8231-8300 ---
+008231:             folder.mkdir(parents=True,exist_ok=True)
+008232:             return folder
+008233:         except Exception:
+008234:             folder=USER_DATA_DIR/"Diagnósticos"
+008235:             try:folder.mkdir(parents=True,exist_ok=True)
+008236:             except Exception:pass
+008237:             return folder
+008238: 
+008239:     def _diagnostic_daily_backup(self):
+008240:         import datetime
+008241:         try:
+008242:             today=datetime.date.today()
+008243:             iso=today.isoformat()
+008244:             groups=set(self._diagnostic_groups_load())
+008245:             rows=[]
+008246:             for x in self._diagnostic_read():
+008247:                 if not isinstance(x,dict):continue
+008248:                 if not str(x.get("time") or "").startswith(iso):continue
+008249:                 if str(x.get("client") or "").strip() in groups:continue
+008250:                 rows.append(x)
+008251:             payload={
+008252:                 "aliyvo_version":ALIYVO_VERSION,
+008253:                 "date":iso,
+008254:                 "generated_at":datetime.datetime.now().isoformat(timespec="seconds"),
+008255:                 "automatic_backup":True,
+008256:                 "work_schedule":{"days":"segunda a sexta","morning":"07:50-12:08","afternoon":"13:30-18:00","metric":"business_seconds"},
+008257:                 "mode":"contatos_individuais",
+008258:                 "ignored_groups":sorted(groups,key=str.lower),
+008259:                 "summary":self._diagnostic_daily_summary_text(rows),
+008260:                 "full_diagnostic":self._diagnostic_whatsapp_overview_text()+"\n\n"+self._diagnostic_enhanced_text(rows),
+008261:                 "whatsapp_overview":self._diagnostic_whatsapp_overview_payload(),
+008262:                 "ai_observer_latest":self._ai_history_latest(),
+008263:                 "ai_observer_learning":self._ai_learning_summary_payload(False),
+008264:                 "waiting_now":self._diagnostic_waiting_snapshot(),
+008265:                 "events":rows,
+008266:                 "attendance_snapshot":getattr(self,"_attendance_data",{})
+008267:             }
+008268:             folder=self._diagnostic_backup_folder()
+008269:             name=f"Diagnostico_{today.strftime('%d-%m-%Y')}.json"
+008270:             target=folder/name
+008271:             tmp=folder/(name+".tmp")
+008272:             tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+008273:             try:tmp.replace(target)
+008274:             except Exception:
+008275:                 target.write_text(tmp.read_text(encoding="utf-8"),encoding="utf-8")
+008276:                 try:tmp.unlink()
+008277:                 except Exception:pass
+008278:             return str(target)
+008279:         except Exception:
+008280:             return ""
+008281: 
+008282:     def _diagnostic_open_backup_folder(self,parent=None):
+008283:         from PyQt6.QtWidgets import QMessageBox
+008284:         try:
+008285:             from PyQt6.QtCore import QUrl
+008286:             from PyQt6.QtGui import QDesktopServices
+008287:             self._diagnostic_daily_backup()
+008288:             folder=self._diagnostic_backup_folder()
+008289:             if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
+008290:                 raise RuntimeError("Não consegui abrir a pasta automaticamente.")
+008291:         except Exception as e:
+008292:             try:QMessageBox.information(parent or self,"Diagnósticos",f"Os backups ficam em:\n{self._diagnostic_backup_folder()}\n\n{e}")
+008293:             except Exception:pass
+008294: 
+008295:     def _ai_config_path(self):
+008296:         return USER_DATA_DIR/"ia_observadora_config.json"
+008297: 
+008298:     def _ai_history_path(self):
+008299:         return USER_DATA_DIR/"ia_observadora_historico.jsonl"
+008300: 
+--- LINES 10203-10272 ---
+010203:         last_ai=float(getattr(self,"_ai_last_analyzed_event_ts",0) or 0)
+010204:         if mode in ("conversation","client_profile") and target:
+010205:             selected=[x for x in rows if str(x.get("client") or "").strip()==target][-90:]
+010206:         elif mode=="auto":
+010207:             selected=[]
+010208:             for x in rows:
+010209:                 try:ts=float(x.get("ts") or 0)
+010210:                 except Exception:ts=0
+010211:                 if ts>last_ai:selected.append(x)
+010212:             selected=selected[-90:]
+010213:         else:selected=rows[-140:]
+010214:         events=[self._ai_compact_event(x) for x in selected];events=[x for x in events if x]
+010215:         last_event_ts=max([float(x.get("ts") or 0) for x in rows] or [0])
+010216:         try:overview=self._diagnostic_whatsapp_overview_payload()
+010217:         except Exception:overview={}
+010218:         try:waiting=self._diagnostic_waiting_snapshot()[:25]
+010219:         except Exception:waiting=[]
+010220:         try:current_context=str((getattr(self,"_diagnostic_last_context_by_contact",{}) or {}).get(target) or "")[-1800:]
+010221:         except Exception:current_context=""
+010222:         learning=self._ai_learning_summary_payload(True)
+010223:         profile=self._ai_client_profile_payload(target) if target else {}
+010224:         reminders=self._crm_open_reminders_payload(target if mode in ("conversation","client_profile") else "")
+010225:         priority=self._ai_priority_for_client(target) if target else {}
+010226:         commercial_state=self._crm_state_for_client(target) if target else {}
+010227:         commercial_pending=self._crm_states_payload(20,True) if mode in ("observer","auto","crm_reminders") else []
+010228:         return {"generated_at":datetime.datetime.now().isoformat(timespec="seconds"),"mode":mode,"delta_only":bool(mode=="auto"),"active_contact":target,"active_recent_context":current_context,"client_profile":profile,"client_priority":priority,"commercial_state":commercial_state,"commercial_pending":commercial_pending,"open_reminders":reminders,"whatsapp_overview":overview,"waiting_now":waiting,"recent_events":events,"day_event_count":len(rows),"events_sent":len(events),"last_event_ts":last_event_ts,"accumulated_learning":learning,"working_hours":{"weekdays":"segunda a sexta","periods":["07:50-12:08","13:30-18:00"],"waiting_metrics_use_business_time":True},"goal":"atuar como copiloto/CRM assistido: priorizar clientes, usar status comercial + proxima acao + pendencia, aprofundar estrategia por cliente, conectar lembretes ao contexto comercial e sugerir proximas acoes sem enviar mensagens nem alterar lembretes automaticamente"}
+010229: 
+010230:     def _ai_prompt(self,mode):
+010231:         base=("Você é a IA Observadora do ALIYVO, um copiloto comercial para vendas de autopeças pesadas pelo WhatsApp. "
+010232:               "Analise somente os dados fornecidos. Não invente fatos, peças, preços, venda fechada ou intenção do cliente. "
+010233:               "O vendedor trabalha rápido e usa respostas curtas; não critique abreviações ou informalidade se não prejudicarem a venda. "
+010234:               "Mensagens de encerramento como ok, show, obrigado, valeu e equivalentes normalmente não exigem resposta. "
+010235:               "Diferencie sempre FATO OBSERVADO, INDÍCIO e SUGESTÃO. Um sinal textual de fechamento não prova faturamento. "
+010236:               "Gargalos de atendimento não são automações por si só. Lembretes são tarefas do usuário: você pode priorizar e sugerir, mas nunca afirmar que criou, adiou, concluiu ou enviou algo. "
+010237:               "Nunca envie nada ao cliente.")
+010238:         if mode=="conversation":
+010239:             return base+("\nAnalise a conversa atual e responda em português com: 1) PRIORIDADE AGORA e motivo; 2) SITUAÇÃO; 3) O QUE FALTA FAZER/RESPONDER; 4) RESPOSTA SUGERIDA curta, se couber; 5) AÇÃO/FERRAMENTA; 6) se existe lembrete relacionado; 7) oportunidade de automação. Seja objetivo.")
+010240:         if mode=="client_profile":
+010241:             return base+("\nVocê recebeu o perfil acumulado, prioridade atual, lembretes e eventos recentes de UM cliente. Produza: 1) FATOS CONFIRMADOS; 2) PADRÕES; 3) DESFECHOS OBSERVADOS; 4) PRIORIDADE ATUAL e motivo; 5) COMO ABORDAR MELHOR; 6) O QUE ANTECIPAR NESTA CONVERSA; 7) LEMBRETES/TAREFAS RELACIONADOS; 8) O QUE AINDA NÃO SABEMOS; 9) AUTOMAÇÃO/FERRAMENTA útil. Não atribua características sensíveis ou personalidade ao cliente.")
+010242:         if mode=="crm_reminders":
+010243:             return base+("\nVocê recebeu os lembretes abertos, panorama do WhatsApp, clientes aguardando e perfis aprendidos. Monte um CRM do dia: 1) FAZER PRIMEIRO (máx. 5 itens, com motivo); 2) LEMBRETES VENCIDOS/URGENTES; 3) CLIENTES QUE MERECEM RETORNO; 4) TAREFAS QUE PODEM ESPERAR; 5) RISCOS DE ESQUECIMENTO; 6) uma sugestão de organização para hoje. Não invente prazos nem resultados.")
+010244:         return base+("\nFaça uma auditoria do fluxo recente com: 1) ATENÇÃO AGORA; 2) PADRÕES COMERCIAIS; 3) GARGALOS; 4) DESFECHOS OBSERVÁVEIS; 5) LEMBRETES/CRM; 6) TAREFAS REPETITIVAS; 7) FERRAMENTAS/ATALHOS; 8) AUTOMAÇÕES FUTURAS; 9) O QUE CONTINUAR OBSERVANDO.")
+010245: 
+010246:     def _ai_response_text(self,data):
+010247:         if not isinstance(data,dict):return ""
+010248:         direct=str(data.get("output_text") or "").strip()
+010249:         if direct:return direct
+010250:         parts=[]
+010251:         for item in data.get("output") or []:
+010252:             if not isinstance(item,dict):continue
+010253:             for c in item.get("content") or []:
+010254:                 if isinstance(c,dict) and c.get("type") in ("output_text","text"):
+010255:                     t=str(c.get("text") or "").strip()
+010256:                     if t:parts.append(t)
+010257:         return "\n".join(parts).strip()
+010258: 
+010259:     def _ai_observer_set_status(self,text):
+010260:         w=getattr(self,"_ai_observer_status_widget",None)
+010261:         try:
+010262:             if w is not None:w.setText(str(text))
+010263:         except Exception:pass
+010264: 
+010265:     def _ai_observer_set_text(self,text):
+010266:         w=getattr(self,"_ai_observer_text_widget",None)
+010267:         try:
+010268:             if w is not None:w.setPlainText(str(text))
+010269:         except Exception:pass
+010270: 
+010271:     def _ai_observer_analyze(self,mode="observer",silent=False):
+010272:         if bool(getattr(self,"_ai_observer_busy",False)):
+--- LINES 10353-10422 ---
+010353:         self._ai_history_append({"time":datetime.datetime.now().isoformat(timespec="seconds"),"mode":meta.get("mode"),"model":meta.get("model"),"ok":True,"input_tokens":inp,"output_tokens":outtok,"analysis":out,"last_event_ts":self._ai_last_analyzed_event_ts})
+010354:         try:self._diagnostic_log("ai_analysis",client=str(getattr(self,"_diagnostic_active_name","") or ""),mode=str(meta.get("mode") or ""),model=str(meta.get("model") or ""),input_tokens=inp,output_tokens=outtok)
+010355:         except Exception:pass
+010356: 
+010357:     def _ai_observer_tick(self):
+010358:         import datetime
+010359:         cfg=self._ai_config_load()
+010360:         if not bool(cfg.get("enabled")) or not self._ai_api_key():return
+010361:         now=datetime.datetime.now()
+010362:         if now.weekday()>=5:return
+010363:         minute=now.hour*60+now.minute
+010364:         in_work=(7*60+50<=minute<12*60+8) or (13*60+30<=minute<18*60)
+010365:         if not in_work:return
+010366:         self._ai_observer_analyze("auto",True)
+010367: 
+010368:     def _ai_settings_dialog(self,parent=None):
+010369:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QCheckBox,QSpinBox,QComboBox,QPushButton,QMessageBox
+010370:         dlg=QDialog(parent or self);dlg.setWindowTitle("Configurar IA Observadora");dlg.resize(590,390)
+010371:         lay=QVBoxLayout(dlg);cfg=self._ai_config_load();has_key=bool(self._ai_api_key())
+010372:         info=QLabel("A IA analisa nomes e trechos recentes das conversas para encontrar gargalos, respostas esquecidas e automações.\nNada é enviado aos clientes. Ao ativar, esse contexto é enviado à API OpenAI para análise.")
+010373:         info.setWordWrap(True);lay.addWidget(info)
+010374:         lay.addWidget(QLabel("Chave da API OpenAI:"))
+010375:         key=QLineEdit();key.setEchoMode(QLineEdit.EchoMode.Password);key.setPlaceholderText("Já existe uma chave protegida neste Windows" if has_key else "Cole aqui sua chave sk-…");lay.addWidget(key)
+010376:         enabled=QCheckBox("Analisar automaticamente em segundo plano");enabled.setChecked(bool(cfg.get("enabled")));lay.addWidget(enabled)
+010377:         row=QHBoxLayout();row.addWidget(QLabel("Intervalo:"));interval=QSpinBox();interval.setRange(5,60);interval.setSuffix(" min");interval.setValue(int(cfg.get("interval_minutes") or 10));row.addWidget(interval);row.addWidget(QLabel("Modelo:"));model=QComboBox();model.addItems(["gpt-5.6-luna","gpt-5.6-terra","gpt-5.6-sol"]);model.setCurrentText(str(cfg.get("model") or "gpt-5.6-luna"));row.addWidget(model);row.addStretch(1);lay.addLayout(row)
+010378:         note=QLabel("Recomendado: GPT-5.6 Luna para observação contínua por ter custo bem menor. Automático somente no expediente: Seg–Sex 07:50–12:08 e 13:30–18:00. O uso da API é cobrado separadamente do ChatGPT Plus.");note.setWordWrap(True);lay.addWidget(note)
+010379:         lay.addStretch(1);buttons=QHBoxLayout();save=QPushButton("💾 Salvar");remove=QPushButton("Remover chave");cancel=QPushButton("Cancelar");buttons.addWidget(save);buttons.addWidget(remove);buttons.addStretch(1);buttons.addWidget(cancel);lay.addLayout(buttons)
+010380:         def do_save():
+010381:             d=dict(cfg);typed=key.text().strip()
+010382:             if typed:
+010383:                 enc=self._ai_dpapi_encrypt(typed)
+010384:                 if not enc:
+010385:                     QMessageBox.warning(dlg,"IA Observadora","Não consegui proteger a chave com o Windows DPAPI.");return
+010386:                 d["api_key_dpapi"]=enc
+010387:             d["enabled"]=bool(enabled.isChecked());d["interval_minutes"]=int(interval.value());d["model"]=str(model.currentText())
+010388:             if d["enabled"] and not (typed or has_key):
+010389:                 QMessageBox.information(dlg,"IA Observadora","Cole uma chave da API antes de ativar a análise automática.");return
+010390:             if not self._ai_config_save(d):QMessageBox.warning(dlg,"IA Observadora","Não consegui salvar a configuração.");return
+010391:             self._ai_observer_reschedule();dlg.accept()
+010392:         def do_remove():
+010393:             d=dict(cfg);d["api_key_dpapi"]="";d["enabled"]=False
+010394:             self._ai_config_save(d);self._ai_observer_reschedule();dlg.accept()
+010395:         save.clicked.connect(do_save);remove.clicked.connect(do_remove);cancel.clicked.connect(dlg.reject);dlg.exec()
+010396: 
+010397:     def _ai_observer_dialog(self,parent=None):
+010398:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPlainTextEdit,QPushButton
+010399:         dlg=QDialog(parent or self);dlg.setWindowTitle("🤖 IA Observadora do ALIYVO");dlg.resize(940,720)
+010400:         lay=QVBoxLayout(dlg);cfg=self._ai_config_load();key_ok=bool(self._ai_api_key())
+010401:         status=QLabel(("✅ IA configurada" if key_ok else "⚠ Configure a chave da API")+(f" • automático a cada {cfg.get('interval_minutes')} min" if key_ok and cfg.get("enabled") else " • automático desligado"))
+010402:         lay.addWidget(status);txt=QPlainTextEdit();txt.setReadOnly(True);lay.addWidget(txt,1)
+010403:         self._ai_observer_text_widget=txt;self._ai_observer_status_widget=status
+010404:         latest=self._ai_history_latest()
+010405:         if isinstance(latest,dict) and latest.get("ok"):txt.setPlainText(f"Última análise: {latest.get('time','')}\nModelo: {latest.get('model','')}\n\n{latest.get('analysis','')}")
+010406:         else:txt.setPlainText("A IA acumula padrões locais, perfis por cliente e agora também pode cruzar lembretes com o atendimento. Nenhuma mensagem é enviada automaticamente.")
+010407:         bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+010408:         for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+010409:         bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+010410:         settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+010411:         dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+010412: 
+010413:     def _ai_observer_dialog_closed(self,txt,status):
+010414:         if getattr(self,"_ai_observer_text_widget",None) is txt:self._ai_observer_text_widget=None
+010415:         if getattr(self,"_ai_observer_status_widget",None) is status:self._ai_observer_status_widget=None
+010416: 
+010417:     def _diagnostic_show_dialog(self):
+010418:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QTextEdit,QPushButton,QFileDialog,QMessageBox,QLabel
+010419:         import datetime
+010420:         dlg=QDialog(self); dlg.setWindowTitle("📊 Diagnóstico do atendimento"); dlg.resize(850,700)
+010421:         lay=QVBoxLayout(dlg); info=QLabel(""); info.setStyleSheet("font-weight:700;"); lay.addWidget(info)
+010422:         txt=QTextEdit(); txt.setReadOnly(True); txt.setStyleSheet("font-size:12px;font-weight:600;"); lay.addWidget(txt,1)
+--- LINES 11080-11149 ---
+011080:             ("Combustível",r"(?:^|\n)Combust[ií]vel\s*:\s*([^\n]+)"),
+011081:             ("Ano",r"(?:^|\n)Ano\s*:\s*([^\n]+)"),
+011082:             ("Chassi",r"Chass(?:i|is)\s*:\s*([A-Z0-9]{8,24})"),
+011083:             ("Cilindrada",r"(?:^|\n)Cilindrada\s*:\s*([^\n]+)"),
+011084:             ("Válvulas",r"(?:^|\n)V[aá]lvulas\s*:\s*([^\n]+)"),
+011085:             ("Cilindros",r"(?:^|\n)Cilindros\s*:\s*([^\n]+)"),
+011086:             ("Motor",r"(?:^|\n)Motor\s*:\s*([^\n]+)"),
+011087:             ("Código motor",r"C[oó]digo Motor\s*:\s*([^\n]+)"),
+011088:             ("Potência",r"Pot[eê]ncia\s*:\s*([^\n]+)"),
+011089:         ]
+011090:         fields=[]
+011091:         for label,rx in labels:
+011092:             m=re.search(rx,full,re.I)
+011093:             if m:
+011094:                 value=re.sub(r"\s+"," ",m.group(1)).strip()
+011095:                 if value:
+011096:                     fields.append((label,value))
+011097: 
+011098:         m=re.search(r"Detalhes do ve[ií]culo\s*:\s*([^\n]+)",full,re.I)
+011099:         if m and not any(k=="Veículo" for k,_ in fields):
+011100:             fields.insert(0,("Veículo",m.group(1).strip()))
+011101: 
+011102:         application_words=(
+011103:             "retentor","rolamento","filtro","correia","polia","embreagem","pastilha",
+011104:             "disco","tambor","bucha","terminal","barra","válvula","valvula","junta",
+011105:             "pistão","pistao","anel","kit","sensor","bomba","mola","sincronizador",
+011106:             "engrenagem","cruzeta","cardan","cubo","reparo"
+011107:         )
+011108:         apps=[]
+011109:         for line in clean:
+011110:             low=line.lower()
+011111:             if any(w in low for w in application_words) and len(line)<240:
+011112:                 apps.append(line)
+011113: 
+011114:         code_rx=re.compile(r"(?<![A-Z0-9])(?=[A-Z0-9./_-]{4,28}(?![A-Z0-9]))(?=[A-Z0-9./_-]*\d)[A-Z0-9./_-]+",re.I)
+011115:         codes=[]
+011116:         ignore={"2020","2021","2022","2023","2024","2025","2026"}
+011117:         for line in clean:
+011118:             for m in code_rx.findall(line.upper()):
+011119:                 n=re.sub(r"[^A-Z0-9]","",m)
+011120:                 if len(n)<4 or n in ignore: continue
+011121:                 if n not in codes: codes.append(n)
+011122:                 if len(codes)>=100: break
+011123:             if len(codes)>=100: break
+011124:         return clean,fields,apps[:140],codes
+011125: 
+011126:     def _catalog_cross_soma(self,codes):
+011127:         matches=[]; seen=set()
+011128:         try:
+011129:             con=sqlite3.connect(DB_PATH)
+011130:             for code in codes[:80]:
+011131:                 n=re.sub(r"[^A-Z0-9]","",str(code).upper())
+011132:                 if len(n)<4: continue
+011133:                 rows=con.execute(
+011134:                     """SELECT codprod,refforn,marca,descricao,compldesc
+011135:                        FROM produtos
+011136:                        WHERE n_codprod=? OR n_refforn=? OR n_compldesc LIKE ?
+011137:                        LIMIT 6""",
+011138:                     (n,n,"%"+n+"%")
+011139:                 ).fetchall()
+011140:                 for row in rows:
+011141:                     key=row[0]
+011142:                     if key in seen: continue
+011143:                     seen.add(key)
+011144:                     matches.append(row)
+011145:                     if len(matches)>=60: break
+011146:                 if len(matches)>=60: break
+011147:             con.close()
+011148:         except Exception:
+011149:             pass
+--- LINES 12887-12973 ---
+012887:         try:
+012888:             self.web.page().runJavaScript(js, self._handle_whatsapp_health)
+012889:         except:
+012890:             pass
+012891: 
+012892:     def _handle_whatsapp_health(self, result):
+012893:         if not result:
+012894:             return
+012895: 
+012896:         if result.get("ready"):
+012897:             self._wa_ready_seen=True
+012898:             self._wa_recovery_attempts=0
+012899:             self.web_status.setText("WhatsApp carregado")
+012900:             return
+012901: 
+012902:         if result.get("qr"):
+012903:             self.web_status.setText("WhatsApp aguardando login")
+012904:             return
+012905: 
+012906:         if not result.get("loading"):
+012907:             return
+012908: 
+012909:         self._wa_recovery_attempts += 1
+012910: 
+012911:         if self._wa_recovery_attempts == 1:
+012912:             self.web_status.setText("WhatsApp sincronizando... tentando recarregar")
+012913:             try:
+012914:                 self.web.reload()
+012915:             except:
+012916:                 pass
+012917:             return
+012918: 
+012919:         if self._wa_recovery_attempts == 2:
+012920:             self.web_status.setText("WhatsApp preso na sincronização • limpando cache")
+012921:             try:
+012922:                 self.web.page().profile().clearHttpCache()
+012923:             except:
+012924:                 pass
+012925:             QTimer.singleShot(1200, self._reload_whatsapp_url)
+012926:             return
+012927: 
+012928:         if self._wa_recovery_attempts >= 3:
+012929:             self.web_status.setText("WhatsApp ainda sincronizando • reiniciando página")
+012930:             self._wa_recovery_attempts=0
+012931:             self._reload_whatsapp_url()
+012932: 
+012933:     def _reload_whatsapp_url(self):
+012934:         try:
+012935:             self.web.setUrl(QUrl("https://web.whatsapp.com/"))
+012936:         except:
+012937:             try:
+012938:                 self.web.reload()
+012939:             except:
+012940:                 pass
+012941: 
+012942:     def capture_open_whatsapp_image(self):
+012943:         js = r"""
+012944:         (async () => {
+012945:           try {
+012946:             const imgs=Array.from(document.querySelectorAll("img"))
+012947:               .map(img => {
+012948:                 const r=img.getBoundingClientRect();
+012949:                 return {img:img, area:r.width*r.height, w:r.width, h:r.height,
+012950:                         nw:img.naturalWidth||0, nh:img.naturalHeight||0};
+012951:               })
+012952:               .filter(x => x.w>250 && x.h>250)
+012953:               .sort((a,b)=>(b.nw*b.nh || b.area)-(a.nw*a.nh || a.area));
+012954: 
+012955:             if(!imgs.length) return {ok:false,error:"Nenhuma imagem grande aberta no WhatsApp."};
+012956: 
+012957:             const target=imgs[0], img=target.img;
+012958:             const src=img.currentSrc || img.src || "";
+012959: 
+012960:             if(src){
+012961:               try{
+012962:                 const resp=await fetch(src);
+012963:                 const blob=await resp.blob();
+012964:                 const data=await new Promise((resolve,reject)=>{
+012965:                   const fr=new FileReader();
+012966:                   fr.onload=()=>resolve(fr.result);
+012967:                   fr.onerror=reject;
+012968:                   fr.readAsDataURL(blob);
+012969:                 });
+012970:                 if(data) return {
+012971:                   ok:true,data:data,width:target.nw||target.w,height:target.nh||target.h,source:"fetch"
+012972:                 };
+012973:               }catch(e){}
+--- LINES 16007-16076 ---
+016007:         items=result.get("items") or []
+016008:         if not items:
+016009:             self.audio_panel.status.setText(
+016010:                 "Não identifiquei as mensagens de voz automaticamente.\n"
+016011:                 "Role a conversa até deixar os áudios visíveis e clique 🎙️ novamente."
+016012:             )
+016013:             return
+016014: 
+016015:         dlg=QDialog(self)
+016016:         dlg.setWindowTitle("Escolher áudio")
+016017:         dlg.resize(430,420)
+016018:         lay=QVBoxLayout(dlg)
+016019: 
+016020:         info=QLabel(
+016021:             f"Encontrei {len(items)} mensagem(ns) de voz visível(is).\n"
+016022:             "Selecione uma ou várias para transcrever."
+016023:         )
+016024:         info.setWordWrap(True)
+016025:         lay.addWidget(info)
+016026: 
+016027:         lst=QListWidget()
+016028:         lst.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+016029: 
+016030:         for i,item in enumerate(items,1):
+016031:             dur=item.get("duration") or "duração ?"
+016032:             tm=item.get("time") or "horário ?"
+016033:             direction=item.get("direction") or "áudio"
+016034:             label=f"🎙️ {dur}  •  {tm}  •  {direction}"
+016035:             it=QListWidgetItem(label)
+016036:             it.setData(Qt.ItemDataRole.UserRole, item.get("id"))
+016037:             lst.addItem(it)
+016038: 
+016039:         # Seleciona o último por padrão para ficar prático.
+016040:         if lst.count():
+016041:             lst.setCurrentRow(lst.count()-1)
+016042: 
+016043:         lay.addWidget(lst,1)
+016044: 
+016045:         row=QHBoxLayout()
+016046:         selected_btn=QPushButton("Transcrever selecionados")
+016047:         all_btn=QPushButton("Transcrever todos")
+016048:         cancel_btn=QPushButton("Cancelar")
+016049:         row.addWidget(selected_btn)
+016050:         row.addWidget(all_btn)
+016051:         row.addWidget(cancel_btn)
+016052:         lay.addLayout(row)
+016053: 
+016054:         def selected():
+016055:             ids=[
+016056:                 x.data(Qt.ItemDataRole.UserRole)
+016057:                 for x in lst.selectedItems()
+016058:                 if x.data(Qt.ItemDataRole.UserRole)
+016059:             ]
+016060:             if not ids and lst.currentItem():
+016061:                 ids=[lst.currentItem().data(Qt.ItemDataRole.UserRole)]
+016062:             if not ids:
+016063:                 return
+016064:             dlg.accept()
+016065:             self._transcribe_voice_ids(ids)
+016066: 
+016067:         def all_items():
+016068:             ids=[
+016069:                 lst.item(i).data(Qt.ItemDataRole.UserRole)
+016070:                 for i in range(lst.count())
+016071:             ]
+016072:             dlg.accept()
+016073:             self._transcribe_voice_ids(ids)
+016074: 
+016075:         selected_btn.clicked.connect(selected)
+016076:         all_btn.clicked.connect(all_items)
