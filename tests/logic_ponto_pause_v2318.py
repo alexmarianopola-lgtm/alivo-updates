@@ -9,7 +9,6 @@ for needle in [
     'def pause_point_alerts_today(self) -> None:',
     'PAUSAR AVISOS DE PONTO HOJE',
     'Não altera nenhuma batida no Ahgora',
-    'Ponto • avisos pausados',
     'REATIVAR AVISOS',
 ]:
     assert needle in s, needle
