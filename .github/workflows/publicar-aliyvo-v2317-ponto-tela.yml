@@ -1,0 +1,76 @@
+name: Publicar ALIYVO 0.23.17 Ponto Tela Oficial
+on:
+  push:
+    paths:
+      - 'trigger-v2317-release.txt'
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.16
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.16 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02316.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02316.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.16 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar correcao
+        shell: pwsh
+        run: |
+          python patch_ponto_visible_portal_v2317.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_ponto_visible_portal_v2317.py C:\temp\build\_app
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited -and $proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02317.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02317.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\aliyvo_ponto.py
+          python tests\logic_ponto_visible_portal_v2317.py C:\temp\verify\_app
+          $main=Get-Content C:\temp\verify\_app\main.py -Raw
+          if($main -notmatch 'ALIYVO_VERSION = "0.23.17"'){ throw 'Versao interna incorreta' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02317.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.17 - PONTO PELA TELA OFICIAL',
+            'Base: 0.23.16',
+            'Quando API do espelho devolve HTML, le horarios reais visiveis no MyAhgora: OK',
+            'Ignora Saldo de banco de horas e Horas Previstas: OK',
+            'Batida real encontrada e reconciliada com entrada/saida por ordem: OK',
+            'Updater preservado: OK',
+            'Startup smoke test: OK',
+            'Runtime com portal real: PENDENTE DE CONFIRMACAO DO USUARIO',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02317.txt -Encoding UTF8
+      - name: Publicar oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.17 C:\temp\out\ALIYVO_BETA_GRATIS_02317.zip C:\temp\out\VALIDACAO_02317.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.17 - Ponto pela Tela Oficial" --notes "Corrige contas em que o MyAhgora está autenticado e mostra a batida real, mas a API do espelho retorna HTML e o ALIYVO acusa 'resposta não reconhecida'. A sincronização agora tenta primeiro ler os horários reais exibidos nos círculos do portal oficial e ignora saldo de banco de horas e horas previstas." --latest
