@@ -17,7 +17,6 @@ if 'POINT_MODULE_VERSION = "0.23.17"' not in ps:
     raise SystemExit('modulo ponto 0.23.17 nao encontrado')
 ps=ps.replace('POINT_MODULE_VERSION = "0.23.17"','POINT_MODULE_VERSION = "0.23.18"',1)
 
-# 1) Helper para pausar avisos sem inventar batida.
 anchor='''    def _ensure_state_no_recursion(self, now: datetime) -> None:
         normalized = normalize_state(self._state, now)
         if normalized.get("date") != self._state.get("date"):
@@ -41,7 +40,6 @@ insert='''    def _point_alerts_paused_today(self) -> bool:
         except Exception:
             pass
         self._dialog = None
-        self._refresh_nav_button()
         self._schedule_in(15 * 60 * 1000)
 
     def resume_point_alerts_today(self) -> None:
@@ -56,7 +54,6 @@ if anchor not in ps:
     raise SystemExit('anchor ensure state nao encontrado')
 ps=ps.replace(anchor,insert+anchor,1)
 
-# 2) Nao abrir a janela automaticamente se o usuario pausou os avisos.
 old='''        if pending:
             key = _date_key(now) + "|" + pending["id"]
             if self._last_notified_key != key:
@@ -69,7 +66,6 @@ old='''        if pending:
 '''
 new='''        if pending:
             if self._point_alerts_paused_today():
-                self._refresh_nav_button()
                 self._schedule_in(15 * 60 * 1000)
                 return
             key = _date_key(now) + "|" + pending["id"]
@@ -85,7 +81,6 @@ if old not in ps:
     raise SystemExit('anchor check_now pending nao encontrado')
 ps=ps.replace(old,new,1)
 
-# 3) Botao claro no dialogo para pausar so o ALIYVO.
 anchor='''        if pending:
             badge = QLabel("🔴 PONTO PENDENTE • " + pending["label"] + " • " + pending["time"])
 '''
@@ -105,7 +100,6 @@ if anchor not in ps:
     raise SystemExit('anchor dialog pending nao encontrado')
 ps=ps.replace(anchor,insert+anchor,1)
 
-# 4) Se painel for aberto manualmente durante pausa, permitir reativar.
 anchor='''        sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
 '''
@@ -125,24 +119,6 @@ insert='''        if self._point_alerts_paused_today():
 if anchor not in ps:
     raise SystemExit('anchor sep nao encontrado')
 ps=ps.replace(anchor,insert+anchor,1)
-
-# 5) Botao de navegacao nao deve ficar vermelho enquanto aviso estiver pausado.
-old='''            if pending:
-                btn.setText("⚠  Ponto • " + pending["time"])
-'''
-new='''            if pending and self._point_alerts_paused_today():
-                btn.setText("⏸  Ponto • avisos pausados")
-                btn.setStyleSheet(
-                    "QPushButton{background:#1D3140;color:#DCEAF3;border:1px solid #5F7F94;"
-                    "border-radius:6px;padding:6px 12px;min-height:25px;font-size:11px;font-weight:700;}"
-                    "QPushButton:hover{background:#294456;border-color:#8CB4CC;}"
-                )
-            elif pending:
-                btn.setText("⚠  Ponto • " + pending["time"])
-'''
-if old not in ps:
-    raise SystemExit('anchor nav pending nao encontrado')
-ps=ps.replace(old,new,1)
 
 main.write_text(ms,encoding='utf-8')
 p.write_text(ps,encoding='utf-8')
