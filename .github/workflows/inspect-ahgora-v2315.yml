@@ -1,7 +1,8 @@
 name: Inspecionar Ahgora v0.23.15
 on:
   push:
-    paths: ['trigger-inspect-ahgora-v2315.txt']
+    paths:
+      - 'trigger-inspect-ahgora-v2315.txt'
 permissions:
   contents: write
 jobs:
@@ -21,33 +22,39 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\temp\x | Out-Null
           gh release download v0.23.15 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02315.zip" --dir C:\temp\x
           Expand-Archive C:\temp\x\ALIYVO_BETA_GRATIS_02315.zip -DestinationPath C:\temp\x\app -Force
-          @'
-from pathlib import Path
-import re
-root=Path(r"C:\temp\x\app\_app")
-terms=re.compile(r"(?i)(ahgora|ponto|batida|sincron|banco de horas|espelho|horario|horário|07:50|12:08|13:30|18:00|ja entrei|já entrei)")
-out=[]
-for p in root.rglob("*"):
-    if not p.is_file() or p.suffix.lower() not in {".py",".pyw",".txt",".json"}: continue
-    try:s=p.read_text(encoding="utf-8",errors="replace")
-    except: continue
-    lines=s.splitlines()
-    hits=[i for i,l in enumerate(lines) if terms.search(l)]
-    if not hits: continue
-    out.append(f"===== FILE {p.relative_to(root)} =====")
-    ranges=[]
-    for i in hits:
-        a=max(0,i-25); b=min(len(lines),i+45)
-        if ranges and a<=ranges[-1][1]+5:ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
-        else:ranges.append((a,b))
-    for a,b in ranges:
-        out.append(f"--- LINES {a+1}-{b} ---")
-        for n in range(a,b):
-            out.append(f"{n+1:06d}: {lines[n]}")
-Path("inspect_ahgora_v2315.txt").write_text("\n".join(out),encoding="utf-8")
-print("FILES_SCANNED",len(list(root.rglob("*"))))
-print("OUTPUT_CHARS",sum(map(len,out)))
-'@ | Set-Content C:\temp\inspect.py -Encoding UTF8
+          $py = @'
+          from pathlib import Path
+          import re
+          root=Path(r"C:\temp\x\app\_app")
+          terms=re.compile(r"(?i)(ahgora|ponto|batida|sincron|banco de horas|espelho|horario|horário|07:50|12:08|13:30|18:00|ja entrei|já entrei)")
+          out=[]
+          for p in root.rglob("*"):
+              if not p.is_file() or p.suffix.lower() not in {".py",".pyw",".txt",".json"}:
+                  continue
+              try:
+                  s=p.read_text(encoding="utf-8",errors="replace")
+              except Exception:
+                  continue
+              lines=s.splitlines()
+              hits=[i for i,l in enumerate(lines) if terms.search(l)]
+              if not hits:
+                  continue
+              out.append(f"===== FILE {p.relative_to(root)} =====")
+              ranges=[]
+              for i in hits:
+                  a=max(0,i-25); b=min(len(lines),i+45)
+                  if ranges and a<=ranges[-1][1]+5:
+                      ranges[-1]=(ranges[-1][0],max(ranges[-1][1],b))
+                  else:
+                      ranges.append((a,b))
+              for a,b in ranges:
+                  out.append(f"--- LINES {a+1}-{b} ---")
+                  for n in range(a,b):
+                      out.append(f"{n+1:06d}: {lines[n]}")
+          Path("inspect_ahgora_v2315.txt").write_text("\n".join(out),encoding="utf-8")
+          print("OUTPUT_CHARS",sum(map(len,out)))
+          '@
+          $py | Set-Content C:\temp\inspect.py -Encoding UTF8
           python C:\temp\inspect.py
           git config user.name "aliyvo-inspector"
           git config user.email "actions@users.noreply.github.com"
