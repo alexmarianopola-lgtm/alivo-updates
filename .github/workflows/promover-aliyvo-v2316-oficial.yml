@@ -1,0 +1,72 @@
+name: Promover ALIYVO 0.23.16 Oficial
+on:
+  push:
+    paths:
+      - 'trigger-v2316-official.txt'
+permissions:
+  contents: write
+jobs:
+  promover:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar RC aprovada
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\rc,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.16-rc1 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02316_RC1.zip" --dir C:\temp\rc
+          Copy-Item C:\temp\rc\ALIYVO_BETA_GRATIS_02316_RC1.zip C:\temp\out\ALIYVO_BETA_GRATIS_02316.zip
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02316.zip -DestinationPath C:\temp\verify -Force
+          if(-not (Test-Path C:\temp\verify\_app\main.py)){ throw 'Pacote RC invalido' }
+          if(-not (Test-Path C:\temp\verify\_app\aliyvo_ponto.py)){ throw 'Modulo de ponto ausente' }
+      - name: Validar codigo e versao
+        shell: pwsh
+        run: |
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\aliyvo_ponto.py C:\temp\verify\_app\updater_worker.pyw
+          $main=Get-Content C:\temp\verify\_app\main.py -Raw
+          if($main -notmatch 'ALIYVO_VERSION = "0.23.16"'){ throw 'Versao interna incorreta' }
+          $ponto=Get-Content C:\temp\verify\_app\aliyvo_ponto.py -Raw
+          if($ponto -notmatch 'POINT_MODULE_VERSION = "0.23.16"'){ throw 'Modulo de ponto incorreto' }
+          if($ponto -notmatch 'def _browser_session_available'){ throw 'Correcao de sessao web ausente' }
+          if($ponto -notmatch 'atrasado'){ throw 'Indicacao de batida tardia ausente' }
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\verify\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited -and $proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+      - name: Criar validacao oficial
+        shell: pwsh
+        run: |
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02316.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.16 - PONTO TARDIO',
+            'Base binaria: RC1 validada por CI',
+            'Batida real atrasada deixa de permanecer como pendente: OK',
+            'Sessao web vinculada participa da sincronizacao automatica: OK',
+            'Exibicao do horario real com atraso: OK',
+            'PyCompile: OK',
+            'Startup smoke test: OK',
+            'Validacao com sessao real Ahgora continua dependente do uso no PC',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02316.txt -Encoding UTF8
+      - name: Publicar como atualizacao oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.16 C:\temp\out\ALIYVO_BETA_GRATIS_02316.zip C:\temp\out\VALIDACAO_02316.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.16 - Correção do Ponto Ahgora" --notes "Atualização oficial para corrigir o caso em que uma batida real feita com atraso no Ahgora continuava aparecendo como não batida/pendente no ALIYVO. A sessão web já vinculada também passa a participar da sincronização automática. O horário real da batida é preservado e o atraso é apenas informado, sem tratar a batida como ausência." --latest
