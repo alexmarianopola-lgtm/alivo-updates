@@ -1,0 +1,25 @@
+name: Publicar 0.23.21 oficial
+on:
+  push:
+    paths: ['trigger-v2321-official.txt']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir C:\base,C:\build,C:\out
+          gh release download v0.23.21-rc1 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02321_RC1.zip" --dir C:\base
+          Expand-Archive C:\base\ALIYVO_BETA_GRATIS_02321_RC1.zip C:\build -Force
+          python patch_login_flow_v2321.py C:\build
+          python -m py_compile C:\build\_app\main.py C:\build\_app\aliyvo_ponto.py
+          Compress-Archive C:\build\* C:\out\ALIYVO_BETA_GRATIS_02321.zip -Force
+          gh release create v0.23.21 C:\out\ALIYVO_BETA_GRATIS_02321.zip --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.21 - Ponto Ahgora Corrigido" --notes "Corrige login e sincronização do Ahgora. O login não dispara sincronização automática. A consulta usa a sessão em segundo plano. Mantém a correção do mês do espelho e a janela de mais ou menos 60 minutos." --latest
