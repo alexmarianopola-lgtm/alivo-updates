@@ -1,0 +1,95 @@
+name: Publicar ALIYVO 0.23.21 RC1 Ponto Corrigido
+on:
+  push:
+    paths:
+      - 'trigger-v2321-rc1.txt'
+permissions:
+  contents: write
+jobs:
+  testar-e-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base oficial 0.23.20
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.20 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02320.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02320.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.20 invalida' }
+          if(-not (Test-Path C:\temp\build\_app\aliyvo_ponto.py)){ throw 'Modulo de ponto ausente' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+
+      - name: Aplicar correcao do espelho e janela de 1 hora
+        shell: pwsh
+        run: |
+          python patch_ponto_sync_window_v2321.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py C:\temp\build\_app\updater_worker.pyw
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado sem necessidade' }
+
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+
+      - name: Testar logica real do modulo
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          python tests\logic_ponto_sync_window_v2321.py C:\temp\build\_app
+
+      - name: Teste de abertura do ALIYVO
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $proc=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($proc.HasExited -and $proc.ExitCode -ne 0){ throw "ALIYVO encerrou na inicializacao com codigo $($proc.ExitCode)" }
+          if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force }
+          Write-Host 'STARTUP_SMOKE_TEST=OK'
+
+      - name: Empacotar e revalidar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02321_RC1.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02321_RC1.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\aliyvo_ponto.py
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          python tests\logic_ponto_sync_window_v2321.py C:\temp\verify\_app
+          $main=Get-Content C:\temp\verify\_app\main.py -Raw
+          if($main -notmatch 'ALIYVO_VERSION = "0.23.21"'){ throw 'Versao interna incorreta' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02321_RC1.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.21 RC1 - PONTO CORRIGIDO',
+            'Base: 0.23.20',
+            '29/09 prioriza espelho 2026-09, nao 2026-10: OK',
+            'Fallback mes atual / proximo / anterior: OK',
+            'Periodo sem o dia de hoje nao vira sucesso com 0 batidas: OK',
+            'Batida +/- 60 minutos casa com o horario previsto mais proximo: OK',
+            'Batida fora da janela de 60 minutos nao confirma o horario: OK',
+            '08:16 confirma entrada 07:50: OK',
+            'PyCompile: OK',
+            'Startup smoke test: OK',
+            'Updater preservado: OK',
+            'Runtime com sessao real Ahgora: PENDENTE DO TESTE DO USUARIO',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02321_RC1.txt -Encoding UTF8
+
+      - name: Publicar RC sem substituir latest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.21-rc1 C:\temp\out\ALIYVO_BETA_GRATIS_02321_RC1.zip C:\temp\out\VALIDACAO_02321_RC1.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.21 RC1 - Sincronização do Ponto Corrigida" --notes "Corrige a causa observada no PC real: no dia 29/09 o ALIYVO consultava outubro e concluia 0 batidas. Agora prioriza o mes civil atual, tenta periodos adjacentes apenas quando necessario e so aceita o periodo que realmente contem o dia de hoje. A reconciliacao tambem passa a confirmar cada batida somente se estiver dentro de 60 minutos antes ou depois do horario previsto, escolhendo o horario mais proximo. Ex.: 08:16 confirma 07:50. RC para validacao no Ahgora real antes de promover para atualizacao geral." --prerelease
