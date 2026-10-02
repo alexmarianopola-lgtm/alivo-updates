@@ -1,0 +1,716 @@
+===== L9060-L9320 =====
+009060:         else:current.setText("CONVERSA ATUAL: abra um cliente no WhatsApp para ver o estado comercial.")
+009061:         lay.addWidget(current)
+009062: 
+009063:         lay.addWidget(QLabel("🤖 PENDÊNCIAS DETECTADAS PELO OBSERVADOR"))
+009064:         pending_list=QListWidget();pending_list.setSpacing(4);pending_list.setMinimumHeight(180)
+009065:         live=self._crm_states_payload(30,True)
+009066:         for x in live:
+009067:             client=str(x.get('client') or '').strip()
+009068:             item=QListWidgetItem(f"{client}  •  {x.get('status') or '-'}\n→ {x.get('next_action') or '-'}")
+009069:             item.setData(Qt.ItemDataRole.UserRole,client)
+009070:             item.setData(Qt.ItemDataRole.UserRole+1,str(x.get('evidence') or ''))
+009071:             pending_list.addItem(item)
+009072:         if not live:
+009073:             item=QListWidgetItem("Nenhuma pendência comercial detectada nos últimos 7 dias.");item.setFlags(Qt.ItemFlag.NoItemFlags);pending_list.addItem(item)
+009074:         lay.addWidget(pending_list,1)
+009075: 
+009076:         lay.addWidget(QLabel("⏰ LEMBRETES ABERTOS"))
+009077:         reminder_list=QListWidget();reminder_list.setSpacing(3);reminder_list.setMinimumHeight(120)
+009078:         rem=self._crm_open_reminders_payload()
+009079:         for r in rem[:30]:
+009080:             client=str(r.get('client') or '').strip()
+009081:             prefix="⚠ " if r.get("overdue") else "• "
+009082:             item=QListWidgetItem(prefix+f"{r.get('due')}  •  {client or 'sem cliente'} — {r.get('text')}")
+009083:             item.setData(Qt.ItemDataRole.UserRole,client)
+009084:             item.setData(Qt.ItemDataRole.UserRole+1,str(r.get('context') or ''))
+009085:             reminder_list.addItem(item)
+009086:         if not rem:
+009087:             item=QListWidgetItem("Nenhum lembrete aberto.");item.setFlags(Qt.ItemFlag.NoItemFlags);reminder_list.addItem(item)
+009088:         lay.addWidget(reminder_list,1)
+009089: 
+009090:         ai_output=QPlainTextEdit();ai_output.setReadOnly(True);ai_output.setMaximumHeight(170)
+009091:         ai_output.setPlaceholderText("A análise da IA aparecerá aqui quando você clicar em Analisar meu CRM.")
+009092:         lay.addWidget(ai_output)
+009093: 
+009094:         def selected_payload():
+009095:             it=pending_list.currentItem()
+009096:             if it and str(it.data(Qt.ItemDataRole.UserRole) or '').strip():
+009097:                 return str(it.data(Qt.ItemDataRole.UserRole) or '').strip(),str(it.data(Qt.ItemDataRole.UserRole+1) or '')
+009098:             it=reminder_list.currentItem()
+009099:             if it and str(it.data(Qt.ItemDataRole.UserRole) or '').strip():
+009100:                 return str(it.data(Qt.ItemDataRole.UserRole) or '').strip(),str(it.data(Qt.ItemDataRole.UserRole+1) or '')
+009101:             return "",""
+009102: 
+009103:         def select_pending(_cur,_prev):
+009104:             if _cur is not None:reminder_list.clearSelection()
+009105:         def select_reminder(_cur,_prev):
+009106:             if _cur is not None:pending_list.clearSelection()
+009107:         pending_list.currentItemChanged.connect(select_pending)
+009108:         reminder_list.currentItemChanged.connect(select_reminder)
+009109: 
+009110:         def open_selected():
+009111:             client,_ctx=selected_payload()
+009112:             if not client:
+009113:                 QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+009114:             dlg.accept()
+009115:             QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+009116: 
+009117:         def remind_selected():
+009118:             client,ctx=selected_payload()
+009119:             if not client:
+009120:                 QMessageBox.information(dlg,"CRM","Selecione uma pendência vinculada a um cliente.");return
+009121:             st=self._crm_state_for_client(client) or {}
+009122:             title=str(st.get('next_action') or f"Retornar para {client}")
+009123:             evidence=str(st.get('evidence') or ctx or '')
+009124:             self._reminder_add(dlg,None,force_client=client,context=evidence,prefill_text=title)
+009125: 
+009126:         row=QHBoxLayout()
+009127:         open_btn=QPushButton("💬 Abrir conversa");remind_btn=QPushButton("⏰ Criar lembrete");an=QPushButton("🤖 Analisar meu CRM");close=QPushButton("Fechar")
+009128:         row.addWidget(open_btn);row.addWidget(remind_btn);row.addWidget(an);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+009129: 
+009130:         def run():
+009131:             self._ai_observer_text_widget=ai_output;self._ai_observer_status_widget=status;self._ai_observer_analyze("crm_reminders",False)
+009132:         open_btn.clicked.connect(open_selected);remind_btn.clicked.connect(remind_selected);an.clicked.connect(run);close.clicked.connect(dlg.accept)
+009133:         pending_list.itemDoubleClicked.connect(lambda _it:open_selected())
+009134:         reminder_list.itemDoubleClicked.connect(lambda _it:open_selected())
+009135:         dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(ai_output,status));dlg.exec()
+009136: 
+009137:     def _today_quick_panel(self,parent=None):
+009138:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QLabel,QHBoxLayout,QPushButton
+009139:         import datetime,time
+009140:         now=time.time();today=datetime.date.today()
+009141:         pending=[r for r in getattr(self,'_reminders',[]) or [] if isinstance(r,dict) and not r.get('done')]
+009142:         overdue=[];today_rows=[]
+009143:         for r in pending:
+009144:             try:due=float(r.get('due_ts') or 0)
+009145:             except Exception:due=0
+009146:             if due and due<now:overdue.append(r)
+009147:             if due:
+009148:                 try:
+009149:                     if datetime.datetime.fromtimestamp(due).date()==today:today_rows.append(r)
+009150:                 except Exception:pass
+009151:         overdue.sort(key=lambda r:float(r.get('due_ts') or 0));today_rows.sort(key=lambda r:float(r.get('due_ts') or 0))
+009152:         try:waiting=self._diagnostic_waiting_snapshot() or []
+009153:         except Exception:waiting=[]
+009154:         candidates=set()
+009155:         for w in waiting:
+009156:             n=str(w.get('client') or '').strip()
+009157:             if n:candidates.add(n)
+009158:         for r in pending:
+009159:             n=str(r.get('client') or '').strip()
+009160:             if n:candidates.add(n)
+009161:         priorities=[]
+009162:         for n in candidates:
+009163:             try:
+009164:                 pri=self._ai_priority_for_client(n) or {}
+009165:                 priorities.append((int(pri.get('score') or 0),n,pri))
+009166:             except Exception:pass
+009167:         priorities.sort(reverse=True,key=lambda x:x[0]);priorities=priorities[:3]
+009168:         dlg=QDialog(parent or self);dlg.setWindowTitle('📌 Hoje — painel rápido');dlg.resize(660,650)
+009169:         lay=QVBoxLayout(dlg)
+009170:         title=QLabel('HOJE NO ALIYVO');title.setStyleSheet('font-size:17px;font-weight:900;color:#07344a;padding:2px 2px 6px 2px;');lay.addWidget(title)
+009171:         def add_section(title_txt,items,bg,fg):
+009172:             h=QLabel(title_txt);h.setStyleSheet(f'font-size:12px;font-weight:900;color:{fg};margin-top:8px;');lay.addWidget(h)
+009173:             if not items:
+009174:                 x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x);return
+009175:             for txt in items:
+009176:                 x=QLabel(txt);x.setWordWrap(True);x.setStyleSheet(f'background:{bg};color:{fg};border-radius:7px;padding:8px 10px;font-weight:700;');lay.addWidget(x)
+009177:         # Clientes esperando: cartões clicáveis para conferir a conversa no WhatsApp.
+009178:         wait_head=QLabel(f'💬 CLIENTES ESPERANDO ({len(waiting)})')
+009179:         wait_head.setStyleSheet('font-size:12px;font-weight:900;color:#16558c;margin-top:8px;')
+009180:         lay.addWidget(wait_head)
+009181:         wait_hint=QLabel('Clique em um cliente para abrir a conversa e conferir se ainda precisa de resposta.')
+009182:         wait_hint.setStyleSheet('color:#64748b;font-size:11px;padding:0 2px 3px 2px;')
+009183:         wait_hint.setWordWrap(True)
+009184:         lay.addWidget(wait_hint)
+009185:         if not waiting:
+009186:             x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x)
+009187:         else:
+009188:             for w in waiting[:8]:
+009189:                 n=str(w.get('client') or 'Cliente')
+009190:                 try:sec=max(0,float(w.get('waiting_seconds') or w.get('work_waiting_seconds') or 0))
+009191:                 except Exception:sec=0
+009192:                 if sec < 60: wait_txt='aguardando agora'
+009193:                 elif sec < 3600: wait_txt=f'aguardando {int(sec//60)} min úteis'
+009194:                 else:
+009195:                     hh=int(sec//3600);mm=int((sec%3600)//60)
+009196:                     wait_txt=f'aguardando {hh}h{mm:02d} úteis' if mm else f'aguardando {hh}h úteis'
+009197:                 btn=QPushButton(f'{n}  •  {wait_txt}')
+009198:                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
+009199:                 btn.setToolTip(f'Abrir conversa de {n} no WhatsApp')
+009200:                 btn.setStyleSheet(
+009201:                     'QPushButton{text-align:left;background:#e7f3ff;color:#16558c;'
+009202:                     'border:1px solid #d0e7fa;border-radius:7px;padding:8px 10px;font-weight:700;}'
+009203:                     'QPushButton:hover{background:#d8ecff;border:1px solid #16558c;}'
+009204:                     'QPushButton:pressed{background:#cbe4fb;}'
+009205:                 )
+009206:                 def open_waiting(_checked=False,client=n):
+009207:                     dlg.accept()
+009208:                     QTimer.singleShot(150,lambda client=client:self._attendance_open_chat(client))
+009209:                 btn.clicked.connect(open_waiting)
+009210:                 lay.addWidget(btn)
+009211:         def finish_today_reminder(rid):
+009212:             rid=str(rid or '')
+009213:             for rr in self._reminders:
+009214:                 if isinstance(rr,dict) and str(rr.get('id') or '')==rid:
+009215:                     rr['done']=True;rr['alerted']=True
+009216:                     try:self._diagnostic_log('reminder_done',client=rr.get('client',''),text=rr.get('text',''))
+009217:                     except Exception:pass
+009218:                     break
+009219:             self._reminder_save();self._reminder_update_button()
+009220:             dlg.accept();QTimer.singleShot(120,lambda:self._today_quick_panel(self))
+009221: 
+009222:         def open_today_reminder(rem):
+009223:             import re
+009224:             client=str(rem.get('client') or '').strip()
+009225:             txt=str(rem.get('text') or '').strip()
+009226:             # Compatibilidade com lembretes antigos: alguns guardaram o contato
+009227:             # no próprio texto depois de um travessão, sem preencher client.
+009228:             if not client and txt:
+009229:                 m=re.search(r'\s+[—-]\s+(.+?)\s*$',txt)
+009230:                 if m:client=str(m.group(1) or '').strip()
+009231:             if not client:return
+009232:             self._attendance_open_chat(client)
+009233:             QTimer.singleShot(300,dlg.accept)
+009234: 
+009235:         def add_today_card(rem,bg,fg):
+009236:             from PyQt6.QtWidgets import QWidget,QHBoxLayout,QPushButton
+009237:             try:hh=datetime.datetime.fromtimestamp(float(rem.get('due_ts') or 0)).strftime('%H:%M')
+009238:             except Exception:hh='--:--'
+009239:             client=str(rem.get('client') or '').strip()
+009240:             txt=str(rem.get('text') or '').strip()
+009241:             rid=str(rem.get('id') or '')
+009242:             box=QWidget();box.setStyleSheet(f'QWidget{{background:{bg};border-radius:7px;}}')
+009243:             row=QHBoxLayout(box);row.setContentsMargins(7,5,7,5);row.setSpacing(5)
+009244:             main=QPushButton(f"{hh}  •  {txt}"+(f"  — {client}" if client else ''))
+009245:             main.setCursor(Qt.CursorShape.PointingHandCursor)
+009246:             main.setToolTip('Clique para abrir a conversa deste cliente no WhatsApp')
+009247:             main.setMinimumHeight(38)
+009248:             main.setStyleSheet(f'QPushButton{{text-align:left;background:transparent;color:{fg};border:none;padding:8px;font-weight:800;}}QPushButton:hover{{background:rgba(255,255,255,90);border-radius:6px;text-decoration:underline;}}')
+009249:             main.clicked.connect(lambda _=False,r=dict(rem):open_today_reminder(r))
+009250:             yes=QPushButton('👍');yes.setFixedWidth(40);yes.setToolTip('Resolvido — concluir e tirar da lista')
+009251:             no=QPushButton('👎');no.setFixedWidth(40);no.setToolTip('Ainda não fiz — manter na lista')
+009252:             yes.clicked.connect(lambda _=False,x=rid:finish_today_reminder(x))
+009253:             no.clicked.connect(lambda _=False:None)
+009254:             row.addWidget(main,1);row.addWidget(yes);row.addWidget(no);lay.addWidget(box)
+009255: 
+009256:         over_head=QLabel(f'🔴 VENCIDOS ({len(overdue)})');over_head.setStyleSheet('font-size:12px;font-weight:900;color:#9e1027;margin-top:8px;');lay.addWidget(over_head)
+009257:         if overdue:
+009258:             for r in overdue[:6]:add_today_card(r,'#ffd9de','#9e1027')
+009259:         else:
+009260:             x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x)
+009261:         open_today=[r for r in today_rows if r not in overdue]
+009262:         today_head=QLabel(f'🟡 TAREFAS DE HOJE ({len(open_today)})');today_head.setStyleSheet('font-size:12px;font-weight:900;color:#715a00;margin-top:8px;');lay.addWidget(today_head)
+009263:         if open_today:
+009264:             for r in open_today[:8]:add_today_card(r,'#fff4bf','#715a00')
+009265:         else:
+009266:             x=QLabel('Nenhum item agora.');x.setStyleSheet('color:#6c7780;padding:4px 10px;');lay.addWidget(x)
+009267:         pri_items=[]
+009268:         for score,n,pri in priorities:
+009269:             reasons='; '.join(pri.get('reasons') or []) or 'histórico e pendências atuais'
+009270:             pri_items.append(f"{n}  •  prioridade {str(pri.get('level') or '').upper()} ({score})\n{reasons}")
+009271:         add_section('⭐ 3 PRIORIDADES SUGERIDAS',pri_items,'#e8f7ee','#176b3a')
+009272:         row=QHBoxLayout();crm=QPushButton('🧭 CRM do dia');close=QPushButton('Fechar');row.addWidget(crm);row.addStretch(1);row.addWidget(close);lay.addLayout(row)
+009273:         crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));close.clicked.connect(dlg.accept);dlg.exec()
+009274: 
+009275: 
+009276:     # ===== RADAR DA CARTEIRA 0.23.04 =====
+009277:     # Fontes locais: (1) histórico de 12 meses e (2) recorrência/recompra.
+009278:     # Nenhum dado comercial é enviado automaticamente para a nuvem.
+009279:     def _radar_file(self):
+009280:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+009281:         except Exception: pass
+009282:         return USER_DATA_DIR/"radar_carteira.json"
+009283: 
+009284:     def _radar_sources_dir(self):
+009285:         p=USER_DATA_DIR/"radar_fontes"
+009286:         try:p.mkdir(parents=True,exist_ok=True)
+009287:         except Exception:pass
+009288:         return p
+009289: 
+009290:     def _radar_default(self):
+009291:         return {"version":1,"history":{"meta":{},"clients":{}},"recurrence":{"meta":{},"items":[]},"links":{}}
+009292: 
+009293:     def _radar_load(self,force=False):
+009294:         if not force:
+009295:             x=getattr(self,"_radar_cache",None)
+009296:             if isinstance(x,dict):return x
+009297:         try:
+009298:             f=self._radar_file()
+009299:             if f.exists():
+009300:                 x=json.loads(f.read_text(encoding="utf-8"))
+009301:                 if isinstance(x,dict):
+009302:                     x.setdefault("history",{"meta":{},"clients":{}})
+009303:                     x.setdefault("recurrence",{"meta":{},"items":[]})
+009304:                     x.setdefault("links",{})
+009305:                     self._radar_cache=x;return x
+009306:         except Exception:pass
+009307:         x=self._radar_default();self._radar_cache=x;return x
+009308: 
+009309:     def _radar_save(self):
+009310:         try:
+009311:             x=self._radar_load()
+009312:             self._radar_file().write_text(json.dumps(x,ensure_ascii=False,indent=2),encoding="utf-8")
+009313:         except Exception:pass
+009314: 
+009315:     def _radar_norm(self,value):
+009316:         import re,unicodedata
+009317:         s=str(value or "").strip().lower()
+009318:         s=''.join(c for c in unicodedata.normalize('NFD',s) if unicodedata.category(c)!='Mn')
+009319:         return re.sub(r'[^a-z0-9]+',' ',s).strip()
+009320: 
+===== L10380-L10740 =====
+010380:         def do_save():
+010381:             d=dict(cfg);typed=key.text().strip()
+010382:             if typed:
+010383:                 enc=self._ai_dpapi_encrypt(typed)
+010384:                 if not enc:
+010385:                     QMessageBox.warning(dlg,"IA Observadora","Não consegui proteger a chave com o Windows DPAPI.");return
+010386:                 d["api_key_dpapi"]=enc
+010387:             d["enabled"]=bool(enabled.isChecked());d["interval_minutes"]=int(interval.value());d["model"]=str(model.currentText())
+010388:             if d["enabled"] and not (typed or has_key):
+010389:                 QMessageBox.information(dlg,"IA Observadora","Cole uma chave da API antes de ativar a análise automática.");return
+010390:             if not self._ai_config_save(d):QMessageBox.warning(dlg,"IA Observadora","Não consegui salvar a configuração.");return
+010391:             self._ai_observer_reschedule();dlg.accept()
+010392:         def do_remove():
+010393:             d=dict(cfg);d["api_key_dpapi"]="";d["enabled"]=False
+010394:             self._ai_config_save(d);self._ai_observer_reschedule();dlg.accept()
+010395:         save.clicked.connect(do_save);remove.clicked.connect(do_remove);cancel.clicked.connect(dlg.reject);dlg.exec()
+010396: 
+010397:     def _ai_observer_dialog(self,parent=None):
+010398:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPlainTextEdit,QPushButton
+010399:         dlg=QDialog(parent or self);dlg.setWindowTitle("🤖 IA Observadora do ALIYVO");dlg.resize(940,720)
+010400:         lay=QVBoxLayout(dlg);cfg=self._ai_config_load();key_ok=bool(self._ai_api_key())
+010401:         status=QLabel(("✅ IA configurada" if key_ok else "⚠ Configure a chave da API")+(f" • automático a cada {cfg.get('interval_minutes')} min" if key_ok and cfg.get("enabled") else " • automático desligado"))
+010402:         lay.addWidget(status);txt=QPlainTextEdit();txt.setReadOnly(True);lay.addWidget(txt,1)
+010403:         self._ai_observer_text_widget=txt;self._ai_observer_status_widget=status
+010404:         latest=self._ai_history_latest()
+010405:         if isinstance(latest,dict) and latest.get("ok"):txt.setPlainText(f"Última análise: {latest.get('time','')}\nModelo: {latest.get('model','')}\n\n{latest.get('analysis','')}")
+010406:         else:txt.setPlainText("A IA acumula padrões locais, perfis por cliente e agora também pode cruzar lembretes com o atendimento. Nenhuma mensagem é enviada automaticamente.")
+010407:         bar=QHBoxLayout();settings=QPushButton("⚙ Configurar");now_btn=QPushButton("🧠 Analisar trabalho");chat_btn=QPushButton("💬 Conversa atual");assist_btn=QPushButton("💡 Assistência atual");crm_btn=QPushButton("🧭 CRM do dia");learn_btn=QPushButton("📚 Aprendizado");close=QPushButton("Fechar")
+010408:         for b in (settings,now_btn,chat_btn,assist_btn,crm_btn,learn_btn):bar.addWidget(b)
+010409:         bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+010410:         settings.clicked.connect(lambda:self._ai_settings_dialog(dlg));now_btn.clicked.connect(lambda:self._ai_observer_analyze("observer",False));chat_btn.clicked.connect(lambda:self._ai_observer_analyze("conversation",False));assist_btn.clicked.connect(lambda:self._ai_current_assist_dialog(dlg));crm_btn.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg));learn_btn.clicked.connect(lambda:self._ai_learning_dialog(dlg));close.clicked.connect(dlg.accept)
+010411:         dlg.finished.connect(lambda _=0:self._ai_observer_dialog_closed(txt,status));dlg.exec()
+010412: 
+010413:     def _ai_observer_dialog_closed(self,txt,status):
+010414:         if getattr(self,"_ai_observer_text_widget",None) is txt:self._ai_observer_text_widget=None
+010415:         if getattr(self,"_ai_observer_status_widget",None) is status:self._ai_observer_status_widget=None
+010416: 
+010417:     def _diagnostic_show_dialog(self):
+010418:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QTextEdit,QPushButton,QFileDialog,QMessageBox,QLabel
+010419:         import datetime
+010420:         dlg=QDialog(self); dlg.setWindowTitle("📊 Diagnóstico do atendimento"); dlg.resize(850,700)
+010421:         lay=QVBoxLayout(dlg); info=QLabel(""); info.setStyleSheet("font-weight:700;"); lay.addWidget(info)
+010422:         txt=QTextEdit(); txt.setReadOnly(True); txt.setStyleSheet("font-size:12px;font-weight:600;"); lay.addWidget(txt,1)
+010423:         def filtered_rows():
+010424:             groups=set(self._diagnostic_groups_load()); rows=self._diagnostic_read()
+010425:             return [x for x in rows if not (isinstance(x,dict) and str(x.get("client") or "").strip() in groups)]
+010426:         def refresh():
+010427:             try:
+010428:                 groups=set(self._diagnostic_groups_load()); pending=len(self._diagnostic_waiting_snapshot())
+010429:                 info.setText(f"Contatos individuais • {len(groups)} grupo(s) ignorado(s) • {pending} aguardando resposta agora")
+010430:                 txt.setPlainText(self._diagnostic_whatsapp_overview_text()+"\n\n"+self._diagnostic_enhanced_text(filtered_rows()))
+010431:             except RuntimeError:
+010432:                 # Pode existir um timeout ja enfileirado no instante em que a janela fecha.
+010433:                 return
+010434:         refresh(); live=QTimer(dlg); live.setInterval(5000); live.timeout.connect(refresh); live.start()
+010435:         dlg.finished.connect(lambda _=0,t=live:t.stop())
+010436:         bar=QHBoxLayout(); history=QPushButton("👤 Histórico por contato"); daily=QPushButton("📅 Resumo do dia"); ai_btn=QPushButton("🤖 IA Observadora"); folder_btn=QPushButton("📁 Abrir pasta"); refresh_btn=QPushButton("↻ Atualizar"); export=QPushButton("📤 Exportar diagnóstico"); close=QPushButton("Fechar")
+010437:         for b in (history,daily,ai_btn,folder_btn,refresh_btn,export):bar.addWidget(b)
+010438:         bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+010439:         history.clicked.connect(lambda:self._diagnostic_contact_history_dialog(dlg)); daily.clicked.connect(lambda:self._diagnostic_show_daily_summary(dlg)); ai_btn.clicked.connect(lambda:self._ai_observer_dialog(dlg)); folder_btn.clicked.connect(lambda:self._diagnostic_open_backup_folder(dlg)); refresh_btn.clicked.connect(refresh)
+010440:         def do_export():
+010441:             fn=f"ALIYVO_diagnostico_{datetime.date.today().isoformat()}.json"; path,_=QFileDialog.getSaveFileName(dlg,"Exportar diagnóstico",fn,"Arquivo JSON (*.json)")
+010442:             if not path:return
+010443:             try:
+010444:                 current=filtered_rows(); ignored=sorted(self._diagnostic_groups_load(),key=str.lower)
+010445:                 payload={"aliyvo_version":ALIYVO_VERSION,"exported_at":datetime.datetime.now().isoformat(timespec="seconds"),"mode":"contatos_individuais","ignored_groups":ignored,"summary":self._diagnostic_enhanced_text(current),"daily_summary":self._diagnostic_daily_summary_text(current),"waiting_now":self._diagnostic_waiting_snapshot(),"events":current,"attendance_snapshot":getattr(self,"_attendance_data",{})}
+010446:                 Path(path).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8"); QMessageBox.information(dlg,"Diagnóstico","Arquivo exportado com histórico, resumo do dia e contatos aguardando.")
+010447:             except Exception as e:QMessageBox.warning(dlg,"Diagnóstico",f"Não consegui exportar: {e}")
+010448:         export.clicked.connect(do_export);close.clicked.connect(dlg.accept);dlg.exec()
+010449:         try:live.stop()
+010450:         except Exception:pass
+010451: 
+010452:     def _reminder_file(self):
+010453:         try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+010454:         except Exception: pass
+010455:         return USER_DATA_DIR/"lembretes.json"
+010456: 
+010457:     def _reminder_load(self):
+010458:         try:
+010459:             f=self._reminder_file()
+010460:             if f.exists():
+010461:                 x=json.loads(f.read_text(encoding="utf-8"))
+010462:                 if isinstance(x,list): return x
+010463:         except Exception: pass
+010464:         return []
+010465: 
+010466:     def _reminder_save(self):
+010467:         try: self._reminder_file().write_text(json.dumps(self._reminders,ensure_ascii=False,indent=2),encoding="utf-8")
+010468:         except Exception: pass
+010469: 
+010470:     def _reminder_start(self):
+010471:         self._reminders=self._reminder_load()
+010472:         self._reminder_update_button()
+010473:         self._reminder_timer=QTimer(self); self._reminder_timer.setInterval(15000)
+010474:         self._reminder_timer.timeout.connect(self._reminder_check); self._reminder_timer.start()
+010475:         QTimer.singleShot(1800,self._reminder_check)
+010476: 
+010477:     def _reminder_update_button(self):
+010478:         try:
+010479:             n=sum(1 for x in getattr(self,"_reminders",[]) if isinstance(x,dict) and not x.get("done"))
+010480:             self.reminder_toggle.setText(f"⏰  Lembretes ({n})" if n else "⏰  Lembretes")
+010481:         except Exception: pass
+010482: 
+010483:     def _reminder_show_dialog(self):
+010484:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QListWidget,QListWidgetItem,QPushButton,QComboBox,QLabel,QWidget
+010485:         from PyQt6.QtGui import QColor,QFont
+010486:         from PyQt6.QtCore import QSize
+010487:         import datetime,time
+010488:         dlg=QDialog(self); dlg.setWindowTitle("📊 ALIYVO CRM — Lembretes e Oportunidades"); dlg.resize(940,690); lay=QVBoxLayout(dlg)
+010489: 
+010490:         # Cabeçalho visual do CRM
+010491:         crm_title=QLabel("ALIYVO CRM")
+010492:         crm_title.setStyleSheet("font-size:22px;font-weight:900;color:#0B3349;padding:2px 2px 0 2px;")
+010493:         crm_sub=QLabel("Lembretes, clientes esperando e oportunidades em um só lugar")
+010494:         crm_sub.setStyleSheet("font-size:11px;font-weight:600;color:#657784;padding:0 2px 8px 2px;")
+010495:         lay.addWidget(crm_title);lay.addWidget(crm_sub)
+010496: 
+010497:         cards=QHBoxLayout();cards.setSpacing(8)
+010498:         card_over=QPushButton();card_today=QPushButton();card_wait=QPushButton();card_ai=QPushButton()
+010499:         for c in (card_over,card_today,card_wait,card_ai):
+010500:             c.setMinimumHeight(72);c.setCursor(Qt.CursorShape.PointingHandCursor)
+010501:             cards.addWidget(c,1)
+010502:         lay.addLayout(cards)
+010503: 
+010504:         top=QHBoxLayout();top.addWidget(QLabel("Mostrar:"));filt=QComboBox();filt.addItems(["A fazer","Concluídos","Todos","Vencidos"]);filt.setCurrentText("A fazer");top.addWidget(filt)
+010505:         counts=QLabel("");counts.setStyleSheet("font-weight:800;color:#44515b;");top.addWidget(counts);top.addStretch(1)
+010506:         today_btn=QPushButton("📌 Hoje");top.addWidget(today_btn);crm=QPushButton("🤖 Pendências da IA");top.addWidget(crm);lay.addLayout(top)
+010507: 
+010508:         legend=QLabel("🔴 vencido   🟠 até 1h   🟡 hoje   🔵 futuro   🟢 concluído   •   status CRM aparece no cartão")
+010509:         legend.setStyleSheet("font-weight:700;color:#59636d;padding:2px 4px;");lay.addWidget(legend)
+010510:         lst=QListWidget();lst.setSpacing(7);lst.setStyleSheet("QListWidget{border:1px solid #d7dee5;background:#F7FAFC;padding:4px;} QListWidget::item{border:none;} QListWidget::item:selected{border:2px solid #1f6feb;border-radius:9px;}");lay.addWidget(lst,1)
+010511:         def urgency(r,now):
+010512:             if bool(r.get('done')):return (4,'CONCLUÍDO','🟢','#e8f7ee','#176b3a')
+010513:             try:due=float(r.get('due_ts') or 0)
+010514:             except Exception:due=0
+010515:             if due and due<now:return (0,'VENCIDO','🔴','#ffd9de','#9e1027')
+010516:             if due and 0<=due-now<=3600:return (1,'<1H','🟠','#ffe2bd','#9b4d00')
+010517:             if due:
+010518:                 d=datetime.datetime.fromtimestamp(due)
+010519:                 if d.date()==datetime.datetime.now().date():return (2,'HOJE','🟡','#fff4bf','#715a00')
+010520:             return (3,'FUTURO','🔵','#e0efff','#16558c')
+010521:         def make_card(r,now):
+010522:             due_ts=float(r.get('due_ts') or 0);due=datetime.datetime.fromtimestamp(due_ts).strftime('%d/%m/%Y %H:%M') if due_ts else 'Sem data';client=str(r.get('client') or '').strip();rank,label,icon,bg,fg=urgency(r,now);title=str(r.get('text') or '').strip()
+010523:             card=QWidget();card.setStyleSheet(f"QWidget{{background:{bg};border-radius:9px;}}")
+010524:             # O card e apenas a camada visual. O clique deve chegar ao item da lista.
+010525:             card.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents,True)
+010526:             vl=QVBoxLayout(card);vl.setContentsMargins(12,8,12,8);vl.setSpacing(3)
+010527:             top_line=QHBoxLayout();top_line.setContentsMargins(0,0,0,0);top_line.setSpacing(8)
+010528:             badge=QLabel(f"{icon} {label}");badge.setStyleSheet(f"font-size:10px;font-weight:900;color:{fg};background:transparent;")
+010529:             title_lab=QLabel(title);title_lab.setWordWrap(True);title_lab.setStyleSheet(f"font-size:14px;font-weight:900;color:{fg};background:transparent;")
+010530:             top_line.addWidget(badge,0);top_line.addWidget(title_lab,1);vl.addLayout(top_line)
+010531:             meta=(f"{due}" + (f"   •   {client}" if client else ""))
+010532:             meta_lab=QLabel(meta);meta_lab.setStyleSheet(f"font-size:10px;font-weight:600;color:{fg};background:transparent;");vl.addWidget(meta_lab)
+010533:             if client:
+010534:                 try:state=self._crm_state_for_client(client) or {}
+010535:                 except Exception:state={}
+010536:                 if state:
+010537:                     owner=str(state.get('owner') or '-')
+010538:                     st=str(state.get('status') or 'Sem classificação')
+010539:                     action=str(state.get('next_action') or '')
+010540:                     crm_lab=QLabel(f"CRM: {st}   •   responsável: {owner}" + (f"\nPróxima ação: {action}" if action else ""))
+010541:                     crm_lab.setWordWrap(True)
+010542:                     crm_lab.setStyleSheet("font-size:10px;font-weight:800;color:#173B52;background:rgba(255,255,255,0.55);border-radius:6px;padding:5px 7px;")
+010543:                     vl.addWidget(crm_lab)
+010544:             return card
+010545:         def refresh():
+010546:             lst.clear();now=time.time();allrows=[x for x in self._reminders if isinstance(x,dict)];pending=[x for x in allrows if not x.get('done')];done_rows=[x for x in allrows if x.get('done')];overdue=[x for x in pending if float(x.get('due_ts') or 0)<now]
+010547:             today_count=0
+010548:             for _r in pending:
+010549:                 try:
+010550:                     _d=float(_r.get('due_ts') or 0)
+010551:                     if _d and datetime.datetime.fromtimestamp(_d).date()==datetime.datetime.now().date():today_count+=1
+010552:                 except Exception:pass
+010553:             try:waiting_count=len(self._diagnostic_waiting_snapshot() or [])
+010554:             except Exception:waiting_count=0
+010555:             try:ai_pending=len(self._crm_states_payload(100,True) or [])
+010556:             except Exception:ai_pending=0
+010557:             card_over.setText(f"🔴\n{len(overdue)}\nVENCIDOS")
+010558:             card_over.setStyleSheet("background:#FFD9DE;color:#9E1027;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
+010559:             card_today.setText(f"🟡\n{today_count}\nHOJE")
+010560:             card_today.setStyleSheet("background:#FFF2B7;color:#6A5600;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
+010561:             card_wait.setText(f"💬\n{waiting_count}\nESPERANDO")
+010562:             card_wait.setStyleSheet("background:#DDEEFF;color:#155B8A;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
+010563:             card_ai.setText(f"🤖\n{ai_pending}\nPENDÊNCIAS IA")
+010564:             card_ai.setStyleSheet("background:#DFF5E8;color:#176B3A;border-radius:10px;font-size:13px;font-weight:900;padding:7px;")
+010565:             counts.setText(f"A fazer: {len(pending)}   •   Concluídos: {len(done_rows)}")
+010566:             mode=filt.currentText();rows=pending if mode=='A fazer' else done_rows if mode=='Concluídos' else overdue if mode=='Vencidos' else allrows
+010567:             rows=sorted(rows,key=lambda r:(urgency(r,now)[0],float(r.get('due_ts') or 0)))
+010568:             for r in rows:
+010569:                 it=QListWidgetItem();it.setData(Qt.ItemDataRole.UserRole,str(r.get('id') or ''))
+010570:                 card=make_card(r,now)
+010571:                 it.setSizeHint(QSize(100,max(70,card.sizeHint().height()+10)))
+010572:                 lst.addItem(it);lst.setItemWidget(it,card)
+010573:         refresh();filt.currentIndexChanged.connect(refresh)
+010574:         card_over.clicked.connect(lambda:filt.setCurrentText("Vencidos"))
+010575:         card_today.clicked.connect(lambda:self._today_quick_panel(dlg))
+010576:         card_wait.clicked.connect(lambda:self._today_quick_panel(dlg))
+010577:         card_ai.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+010578:         bar=QHBoxLayout();add_current=QPushButton("⏰ Desta conversa");add=QPushButton("＋ Novo");open_client=QPushButton("💬 Abrir cliente");edit=QPushButton("✏ Editar");complete=QPushButton("✅ Concluir");reopen=QPushButton("↩ Reabrir");delete=QPushButton("🗑 Excluir");close=QPushButton("Fechar")
+010579:         for b in (add_current,add,open_client,edit,complete,reopen,delete):bar.addWidget(b)
+010580:         bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
+010581:         def selected():
+010582:             it=lst.currentItem();return str(it.data(Qt.ItemDataRole.UserRole) or '') if it else ''
+010583:         def finish():
+010584:             rid=selected()
+010585:             if not rid:return
+010586:             for r in self._reminders:
+010587:                 if str(r.get('id') or '')==rid:r['done']=True;r['alerted']=True;self._diagnostic_log('reminder_done',client=r.get('client',''),text=r.get('text',''));break
+010588:             self._reminder_save();self._reminder_update_button();refresh()
+010589:         def do_reopen():
+010590:             rid=selected()
+010591:             if not rid:return
+010592:             for r in self._reminders:
+010593:                 if str(r.get('id') or '')==rid:r['done']=False;r['alerted']=False;self._diagnostic_log('reminder_reopened',client=r.get('client',''),text=r.get('text',''));break
+010594:             self._reminder_save();self._reminder_update_button();refresh()
+010595:         def remove():
+010596:             rid=selected()
+010597:             if not rid:return
+010598:             self._reminders=[r for r in self._reminders if str(r.get('id') or '')!=rid];self._reminder_save();self._reminder_update_button();refresh()
+010599:         def do_edit():
+010600:             rid=selected()
+010601:             if rid:self._reminder_edit(rid,dlg,refresh)
+010602:         def do_open_client():
+010603:             rid=selected()
+010604:             if not rid:return
+010605:             client=""
+010606:             for r in self._reminders:
+010607:                 if isinstance(r,dict) and str(r.get('id') or '')==rid:
+010608:                     client=str(r.get('client') or '').strip();break
+010609:             if not client:
+010610:                 QMessageBox.information(dlg,"CRM","Este lembrete não está vinculado a um cliente.");return
+010611:             dlg.accept()
+010612:             QTimer.singleShot(120,lambda c=client:self._attendance_open_chat(c))
+010613:         add_current.clicked.connect(lambda:self._reminder_add_from_current(dlg,refresh));add.clicked.connect(lambda:self._reminder_add(dlg,refresh));open_client.clicked.connect(do_open_client);edit.clicked.connect(do_edit);complete.clicked.connect(finish);reopen.clicked.connect(do_reopen);delete.clicked.connect(remove);close.clicked.connect(dlg.accept);lst.itemDoubleClicked.connect(lambda _it:do_edit())
+010614:         today_btn.clicked.connect(lambda:self._today_quick_panel(dlg))
+010615:         try:crm.clicked.connect(lambda:self._ai_crm_reminders_dialog(dlg))
+010616:         except Exception:crm.setEnabled(False)
+010617:         dlg.exec()
+010618: 
+010619:     def _reminder_edit(self,rid,parent=None,refresh=None):
+010620:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QDateEdit,QHBoxLayout,QPushButton,QMessageBox
+010621:         from PyQt6.QtCore import QDate,QTimer
+010622:         import time,datetime
+010623:         class TimeEdit(QLineEdit):
+010624:             def mousePressEvent(self,e):
+010625:                 super().mousePressEvent(e);QTimer.singleShot(0,self.selectAll)
+010626:             def focusInEvent(self,e):
+010627:                 super().focusInEvent(e);QTimer.singleShot(0,self.selectAll)
+010628:         reminder=None
+010629:         for r in getattr(self,"_reminders",[]):
+010630:             if isinstance(r,dict) and str(r.get("id") or "")==str(rid or ""):reminder=r;break
+010631:         if reminder is None:return
+010632:         dlg=QDialog(parent or self);dlg.setWindowTitle("✏ Editar lembrete");dlg.resize(560,300);lay=QVBoxLayout(dlg);form=QFormLayout()
+010633:         textw=QLineEdit(str(reminder.get("text") or ""));old=datetime.datetime.fromtimestamp(float(reminder.get("due_ts") or time.time()))
+010634:         datew=QDateEdit(QDate(old.year,old.month,old.day));datew.setDisplayFormat("dd/MM/yyyy");datew.setCalendarPopup(True)
+010635:         timew=TimeEdit(old.strftime("%H:%M"));timew.setInputMask("00:00");timew.setMaximumWidth(100);timew.setToolTip("Clique uma vez e digite a hora inteira, por exemplo 14:30")
+010636:         clientw=QLineEdit(str(reminder.get("client") or ""));clientw.setPlaceholderText("Opcional — ex.: Antiqueira")
+010637:         form.addRow("Lembrete:",textw);form.addRow("Data:",datew);form.addRow("Hora:",timew);form.addRow("Cliente:",clientw);lay.addLayout(form)
+010638:         bar=QHBoxLayout();save=QPushButton("💾 Salvar alterações");cancel=QPushButton("Cancelar");bar.addStretch(1);bar.addWidget(save);bar.addWidget(cancel);lay.addLayout(bar)
+010639:         def do_save():
+010640:             txt=textw.text().strip()
+010641:             if not txt:QMessageBox.information(dlg,"Lembrete","Digite o que você precisa lembrar.");return
+010642:             try:
+010643:                 hh,mm=[int(x) for x in timew.text().split(':')]
+010644:                 if not (0<=hh<=23 and 0<=mm<=59):raise ValueError
+010645:             except Exception:QMessageBox.information(dlg,"Lembrete","Digite uma hora válida no formato HH:MM.");return
+010646:             qd=datew.date();due=datetime.datetime(qd.year(),qd.month(),qd.day(),hh,mm).timestamp();old_text=str(reminder.get("text") or "");old_due=float(reminder.get("due_ts") or 0)
+010647:             reminder["text"]=txt;reminder["due_ts"]=due;reminder["client"]=clientw.text().strip();reminder["updated_at"]=time.time();reminder["alerted"]=False
+010648:             self._reminder_save();self._reminder_update_button();self._diagnostic_log("reminder_edited",client=reminder.get("client","") or "",text=txt,due_ts=due,old_text=old_text,old_due_ts=old_due);dlg.accept()
+010649:             if callable(refresh):refresh()
+010650:         save.clicked.connect(do_save);cancel.clicked.connect(dlg.reject);dlg.exec()
+010651: 
+010652:     def _reminder_add(self,parent=None,refresh=None,force_client=None,context=None,prefill_text=None,prefill_due=None):
+010653:         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QFormLayout,QLineEdit,QDateEdit,QCheckBox,QHBoxLayout,QPushButton,QMessageBox,QLabel
+010654:         from PyQt6.QtCore import QDate,QTimer
+010655:         import time,uuid,datetime
+010656:         class TimeEdit(QLineEdit):
+010657:             def mousePressEvent(self,e):
+010658:                 super().mousePressEvent(e);QTimer.singleShot(0,self.selectAll)
+010659:             def focusInEvent(self,e):
+010660:                 super().focusInEvent(e);QTimer.singleShot(0,self.selectAll)
+010661:         initial=datetime.datetime.fromtimestamp(float(prefill_due)) if prefill_due else (datetime.datetime.now()+datetime.timedelta(hours=1))
+010662:         dlg=QDialog(parent or self);dlg.setWindowTitle("Novo lembrete");dlg.resize(590,350);lay=QVBoxLayout(dlg);form=QFormLayout();textw=QLineEdit();textw.setPlaceholderText("Ex.: fechar pedido Antiqueira");
+010663:         if prefill_text:textw.setText(str(prefill_text))
+010664:         datew=QDateEdit(QDate(initial.year,initial.month,initial.day));datew.setDisplayFormat("dd/MM/yyyy");datew.setCalendarPopup(True)
+010665:         timew=TimeEdit(initial.strftime("%H:%M"));timew.setInputMask("00:00");timew.setMaximumWidth(100);timew.setToolTip("Clique uma vez e digite a hora inteira")
+010666:         current=str(force_client or getattr(self,"_diagnostic_active_name","") or "").strip();link=QCheckBox("Vincular ao contato atual");link.setChecked(bool(current));form.addRow("Lembrete:",textw);form.addRow("Data:",datew);form.addRow("Hora:",timew)
+010667:         if current:form.addRow("Contato:",QLabel(current));form.addRow("",link)
+010668:         ctx=str(context or "").strip()
+010669:         if ctx:
+010670:             lab=QLabel(ctx[-500:]);lab.setWordWrap(True);lab.setStyleSheet("color:#526777;font-size:10px;");form.addRow("Contexto salvo:",lab)
+010671:         lay.addLayout(form);bar=QHBoxLayout();save=QPushButton("Salvar lembrete");cancel=QPushButton("Cancelar");bar.addStretch(1);bar.addWidget(save);bar.addWidget(cancel);lay.addLayout(bar)
+010672:         def do_save():
+010673:             txt=textw.text().strip()
+010674:             if not txt:QMessageBox.information(dlg,"Lembrete","Digite o que você precisa lembrar.");return
+010675:             try:
+010676:                 hh,mm=[int(x) for x in timew.text().split(':')]
+010677:                 if not (0<=hh<=23 and 0<=mm<=59):raise ValueError
+010678:             except Exception:QMessageBox.information(dlg,"Lembrete","Digite uma hora válida no formato HH:MM.");return
+010679:             qd=datew.date();due=datetime.datetime(qd.year(),qd.month(),qd.day(),hh,mm).timestamp();client=current if (current and link.isChecked()) else "";r={"id":uuid.uuid4().hex,"text":txt,"due_ts":due,"client":client,"context":ctx if client else "","done":False,"alerted":False,"created_at":time.time()}
+010680:             if client:
+010681:                 pri=self._ai_priority_for_client(client);r["ai_priority_at_creation"]=pri
+010682:             self._reminders.append(r);self._reminder_save();self._reminder_update_button();self._diagnostic_log("reminder_created",client=client,text=txt,due_ts=due);dlg.accept()
+010683:             if callable(refresh):refresh()
+010684:         save.clicked.connect(do_save);cancel.clicked.connect(dlg.reject);dlg.exec()
+010685: 
+010686:     def _reminder_check(self):
+010687:         import time,datetime
+010688:         from PyQt6.QtWidgets import QMessageBox
+010689:         now=time.time();changed=False
+010690:         due=[r for r in getattr(self,"_reminders",[]) if isinstance(r,dict) and not r.get("done") and not r.get("alerted") and float(r.get("due_ts") or 0)<=now]
+010691:         for r in due[:3]:
+010692:             r["alerted"]=True;changed=True;client=str(r.get("client") or "").strip();ctx=str(r.get("context") or "").strip();body=(f"Cliente: {client}\n\n" if client else "")+str(r.get("text") or "")
+010693:             if client:
+010694:                 pri=self._ai_priority_for_client(client);body+=f"\n\nPrioridade CRM: {pri.get('level','baixa').upper()}"+("\n"+"; ".join(pri.get("reasons") or []) if pri.get("reasons") else "")
+010695:             if ctx:body+="\n\nContexto:\n"+ctx[-500:]
+010696:             box=QMessageBox(self);box.setWindowTitle("⏰ Lembrete ALIYVO");box.setIcon(QMessageBox.Icon.Information);box.setText(body)
+010697:             done=box.addButton("✅ Concluir",QMessageBox.ButtonRole.AcceptRole);openb=box.addButton("↗ Abrir conversa",QMessageBox.ButtonRole.ActionRole) if client else None;m20=box.addButton("⏳ Adiar 20 min",QMessageBox.ButtonRole.ActionRole);h1=box.addButton("⏰ Adiar 1 hora",QMessageBox.ButtonRole.ActionRole);tom=box.addButton("🌅 Amanhã 09:00",QMessageBox.ButtonRole.ActionRole);box.addButton("Fechar",QMessageBox.ButtonRole.RejectRole)
+010698:             box.exec();clicked=box.clickedButton()
+010699:             if clicked==done:r["done"]=True;self._diagnostic_log("reminder_done",client=client,text=r.get("text",""))
+010700:             elif openb is not None and clicked==openb:
+010701:                 try:self._attendance_open_chat(client)
+010702:                 except Exception:pass
+010703:             elif clicked==m20:r["due_ts"]=now+1200;r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),minutes=20)
+010704:             elif clicked==h1:r["due_ts"]=now+3600;r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),minutes=60)
+010705:             elif clicked==tom:
+010706:                 d=datetime.datetime.now()+datetime.timedelta(days=1);d=d.replace(hour=9,minute=0,second=0,microsecond=0);r["due_ts"]=d.timestamp();r["alerted"]=False;self._diagnostic_log("reminder_snoozed",client=client,text=r.get("text",""),until="tomorrow_0900")
+010707:         if changed:self._reminder_save();self._reminder_update_button()
+010708: 
+010709:     def _technical_open_and_analyze(self):
+010710:         self._open_quick_tool("technical")
+010711:         try:
+010712:             if hasattr(self.technical_panel,"browser") and not self.technical_panel.browser.url().isValid():
+010713:                 self.technical_panel.browser.setUrl(QUrl(self.technical_panel.URL))
+010714:             if hasattr(self.technical_panel,"_force_browser_focus"):
+010715:                 QTimer.singleShot(120,self.technical_panel._force_browser_focus)
+010716:         except Exception:
+010717:             pass
+010718: 
+010719:     def _technical_analyze_current(self):
+010720:         try:
+010721:             self.technical_panel.set_loading()
+010722:         except Exception:
+010723:             pass
+010724:         js=r"""
+010725:         (() => {
+010726:           try{
+010727:             const main=document.querySelector('#main') || document.querySelector('[data-testid="conversation-panel-wrapper"]');
+010728:             if(!main) return {ok:false,error:'Abra uma conversa no WhatsApp antes de analisar.'};
+010729: 
+010730:             let name='';
+010731:             const h=main.querySelector('header [data-testid="conversation-info-header-chat-title"]') ||
+010732:                     main.querySelector('header span[title]') || main.querySelector('header [title]');
+010733:             if(h) name=(h.getAttribute('title')||h.textContent||'').trim();
+010734: 
+010735:             const mainRect=main.getBoundingClientRect();
+010736:             const midX=mainRect.left+(mainRect.width*0.50);
+010737:             const context=[];
+010738:             const seen=new Set();
+010739:             const clean=(t) => String(t||'').replace(/\s+/g,' ').trim();
+010740: 
+===== L6215-L6305 =====
+006215:         self.brand_bar.closeRequested.connect(self.close)
+006216:         shell_lay.addWidget(self.brand_bar)
+006217: 
+006218:         # ========== SEGUNDA FAIXA DO MOCKUP ==========
+006219:         nav=QWidget()
+006220:         nav.setObjectName("aliyvoNav")
+006221:         nav.setFixedHeight(44)
+006222:         nav.setStyleSheet("""
+006223:             QWidget#aliyvoNav{
+006224:                 background:#061626;
+006225:                 border-bottom:1px solid #15364B;
+006226:             }
+006227:             QWidget#aliyvoNav QPushButton{
+006228:                 background:#071C2E;
+006229:                 color:#EFF8F5;
+006230:                 border:1px solid #12374D;
+006231:                 border-radius:6px;
+006232:                 padding:6px 15px;
+006233:                 min-height:25px;
+006234:                 font-size:11px;
+006235:                 font-weight:700;
+006236:             }
+006237:             QWidget#aliyvoNav QPushButton:hover{
+006238:                 background:#0B2E35;
+006239:                 border-color:#20E983;
+006240:             }
+006241:         """)
+006242:         nav_lay=QHBoxLayout(nav)
+006243:         nav_lay.setContentsMargins(14,5,14,5)
+006244:         nav_lay.setSpacing(14)
+006245: 
+006246:         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+006247:         self.prazo_toggle=QPushButton("▣  Prazos")
+006248:         self.chat_toggle=QPushButton("◉  Assistente")
+006249:         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+006250:         self.plate_toggle=QPushButton("🚚  Busca placa")
+006251:         self.attendance_toggle=QPushButton("📊  Diagnóstico")
+006252:         self.reminder_toggle=QPushButton("⏰  Lembretes")
+006253:         self.radar_toggle=QPushButton("🎯  Radar da Carteira")
+006254:         self.radar_toggle.setToolTip("Inteligência automática da carteira • histórico 12 meses + recompra")
+006255:         self.radar_toggle.clicked.connect(self._radar_show_dialog)
+006256:         self.ponto_toggle=QPushButton("🕒  Ponto")
+006257:         self.ponto_toggle.setToolTip("Controle de ponto • 07:50 • 12:08 • 13:30 • 18:00")
+006258: 
+006259:         # Primeiro botão destacado como na referência
+006260:         self.campaign_toggle.setStyleSheet("""
+006261:             QPushButton{
+006262:                 background:#061E28;
+006263:                 color:#F3FBF8;
+006264:                 border:1px solid #0CCB72;
+006265:                 border-radius:6px;
+006266:                 padding:6px 15px;
+006267:                 min-height:25px;
+006268:                 font-size:11px;
+006269:                 font-weight:700;
+006270:             }
+006271:             QPushButton:hover{
+006272:                 background:#0A332D;
+006273:                 border-color:#20E983;
+006274:             }
+006275:         """)
+006276: 
+006277:         nav_lay.addWidget(self.campaign_toggle)
+006278:         # 0.23.05: Prazos, Assistente e Busca por imagem já existem na lateral.
+006279:         # Mantemos os objetos vivos para preservar integrações/atalhos existentes,
+006280:         # mas não duplicamos os botões na barra superior.
+006281:         self.prazo_toggle.hide()
+006282:         self.chat_toggle.hide()
+006283:         self.nav_lens_toggle.hide()
+006284:         nav_lay.addWidget(self.plate_toggle)
+006285:         nav_lay.addWidget(self.attendance_toggle)
+006286:         nav_lay.addWidget(self.reminder_toggle)
+006287:         nav_lay.addWidget(self.radar_toggle)
+006288:         nav_lay.addWidget(self.ponto_toggle)
+006289:         nav_lay.addStretch(1)
+006290:         shell_lay.addWidget(nav)
+006291: 
+006292:         # ========== CORPO ==========
+006293:         body=QWidget()
+006294:         body.setObjectName("aliyvoBody")
+006295:         body.setMinimumHeight(0)
+006296:         body.setSizePolicy(
+006297:             QSizePolicy.Policy.Expanding,
+006298:             QSizePolicy.Policy.Expanding
+006299:         )
+006300:         body.setStyleSheet(
+006301:             "QWidget#aliyvoBody{background:#061626;}"
+006302:         )
+006303:         body_lay=QHBoxLayout(body)
+006304:         body_lay.setContentsMargins(0,0,0,0)
+006305:         body_lay.setSpacing(0)
