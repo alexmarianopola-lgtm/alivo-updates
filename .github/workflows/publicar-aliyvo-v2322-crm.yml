@@ -1,0 +1,79 @@
+name: Publicar ALIYVO 0.23.22 CRM Clientes
+on:
+  push:
+    paths:
+      - 'trigger-v2322-crm.txt'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.21 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02321.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02321.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.21 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Aplicar CRM 0.23.22
+        shell: pwsh
+        run: |
+          python patch_crm_clientes_v2322.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_ponto.py C:\temp\build\_app\updater_worker.pyw
+          python tests\logic_crm_clientes_v2322.py C:\temp\build\_app
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Teste de abertura
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $p=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 8
+          if($p.HasExited -and $p.ExitCode -ne 0){ throw "ALIYVO encerrou ao abrir: $($p.ExitCode)" }
+          if(-not $p.HasExited){ Stop-Process -Id $p.Id -Force }
+          Write-Host 'STARTUP=OK'
+      - name: Empacotar e validar
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02322.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02322.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py
+          python tests\logic_crm_clientes_v2322.py C:\temp\verify\_app
+          $main=Get-Content C:\temp\verify\_app\main.py -Raw
+          if($main -notmatch 'ALIYVO_VERSION = "0.23.22"'){ throw 'Versao incorreta' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02322.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.22 - CRM CLIENTES',
+            'Cadastro cliente/empresa: OK',
+            'Telefone/WhatsApp: OK',
+            'Comprador e funcao: OK',
+            'O que compra e marcas/frota: OK',
+            'Observacoes: OK',
+            'Historico de contatos: OK',
+            'Follow-up 1/3/7/15/30 dias: OK',
+            'Integracao com lembretes e Hoje: OK',
+            'Abrir WhatsApp usando telefone CRM: OK',
+            'Startup: OK',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02322.txt -Encoding UTF8
+      - name: Publicar oficial
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.22 C:\temp\out\ALIYVO_BETA_GRATIS_02322.zip C:\temp\out\VALIDACAO_02322.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.22 - CRM Clientes e Follow-up" --notes "CRM comercial direto: cadastro de cliente/empresa, telefone, comprador, funcao, o que compra, marcas/frota e observacoes; historico de contatos; registrar conversa/ligacao/cotacao; agendar retorno em 1, 3, 7, 15 ou 30 dias; integracao com Lembretes/Hoje e abertura direta do WhatsApp." --latest
