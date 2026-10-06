@@ -493,6 +493,94 @@ class AliyvoCallAIManager(QObject):
         self._filter = None
         self.updated.connect(self._on_updated)
         self._cfg = self._load_cfg()
+        self._poll_busy = False
+        self._poll_missing = 0
+        self._call_poll_timer = QTimer(self)
+        self._call_poll_timer.setInterval(1000)
+        self._call_poll_timer.timeout.connect(self._poll_call_ui)
+        self._call_poll_timer.start()
+
+    def _poll_call_ui(self):
+        """Detector leve (1 s) para iniciar a gravação sem esperar o diagnóstico de 20 s."""
+        if self._poll_busy:
+            return
+        try:
+            web = getattr(self.owner, "web", None)
+            if web is None:
+                return
+            self._poll_busy = True
+            js = r"""
+            (() => {
+              try{
+                const clean=t=>String(t||'').replace(/\s+/g,' ').trim();
+                const vis=e=>{try{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&r.bottom>0&&r.right>0&&s.display!=='none'&&s.visibility!=='hidden';}catch(_){return false;}};
+                const meta=e=>clean((e.getAttribute&&e.getAttribute('aria-label')||'')+' '+(e.getAttribute&&e.getAttribute('data-testid')||'')+' '+(e.getAttribute&&e.getAttribute('data-icon')||'')+' '+(e.getAttribute&&e.getAttribute('title')||''));
+                const controls=Array.from(document.querySelectorAll('[aria-label],[data-testid],[data-icon],button'));
+                const hang=controls.find(e=>vis(e)&&/(encerrar\s*(?:a\s*)?(?:liga[cç][aã]o|chamada)|desligar|finalizar\s*(?:liga[cç][aã]o|chamada)|end[-_ ]?call|call[-_ ]?end|hang[-_ ]?up)/i.test(meta(e)));
+                if(!hang)return {active:false};
+                let box=hang,best=hang.parentElement||hang;
+                for(let i=0;i<10&&box&&box.parentElement;i++){
+                  box=box.parentElement;if(!vis(box))continue;
+                  const r=box.getBoundingClientRect(),t=String(box.innerText||box.textContent||'');
+                  if(r.width>=220&&r.width<=900&&r.height>=70&&r.height<=760&&/\b\d{1,3}:\d{2}(?::\d{2})?\b/.test(t))best=box;
+                }
+                const raw=String(best.innerText||best.textContent||'');
+                const lines=raw.split(/\n+/).map(clean).filter(Boolean);
+                let duration=0;
+                for(const ln of lines){
+                  let m=ln.match(/^\s*(\d{1,2}):(\d{2}):(\d{2})\s*$/);
+                  if(m){duration=parseInt(m[1])*3600+parseInt(m[2])*60+parseInt(m[3]);break;}
+                  m=ln.match(/^\s*(\d{1,3}):(\d{2})\s*$/);
+                  if(m){duration=parseInt(m[1])*60+parseInt(m[2]);break;}
+                }
+                let cname='';
+                const titled=Array.from(best.querySelectorAll('span[title],[title]')).filter(vis);
+                for(const e of titled){
+                  const v=clean(e.getAttribute('title')||e.textContent||'');
+                  if(v&&v.length>=2&&!/^\d{1,3}:\d{2}(?::\d{2})?$/.test(v)&&!/(encerrar|desligar|microfone|c[aâ]mera|camera|liga[cç][aã]o|chamada|call)/i.test(v)){cname=v;break;}
+                }
+                const allMeta=controls.filter(e=>vis(e)&&best.contains(e)).map(meta).join(' ');
+                const callType=/(chamada de v[ií]deo|video call)/i.test(raw+' '+allMeta)?'video':'voice';
+                return {active:true,client:cname,duration_seconds:Math.max(0,duration||0),call_type:callType};
+              }catch(e){return {active:false,error:String(e)};}
+            })();
+            """
+            web.page().runJavaScript(js, self._poll_call_done)
+        except Exception:
+            self._poll_busy = False
+
+    def _poll_call_done(self, result):
+        self._poll_busy = False
+        now = time.time()
+        live = result if isinstance(result, dict) else {}
+        if bool(live.get("active")):
+            self._poll_missing = 0
+            client = str(live.get("client") or getattr(self.owner, "_diagnostic_active_name", "") or "Contato").strip() or "Contato"
+            duration = max(0, int(live.get("duration_seconds") or 0))
+            if self._active is None:
+                self.on_call_started({
+                    "client": client,
+                    "start_ts": now - duration if duration > 0 else now,
+                    "duration_seconds": duration,
+                    "call_type": str(live.get("call_type") or "voice"),
+                    "session_id": f"fast|{client}|{int(now-duration if duration>0 else now)}",
+                })
+            return
+        if self._active is not None:
+            self._poll_missing += 1
+            if self._poll_missing >= 2:
+                call = self._find(self._active.get("id"))
+                started = float(call.get("started_ts") or now)
+                self._poll_missing = 0
+                self.on_call_finished({
+                    "client": call.get("client") or "Contato",
+                    "started_ts": started,
+                    "ended_ts": now,
+                    "duration_seconds": max(0, int(now-started)),
+                    "session_id": call.get("session_id") or "",
+                    "call_type": call.get("call_type") or "voice",
+                    "end_reason": "fast_overlay_gone",
+                })
 
     def _load_cfg(self):
         cfg = {"auto_record": True, "auto_crm": True, "auto_followup": True, "keep_sources": False}
@@ -742,6 +830,8 @@ class AliyvoCallAIManager(QObject):
         self._update_call(call_id,crm_applied=True,followup_created=bool(call.get("followup_created") or follow_created))
 
     def shutdown(self):
+        try:self._call_poll_timer.stop()
+        except Exception:pass
         active=self._active;self._active=None
         if isinstance(active,dict):
             try:active["recorder"].stop()
