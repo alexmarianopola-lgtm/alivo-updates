@@ -1,0 +1,293 @@
+===== _diagnostic_log =====
+            try:self._open_quick_tool("plate")
+            except Exception:pass
+
+    def _diagnostic_file(self):
+        try: USER_DATA_DIR.mkdir(parents=True,exist_ok=True)
+        except Exception: pass
+        return USER_DATA_DIR/"diagnostico_eventos.jsonl"
+
+    def _diagnostic_log(self,event,**payload):
+        try:
+            import time,datetime
+            row={"ts":time.time(),"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":str(event)}
+            for k,v in payload.items():
+                if v is not None: row[str(k)]=v
+            with self._diagnostic_file().open("a",encoding="utf-8") as f:
+                f.write(json.dumps(row,ensure_ascii=False)+"\n")
+            cache=getattr(self,"_diagnostic_cache_rows",None)
+            if isinstance(cache,list):
+                cache.append(dict(row))
+        except Exception:
+            pass
+
+    def _diagnostic_start(self):
+        # Cache em memoria: o historico JSONL e carregado uma vez por sessao.
+        # Novos eventos sao acrescentados ao cache em _diagnostic_log.
+        self._diagnostic_cache_rows=None
+        self._diagnostic_busy=False
+        self._diagnostic_active_name=""
+        self._diagnostic_last_active=""
+===== _diagnostic_finish_live_call =====
+            if times:
+                hh,mm=map(int,times[0])
+                base=datetime.datetime.combine(nd,datetime.time(hh,mm))
+                cand=base.timestamp()
+                return abs(mts-cand)<=20*60
+        except Exception:pass
+        return True
+
+    def _diagnostic_finish_live_call(self,now=None,reason="overlay_gone"):
+        import time
+        now=float(now or time.time());cur=getattr(self,"_diagnostic_live_call",None)
+        if not isinstance(cur,dict):self._diagnostic_live_call=None;self._diagnostic_live_missing=0;return
+        client=str(cur.get("client") or "").strip() or "Contato";start=float(cur.get("start_ts") or now)
+        duration=max(max(0,int(cur.get("duration_seconds") or 0)),max(0,int(now-start)))
+        session=str(cur.get("session_id") or f"live|{client}|{int(start)}")
+        self._diagnostic_log("call",client=client,direction=str(cur.get("direction") or "unknown"),call_type=str(cur.get("call_type") or "voice"),missed=False,duration_seconds=duration,call_key=session,source="live_overlay",started_ts=start,ended_ts=now,end_reason=reason)
+        recent=list(getattr(self,"_diagnostic_recent_live_calls",[]) or []);recent.append({"client":client,"ended_ts":now,"duration_seconds":duration,"call_type":str(cur.get("call_type") or "voice")})
+        self._diagnostic_recent_live_calls=[x for x in recent[-12:] if now-float(x.get("ended_ts") or now)<900]
+        self._diagnostic_live_call=None;self._diagnostic_live_missing=0
+
+    def _diagnostic_live_call_update(self,live,now=None,fallback_name=""):
+        import time
+        now=float(now or time.time())
+        if isinstance(live,dict) and bool(live.get("active")):
+            self._diagnostic_live_missing=0;client=str(live.get("client") or fallback_name or "").strip() or "Contato";duration=max(0,int(live.get("duration_seconds") or 0));ctype=str(live.get("call_type") or "voice")
+            cur=getattr(self,"_diagnostic_live_call",None)
+            if isinstance(cur,dict) and str(cur.get("client") or "").strip()!=client:self._diagnostic_finish_live_call(now,"contact_changed");cur=None
+===== _diagnostic_live_call_update =====
+        client=str(cur.get("client") or "").strip() or "Contato";start=float(cur.get("start_ts") or now)
+        duration=max(max(0,int(cur.get("duration_seconds") or 0)),max(0,int(now-start)))
+        session=str(cur.get("session_id") or f"live|{client}|{int(start)}")
+        self._diagnostic_log("call",client=client,direction=str(cur.get("direction") or "unknown"),call_type=str(cur.get("call_type") or "voice"),missed=False,duration_seconds=duration,call_key=session,source="live_overlay",started_ts=start,ended_ts=now,end_reason=reason)
+        recent=list(getattr(self,"_diagnostic_recent_live_calls",[]) or []);recent.append({"client":client,"ended_ts":now,"duration_seconds":duration,"call_type":str(cur.get("call_type") or "voice")})
+        self._diagnostic_recent_live_calls=[x for x in recent[-12:] if now-float(x.get("ended_ts") or now)<900]
+        self._diagnostic_live_call=None;self._diagnostic_live_missing=0
+
+    def _diagnostic_live_call_update(self,live,now=None,fallback_name=""):
+        import time
+        now=float(now or time.time())
+        if isinstance(live,dict) and bool(live.get("active")):
+            self._diagnostic_live_missing=0;client=str(live.get("client") or fallback_name or "").strip() or "Contato";duration=max(0,int(live.get("duration_seconds") or 0));ctype=str(live.get("call_type") or "voice")
+            cur=getattr(self,"_diagnostic_live_call",None)
+            if isinstance(cur,dict) and str(cur.get("client") or "").strip()!=client:self._diagnostic_finish_live_call(now,"contact_changed");cur=None
+            if not isinstance(cur,dict):
+                start=now-duration if duration>0 else now;session=f"live|{client}|{int(start)}";cur={"client":client,"start_ts":start,"duration_seconds":duration,"last_seen_ts":now,"call_type":ctype,"direction":"unknown","session_id":session};self._diagnostic_live_call=cur
+                self._diagnostic_log("call_live_started",client=client,call_type=ctype,started_ts=start,visible_duration_seconds=duration,call_key=session)
+            else:
+                cur["last_seen_ts"]=now;cur["duration_seconds"]=max(int(cur.get("duration_seconds") or 0),duration);cur["call_type"]=ctype or str(cur.get("call_type") or "voice")
+                if duration>0:
+                    estimated=now-duration
+                    if estimated<float(cur.get("start_ts") or now):cur["start_ts"]=estimated
+            return
+        cur=getattr(self,"_diagnostic_live_call",None)
+        if isinstance(cur,dict):
+            self._diagnostic_live_missing=int(getattr(self,"_diagnostic_live_missing",0) or 0)+1
+            if self._diagnostic_live_missing>=2:self._diagnostic_finish_live_call(now,"overlay_gone")
+        else:self._diagnostic_live_missing=0
+
+    def _diagnostic_live_row(self):
+        import time,datetime
+        live=getattr(self,"_diagnostic_live_call",None)
+        if not isinstance(live,dict):return None
+        now=time.time();start=float(live.get("start_ts") or now);dur=max(int(live.get("duration_seconds") or 0),max(0,int(now-start)))
+        return {"ts":now,"time":datetime.datetime.now().isoformat(timespec="seconds"),"event":"call","client":str(live.get("client") or ""),"direction":str(live.get("direction") or "unknown"),"call_type":str(live.get("call_type") or "voice"),"missed":False,"duration_seconds":dur,"source":"live_overlay","live":True}
+
+===== _diagnostic_scan_done =====
+        for i,d in enumerate(items[:20],1):
+            status="aguarda ação" if d.get("needs_reply",True) else "encerramento / sem resposta necessária"
+            cnt=max(1,int(d.get("unread_count") or 1));tm=str(d.get("row_time") or "");sn=str(d.get("snippet") or "").replace("\n"," ").strip()
+            if len(sn)>105:sn=sn[:102]+"..."
+            out.append(f"{i}. {d.get('client')} — {cnt} msg • {tm or '-'} • {status}")
+            if sn:out.append(f"   {sn}")
+        return "\n".join(out)
+
+    def _diagnostic_scan_done(self,result):
+        self._diagnostic_busy=False
+        if not isinstance(result,dict) or not result.get("ok"): return
+        import time
+        now=time.time(); active=result.get("active") or {}; name=str(active.get("name") or "").strip(); context=active.get("context") or []
+        self._diagnostic_active_name=name
+        try:self._diagnostic_live_call_update(result.get("live_call"),now,name)
+        except Exception:pass
+        if name and context:
+            try:
+                _parts=[]
+                for _m in context[-6:]:
+                    if isinstance(_m,dict):
+                        _t=str(_m.get("text") or "").strip()
+                        if _t:_parts.append(_t)
+                if _parts:self._diagnostic_last_context_by_contact[name]=" | ".join(_parts)[-900:]
+            except Exception: pass
+            try:self._smart_reminder_from_diagnostic(name,context)
+            except Exception as _smart_err:
+                try:self._diagnostic_log("smart_reminder_error",error=str(_smart_err)[:220])
+                except Exception:pass
+            # CRM Assistido 0.22.92: reaproveita o MESMO contexto ja extraido
+            # pelo diagnostico. Nao cria scanner, timer nem leitura adicional do DOM.
+            try:self._crm_update_state_from_context(name,context)
+            except Exception as _crm_err:
+                try:self._diagnostic_log("crm_state_error",error=str(_crm_err)[:220])
+                except Exception:pass
+
+        groups=set(getattr(self,"_diagnostic_groups",set()) or set())
+        learned=False
+        if name and bool(active.get("is_group")) and name not in groups:
+            groups.add(name); learned=True
+        for _row in (result.get("unread") or []):
+            if isinstance(_row,dict) and bool(_row.get("is_group")):
+                _n=str(_row.get("name") or "").strip()
+                if _n and _n not in groups: groups.add(_n); learned=True
+        if learned:
+            self._diagnostic_groups=groups; self._diagnostic_groups_save(groups)
+            for _g in list(groups):
+                self._diagnostic_pending.pop(_g,None)
+
+        # Monta a lista de nao lidos antes de analisar a conversa ativa. Isso evita
+        # criar uma pendencia apenas porque o usuario abriu uma conversa antiga.
+        try:self._diagnostic_update_whatsapp_overview(result,now)
+        except Exception:pass
+
+        unread_rows={}
+        for row in (result.get("unread") or []):
+            if isinstance(row,dict):
+                n=str(row.get("name") or "").strip()
+                if n and n not in groups and not bool(row.get("is_group")): unread_rows[n]=row
+        unread_pre=set(unread_rows)
+
+        changed_chat=bool(name and name not in groups and name!=getattr(self,"_diagnostic_last_active",""))
+        if changed_chat:
+            previous=getattr(self,"_diagnostic_last_active","") or ""
+            self._diagnostic_log("chat_opened",client=name,previous=previous)
+            self._diagnostic_last_active=name
+
+            for _pn,_pd in list(self._diagnostic_pending.items()):
+                if not isinstance(_pd,dict) or _pn==name or _pn in groups: continue
+                if _pd.get("opened_ts"):
+                    _pd["other_chat_opens"]=int(_pd.get("other_chat_opens") or 0)+1
+                    _ch=list(_pd.get("other_chats") or [])
+                    if name and name not in _ch:
+                        _ch.append(name); _pd["other_chats"]=_ch[-20:]
+
+            _prev_pending=self._diagnostic_pending.get(previous)
+            if previous and previous!=name and previous not in groups and isinstance(_prev_pending,dict) and _prev_pending.get("opened_ts"):
+                _prev_pending["interruptions"]=int(_prev_pending.get("interruptions") or 0)+1
+                _prev_pending["last_interruption_ts"]=now
+                self._diagnostic_log("attendance_interrupted",client=previous,switched_to=name,interruptions=int(_prev_pending.get("interruptions") or 0),wait_so_far_seconds=max(0,int(now-float(_prev_pending.get("received_ts") or now))))
+
+            p=self._diagnostic_pending.get(name)
+            if isinstance(p,dict) and not p.get("opened_ts"):
+                p["opened_ts"]=now
+                wait=max(0,int(now-float(p.get("received_ts") or now)))
+                self._diagnostic_log("pending_opened",client=name,until_open_seconds=wait,source=str(p.get("source") or ""))
+
+        if name and name not in groups and context:
+            seen=getattr(self,"_diagnostic_seen_calls",set())
+            for idx,x in enumerate(context):
+                if not isinstance(x,dict) or not x.get("is_call"): continue
+                side=str(x.get("side") or ""); raw=str(x.get("text") or "").strip(); base=str(x.get("call_key") or raw or f"call-{idx}")
+                call_key=(name+'|'+side+'|'+base)[-900:]
+                if call_key in seen:continue
+                _hist_dur=max(0,int(x.get("duration_seconds") or 0));_dup_live=False
+                for _lc in list(getattr(self,"_diagnostic_recent_live_calls",[]) or []):
+                    try:
+                        if str(_lc.get("client") or "").strip()==name and now-float(_lc.get("ended_ts") or 0)<=600:
+                            _ld=max(0,int(_lc.get("duration_seconds") or 0))
+                            if _hist_dur<=0 or _ld<=0 or abs(_hist_dur-_ld)<=180:_dup_live=True;break
+                    except Exception:pass
+                if _dup_live:seen.add(call_key);continue
+                seen.add(call_key); direction="outgoing" if side=="seller" else "incoming" if side=="customer" else "unknown"
+                _call_msg_ts=float(x.get("message_ts") or 0); _call_duration=int(x.get("duration_seconds") or 0)
+                self._diagnostic_log("call",client=name,direction=direction,call_type=str(x.get("call_type") or "voice"),missed=bool(x.get("missed")),duration_seconds=_call_duration,text=raw[:500],call_key=call_key,message_ts=_call_msg_ts or None)
+                if _call_msg_ts>0:
+                    for _pn,_pd in list(self._diagnostic_pending.items()):
+                        if not isinstance(_pd,dict): continue
+                        _recv=float(_pd.get("received_ts") or now)
+                        if _recv<=_call_msg_ts<=now:
+                            _pd["calls_during_wait"]=int(_pd.get("calls_during_wait") or 0)+1
+                            _pd["call_seconds_during_wait"]=int(_pd.get("call_seconds_during_wait") or 0)+max(0,_call_duration)
+                if direction=="incoming" and bool(x.get("missed")) and name not in self._diagnostic_pending:
+                    self._diagnostic_pending[name]={"received_ts":now,"opened_ts":now if name==self._diagnostic_active_name else None,"source":"missed_call"}
+            self._diagnostic_seen_calls=seen
+
+            last=context[-1] if isinstance(context[-1],dict) else {}; side=str(last.get("side") or ""); msg=str(last.get("text") or "").strip(); mts=float(last.get("message_ts") or 0)
+            closing=bool(side=="customer" and not last.get("is_call") and self._diagnostic_is_closing_message(msg))
+
+            if side=="customer" and not last.get("is_call") and not closing:
+                p=self._diagnostic_pending.get(name)
+                if isinstance(p,dict) and self._diagnostic_plausible_message_ts(mts,now,p):
+                    old=float(p.get("received_ts") or now)
+                    if str(p.get("source") or "")!="message_timestamp" or mts<old:
+                        p["received_ts"]=mts; p["source"]="message_timestamp"; p["timestamp_validated"]=True
+                        if p.get("opened_ts"):
+                            self._diagnostic_log("pending_refined",client=name,received_ts=mts,until_open_seconds=max(0,int(float(p.get("opened_ts"))-mts)))
+
+            sig=(side+"|"+msg)[-1800:]; prev=self._diagnostic_signatures.get(name)
+            if prev is None:
+                self._diagnostic_signatures[name]=sig
+                if side=="customer" and not last.get("is_call"):
+                    if closing:
+                        if self._diagnostic_pending.pop(name,None) is not None:
+                            self._diagnostic_log("customer_closing_message",client=name,text=msg[:200],action="cleared_pending")
+                    # Primeira leitura so cria espera se a conversa estava realmente nao lida
+                    # (ou se ja existia pendencia criada pela barra lateral).
+                    elif name in unread_pre or isinstance(self._diagnostic_pending.get(name),dict):
+                        p=self._diagnostic_pending.get(name)
+                        recv=mts if self._diagnostic_plausible_message_ts(mts,now,p) else (float(p.get("received_ts")) if isinstance(p,dict) and p.get("received_ts") else now)
+                        if not isinstance(p,dict):
+                            self._diagnostic_pending[name]={"received_ts":recv,"opened_ts":now,"source":"message_timestamp" if recv==mts and mts>0 else "active_detection","timestamp_validated":bool(recv==mts and mts>0)}
+                        else:
+                            if not p.get("opened_ts"):p["opened_ts"]=now
+                            if self._diagnostic_plausible_message_ts(mts,now,p) and mts<float(p.get("received_ts") or now):p["received_ts"]=mts;p["source"]="message_timestamp";p["timestamp_validated"]=True
+            elif sig and sig!=prev:
+                self._diagnostic_signatures[name]=sig
+                if not last.get("is_call"):
+                    ev="message_customer" if side=="customer" else "message_seller" if side=="seller" else "message"; self._diagnostic_log(ev,client=name,text=msg[:500],message_ts=mts or None)
+                    if side=="customer":
+                        if closing:
+                            had=self._diagnostic_pending.pop(name,None)
+                            self._diagnostic_log("customer_closing_message",client=name,text=msg[:200],action="cleared_pending" if had else "no_reply_needed")
+                        else:
+                            p=self._diagnostic_pending.get(name)
+                            recv=mts if self._diagnostic_plausible_message_ts(mts,now,p) else now
+                            if not isinstance(p,dict):
+                                self._diagnostic_pending[name]={"received_ts":recv,"opened_ts":now,"source":"message_timestamp" if recv==mts and mts>0 else "active_detection","timestamp_validated":bool(recv==mts and mts>0)}
+                            else:
+                                if self._diagnostic_plausible_message_ts(mts,now,p) and mts<float(p.get("received_ts") or now):p["received_ts"]=mts;p["source"]="message_timestamp";p["timestamp_validated"]=True
+                                if not p.get("opened_ts"):p["opened_ts"]=now
+                    elif side=="seller":
+                        p=self._diagnostic_pending.pop(name,None)
+                        if isinstance(p,dict):
+                            received=float(p.get("received_ts") or now); opened=float(p.get("opened_ts") or now)
+                            if opened<received:opened=received
+                            total=max(0,int(now-received)); until_open=max(0,int(opened-received)); after_open=max(0,int(now-opened))
+                            # Ultima trava de seguranca: nunca grava um tempo absurdo vindo de contexto antigo.
+                            if total<=48*3600:
+                                self._diagnostic_log("response",client=name,response_seconds=total,total_wait_seconds=total,until_open_seconds=until_open,after_open_seconds=after_open,received_ts=received,opened_ts=opened,response_ts=now,source=str(p.get("source") or ""),interruptions=int(p.get("interruptions") or 0),other_chat_opens=int(p.get("other_chat_opens") or 0),other_chats=list(p.get("other_chats") or [])[-20:],max_unread_during_wait=int(p.get("max_unread_during_wait") or 0),calls_during_wait=int(p.get("calls_during_wait") or 0),call_seconds_during_wait=int(p.get("call_seconds_during_wait") or 0),timestamp_validated=bool(p.get("timestamp_validated")))
+                            else:
+                                self._diagnostic_log("response_timing_discarded",client=name,discarded_seconds=total,reason="timestamp_antigo_inconsistente")
+
+        unread_now=set(unread_rows); old=(set(getattr(self,"_diagnostic_unread",set()) or set())-groups); new_names=unread_now-old; cleared=old-unread_now
+        _unread_count=len(unread_now)
+        for _pn,_pd in list(self._diagnostic_pending.items()):
+            if isinstance(_pd,dict):_pd["max_unread_during_wait"]=max(int(_pd.get("max_unread_during_wait") or 0),_unread_count)
+        for n in new_names:
+            row=unread_rows.get(n) or {}; snippet=str(row.get("snippet") or "")
+            if self._diagnostic_unread_is_closing(snippet):
+                had=self._diagnostic_pending.pop(n,None)
+                self._diagnostic_log("customer_closing_message",client=n,text=snippet[-180:],action="cleared_pending" if had else "no_reply_needed")
+                continue
+            if not isinstance(self._diagnostic_pending.get(n),dict):
+                self._diagnostic_pending[n]={"received_ts":now,"opened_ts":None,"source":"unread_detection","unread_snippet":snippet,"unread_detected_ts":now}
+                self._diagnostic_log("customer_wait_started",client=n,received_ts=now,source="unread_detection",snippet=snippet[:240])
+        if unread_now!=old:
+            self._diagnostic_log("unread_snapshot",count=len(unread_now),names=sorted(unread_now)[:40],new=sorted(new_names)[:20],cleared=sorted(cleared)[:20]); self._diagnostic_unread=unread_now
+
+    def _diagnostic_read(self):
+        # O arquivo cresce durante todo o uso. Rele-lo inteiro em cada refresh/backup
+        # travava a thread da interface conforme o historico aumentava.
+        cached=getattr(self,"_diagnostic_cache_rows",None)
+        if isinstance(cached,list):
+            return list(cached)
+        rows=[]

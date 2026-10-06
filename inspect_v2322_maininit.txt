@@ -1,0 +1,117 @@
+===== _attendance_bootstrap =====
+        self._attendance_scan_busy=False
+
+    def _attendance_save(self):
+        try:
+            self._attendance_file().write_text(json.dumps(self._attendance_data,ensure_ascii=False,indent=2),encoding="utf-8")
+        except Exception:
+            pass
+
+    def _attendance_bootstrap(self):
+        self._attendance_load()
+        self._attendance_data["enabled"]=False
+        self._attendance_save()
+        self._attendance_apply_home()
+        self._diagnostic_start()
+        self._reminder_start()
+
+    def _attendance_enabled(self):
+        try: return bool(self._attendance_data.get("enabled",True))
+        except Exception: return True
+
+    def _attendance_apply_home(self):
+        enabled=self._attendance_enabled() if hasattr(self,"_attendance_data") else True
+        try:
+===== _diagnostic_start =====
+            with self._diagnostic_file().open("a",encoding="utf-8") as f:
+                f.write(json.dumps(row,ensure_ascii=False)+"\n")
+            cache=getattr(self,"_diagnostic_cache_rows",None)
+            if isinstance(cache,list):
+                cache.append(dict(row))
+        except Exception:
+            pass
+
+    def _diagnostic_start(self):
+        # Cache em memoria: o historico JSONL e carregado uma vez por sessao.
+        # Novos eventos sao acrescentados ao cache em _diagnostic_log.
+        self._diagnostic_cache_rows=None
+        self._diagnostic_busy=False
+        self._diagnostic_active_name=""
+        self._diagnostic_last_active=""
+        self._diagnostic_signatures={}
+        self._diagnostic_pending={}
+        self._diagnostic_unread=set()
+        self._diagnostic_seen_calls=set()
+        self._diagnostic_groups=set(self._diagnostic_groups_load())
+        self._diagnostic_last_context_by_contact={}
+        self._diagnostic_live_call=None
+        self._diagnostic_live_missing=0
+        self._diagnostic_recent_live_calls=[]
+        self._diagnostic_unread_registry={}
+        self._diagnostic_unread_total_whatsapp=0
+        self._diagnostic_unread_visible=0
+        self._diagnostic_unread_message_total=0
+        self._diagnostic_current_unread_names=set()
+        self._ai_observer_busy=False
+        self._ai_net=None
+        self._ai_observer_reply=None
+        self._ai_observer_text_widget=None
+        self._ai_observer_status_widget=None
+        self._ai_last_analyzed_event_ts=0.0
+        self._ai_request_meta={}
+        try:
+            _last=self._ai_history_latest()
+            self._ai_last_analyzed_event_ts=float((_last or {}).get("last_event_ts") or 0)
+        except Exception:pass
+        self._ai_observer_timer=QTimer(self)
+        self._ai_observer_reschedule()
+        try:
+            for row in self._diagnostic_read()[-1800:]:
+                if isinstance(row,dict) and row.get("event")=="call":
+                    k=str(row.get("call_key") or "").strip()
+                    if k:self._diagnostic_seen_calls.add(k)
+                if isinstance(row,dict) and row.get("client") and row.get("text"):
+                    self._diagnostic_last_context_by_contact[str(row.get("client"))]=str(row.get("text"))[:700]
+        except Exception: pass
+        # WhatsApp Turbo 0.22.91:
+        # - o extrator grande fica pronto uma unica vez, em vez de ser reconstruido a cada scan;
+        # - a leitura completa do DOM cai de 12 para no maximo 3 vezes por minuto;
+        # - antes da leitura pesada fazemos apenas um guard minimo e pulamos o ciclo
+        #   quando o usuario esta digitando ou quando a pagina esta oculta.
+        self._diagnostic_extract_script=self._attendance_extract_js()
+        self._diagnostic_guard_script=r"""(() => {
+          try{
+            const a=document.activeElement;
+            const tag=String((a&&a.tagName)||'').toUpperCase();
+            const typing=!!(a && (
+              a.isContentEditable ||
+              a.getAttribute('contenteditable')==='true' ||
+              a.getAttribute('role')==='textbox' ||
+              tag==='INPUT' || tag==='TEXTAREA'
+            ));
+            return {typing:typing,hidden:document.visibilityState==='hidden'};
+          }catch(e){return {typing:false,hidden:false};}
+        })();"""
+        self._diagnostic_timer=QTimer(self); self._diagnostic_timer.setInterval(20000)
+        self._diagnostic_timer.timeout.connect(self._diagnostic_scan); self._diagnostic_timer.start()
+        # Evita disputar CPU/DOM com a montagem inicial do WhatsApp.
+        QTimer.singleShot(4000,self._diagnostic_scan)
+        self._daily_summary_timer=QTimer(self); self._daily_summary_timer.setInterval(60000)
+        self._daily_summary_timer.timeout.connect(self._diagnostic_daily_check); self._daily_summary_timer.start()
+        QTimer.singleShot(5000,self._diagnostic_daily_check)
+        self._diagnostic_backup_timer=QTimer(self); self._diagnostic_backup_timer.setInterval(600000)
+        self._diagnostic_backup_timer.timeout.connect(self._diagnostic_daily_backup); self._diagnostic_backup_timer.start()
+        QTimer.singleShot(7000,self._diagnostic_daily_backup)
+        try:
+            for attr,tool in (("plate_toggle","plate"),("lens_toggle","image")):
+                b=getattr(self,attr,None)
+                if b:b.clicked.connect(lambda _=False,t=tool:self._diagnostic_log("tool_opened",client=getattr(self,"_diagnostic_active_name","") or "",tool=t))
+        except Exception: pass
+
+    def _diagnostic_scan(self):
+        if getattr(self,"_diagnostic_busy",False): return
+        try:
+            self._diagnostic_busy=True
+            guard=getattr(self,"_diagnostic_guard_script","")
+            if guard:
+                self.web.page().runJavaScript(guard,self._diagnostic_scan_guard_done)
