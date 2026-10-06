@@ -845,6 +845,42 @@ class AliyvoCallAIManager(QObject):
         if mode=="Com erro":return [x for x in rows if str(x.get("status") or "").startswith("erro") or x.get("status")=="aguardando_chave_ia"]
         return [x for x in rows if now-float(x.get("started_ts") or now)<=30*86400]
 
+    def test_audio(self):
+        if self._active is not None:
+            QMessageBox.information(self.owner,"Teste de áudio","Há uma ligação sendo gravada agora.")
+            return
+        if getattr(self,"_test_recorder",None) is not None:
+            QMessageBox.information(self.owner,"Teste de áudio","O teste já está em andamento.")
+            return
+        call_id=uuid.uuid4().hex
+        started=time.time()
+        folder=AUDIO_DIR/"testes"/(datetime.fromtimestamp(started).strftime("%Y%m%d_%H%M%S")+"_"+call_id[:6])
+        rec=DualAudioRecorder(folder)
+        try:
+            info=rec.start()
+        except Exception as exc:
+            QMessageBox.warning(self.owner,"Teste de áudio","Não consegui iniciar a gravação:\n"+str(exc))
+            return
+        self._test_recorder=rec
+        data=self._load();data["calls"].append({
+            "id":call_id,"session_id":"audio_test","client":"TESTE DE ÁUDIO","started_ts":started,
+            "started_at":datetime.fromtimestamp(started).isoformat(timespec="seconds"),"status":"teste_gravando",
+            "duration_seconds":8,"call_type":"test","score":None,"capture":info
+        });self._save(data)
+        QMessageBox.information(self.owner,"Teste de áudio","Durante 8 segundos: fale no microfone e deixe algum áudio tocando no computador.\n\nDepois abra TESTE DE ÁUDIO e clique em Ouvir.")
+        QTimer.singleShot(8000,lambda cid=call_id:self._finish_audio_test(cid))
+
+    def _finish_audio_test(self,call_id):
+        rec=getattr(self,"_test_recorder",None);self._test_recorder=None
+        if rec is None:return
+        try:
+            paths=rec.stop();folder=Path(paths.get("loopback") or paths.get("microphone")).parent
+            target=folder/"teste_misto.wav";mix_wavs(Path(paths["loopback"]) if paths.get("loopback") else None,Path(paths["microphone"]) if paths.get("microphone") else None,target)
+            self._update_call(call_id,status="teste_audio_pronto",mixed_audio=str(target),sources=paths,ended_ts=time.time(),ended_at=datetime.now().isoformat(timespec="seconds"))
+        except Exception as exc:
+            self._update_call(call_id,status="erro_gravacao",error=str(exc)[:800])
+        self.updated.emit(call_id)
+
     def show_dashboard(self):
         if self._dashboard is not None and self._dashboard.isVisible():
             self._dashboard.raise_(); self._dashboard.activateWindow(); return
@@ -871,8 +907,8 @@ class AliyvoCallAIManager(QObject):
         split=QSplitter(Qt.Orientation.Horizontal);self._list=QListWidget();self._detail=QTextEdit();self._detail.setReadOnly(True)
         split.addWidget(self._list);split.addWidget(self._detail);split.setSizes([420,650]);lay.addWidget(split,1)
 
-        bar=QHBoxLayout();openb=QPushButton("🔎 Abrir detalhe");play=QPushButton("▶ Ouvir");retry=QPushButton("↻ Reprocessar IA");settings=QPushButton("⚙ Configurar IA");refresh=QPushButton("Atualizar");close=QPushButton("Fechar")
-        for b in (openb,play,retry,settings,refresh):bar.addWidget(b)
+        bar=QHBoxLayout();openb=QPushButton("🔎 Abrir detalhe");play=QPushButton("▶ Ouvir");retry=QPushButton("↻ Reprocessar IA");testb=QPushButton("🧪 Testar áudio 8s");settings=QPushButton("⚙ Configurar IA");refresh=QPushButton("Atualizar");close=QPushButton("Fechar")
+        for b in (openb,play,retry,testb,settings,refresh):bar.addWidget(b)
         bar.addStretch(1);bar.addWidget(close);lay.addLayout(bar)
 
         def selected_id():
@@ -882,6 +918,7 @@ class AliyvoCallAIManager(QObject):
         openb.clicked.connect(lambda:self.show_detail(selected_id()))
         play.clicked.connect(lambda:self.play_audio(selected_id()))
         retry.clicked.connect(lambda:self.reprocess(selected_id()))
+        testb.clicked.connect(self.test_audio)
         settings.clicked.connect(lambda:self._open_ai_settings(dlg))
         refresh.clicked.connect(self._refresh_dashboard);self._filter.currentIndexChanged.connect(lambda _=None:self._refresh_dashboard())
         close.clicked.connect(dlg.accept)
