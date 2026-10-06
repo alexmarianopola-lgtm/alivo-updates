@@ -47,7 +47,7 @@ try {
 
     # Componentes principais do ALIYVO.
     RunPython -PyArgs @('-m','pip','install','--disable-pip-version-check','--prefer-binary',
-        'PyQt6','PyQt6-WebEngine','pyspellchecker','qtwebview2==0.5.0','qtpy','pythonnet')
+        'PyQt6','PyQt6-WebEngine','pyspellchecker','qtwebview2==0.5.0','qtpy','pythonnet','PyAudioWPatch')
 
     # Audio local e transcricao. O modelo Whisper e baixado automaticamente
     # na primeira utilizacao caso ainda nao exista no cache deste usuario.
@@ -67,6 +67,7 @@ from faster_whisper import WhisperModel
 import PIL
 import easyocr
 import clr
+import pyaudiowpatch
 print('ALIYVO_COMPONENTES_OK')
 '@
     $oldEap = $ErrorActionPreference
