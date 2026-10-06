@@ -1,0 +1,92 @@
+name: Publicar ALIYVO 0.23.23 RC1 Ligacoes IA
+on:
+  push:
+    paths:
+      - 'trigger-v2323-call-ai.txt'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Baixar base 0.23.22
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\base,C:\temp\build,C:\temp\verify,C:\temp\out | Out-Null
+          gh release download v0.23.22 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_BETA_GRATIS_02322.zip" --dir C:\temp\base
+          Expand-Archive C:\temp\base\ALIYVO_BETA_GRATIS_02322.zip -DestinationPath C:\temp\build -Force
+          if(-not (Test-Path C:\temp\build\_app\main.py)){ throw 'Base 0.23.22 invalida' }
+          (Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash | Set-Content C:\temp\updater_before.txt
+      - name: Empacotar captura WASAPI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\temp\build\_app\vendor | Out-Null
+          python -m pip install --disable-pip-version-check --prefer-binary --target C:\temp\build\_app\vendor PyAudioWPatch
+          python -c "import sys;sys.path.insert(0,r'C:\temp\build\_app\vendor');import pyaudiowpatch;print('PYAUDIOWPATCH_OK',pyaudiowpatch.__version__ if hasattr(pyaudiowpatch,'__version__') else '')"
+      - name: Aplicar modulo Ligacoes IA
+        shell: pwsh
+        run: |
+          python patch_call_ai_v2323.py C:\temp\build
+          python -m py_compile C:\temp\build\_app\main.py C:\temp\build\_app\aliyvo_call_ai.py C:\temp\build\_app\aliyvo_ponto.py C:\temp\build\_app\updater_worker.pyw
+          $before=(Get-Content C:\temp\updater_before.txt).Trim()
+          $after=(Get-FileHash C:\temp\build\_app\updater_worker.pyw -Algorithm SHA256).Hash
+          if($before -ne $after){ throw 'Updater foi alterado' }
+      - name: Instalar dependencias de teste
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet PyQt6 PyQt6-WebEngine pyspellchecker qtwebview2==0.5.0 qtpy pythonnet
+      - name: Testes das quatro etapas
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          python tests\logic_call_ai_v2323.py C:\temp\build\_app
+      - name: Smoke test do ALIYVO
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $env:QTWEBENGINE_DISABLE_SANDBOX='1'
+          $p=Start-Process -FilePath python -ArgumentList 'C:\temp\build\_app\Aliyvo.pyw' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 10
+          if($p.HasExited -and $p.ExitCode -ne 0){ throw "ALIYVO encerrou ao abrir: $($p.ExitCode)" }
+          if(-not $p.HasExited){ Stop-Process -Id $p.Id -Force }
+          Write-Host 'STARTUP=OK'
+      - name: Empacotar e revalidar ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path C:\temp\build\* -DestinationPath C:\temp\out\ALIYVO_BETA_GRATIS_02323_RC1.zip -Force
+          Expand-Archive C:\temp\out\ALIYVO_BETA_GRATIS_02323_RC1.zip -DestinationPath C:\temp\verify -Force
+          python -m py_compile C:\temp\verify\_app\main.py C:\temp\verify\_app\aliyvo_call_ai.py
+          $env:QT_QPA_PLATFORM='offscreen'
+          python tests\logic_call_ai_v2323.py C:\temp\verify\_app
+          $main=Get-Content C:\temp\verify\_app\main.py -Raw
+          if($main -notmatch 'ALIYVO_VERSION = "0.23.23"'){ throw 'Versao incorreta' }
+          $sha=(Get-FileHash C:\temp\out\ALIYVO_BETA_GRATIS_02323_RC1.zip -Algorithm SHA256).Hash.ToLower()
+          @(
+            'ALIYVO 0.23.23 RC1 - LIGACOES IA',
+            'ETAPA 1: detector leve 1s + gravacao automatica microfone/WASAPI: IMPLEMENTADO',
+            'ETAPA 1: mixer WAV mono 16k testado com audio sintetico: OK',
+            'ETAPA 2: transcricao gpt-4o-transcribe em blocos de 8 min: IMPLEMENTADO',
+            'ETAPA 2: avaliacao estruturada + nota ponderada 20/30/30/20: IMPLEMENTADO',
+            'ETAPA 3: painel Ligacoes IA + detalhes + ouvir + reprocessar: IMPLEMENTADO',
+            'ETAPA 4: CRM automatico + historico + follow-up/Hoje: IMPLEMENTADO',
+            'Teste in-app de audio por 8 segundos: IMPLEMENTADO',
+            'PyAudioWPatch empacotado no ZIP: OK',
+            'PyCompile: OK',
+            'Startup smoke test: OK',
+            'Teste fisico microfone+loopback no PC do usuario: NECESSARIO antes de promover a oficial',
+            "ZIP_SHA256=$sha"
+          ) | Set-Content C:\temp\out\VALIDACAO_02323_RC1.txt -Encoding UTF8
+      - name: Publicar RC
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.23.23-rc1 C:\temp\out\ALIYVO_BETA_GRATIS_02323_RC1.zip C:\temp\out\VALIDACAO_02323_RC1.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.23 RC1 - Ligações IA" --notes "Implementa as quatro etapas juntas: gravação automática das chamadas detectadas no WhatsApp (microfone + áudio do sistema), transcrição e avaliação por IA usando a régua comercial da Somaforce, painel de análises dentro do ALIYVO e integração automática com CRM/follow-up. Inclui teste de áudio de 8 segundos. RC porque a captura WASAPI precisa ser validada no hardware real antes de entrar no canal oficial." --prerelease
