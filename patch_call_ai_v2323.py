@@ -12,12 +12,14 @@ if 'ALIYVO_VERSION = "0.23.22"' not in s:
 s=s.replace('ALIYVO_VERSION = "0.23.22"','ALIYVO_VERSION = "0.23.23"',1)
 s=s.replace('aliyvo_version="0.23.22"','aliyvo_version="0.23.23"')
 
-# Importa modulo isolado para nao misturar gravacao/IA no nucleo do WhatsApp.
+# Importa modulo isolado depois do bloco try/except do aliyvo_ponto.
 anchor='''    from aliyvo_ponto import AliyvoPontoController
+
+# -----------------------------------------------------------------------------
 '''
 if anchor not in s:
-    raise SystemExit('import aliyvo_ponto nao encontrado')
-s=s.replace(anchor,anchor+'from aliyvo_call_ai import AliyvoCallAIManager\n',1)
+    raise SystemExit('fim do bloco import aliyvo_ponto nao encontrado')
+s=s.replace(anchor,'    from aliyvo_ponto import AliyvoPontoController\n\nfrom aliyvo_call_ai import AliyvoCallAIManager\n\n# -----------------------------------------------------------------------------\n',1)
 
 # Botao no topo.
 anchor='''        self.reminder_toggle=QPushButton("👥  CRM")
