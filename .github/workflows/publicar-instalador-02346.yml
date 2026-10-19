@@ -1,0 +1,91 @@
+name: Publicar instalador simples ALIYVO 0.23.46
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-instalador-02346.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Baixar ALIYVO 0.23.46
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force stage,payload,out | Out-Null
+          gh release download v0.23.46 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02346.zip" --dir stage
+          if ($LASTEXITCODE -ne 0) { throw 'Pacote 0.23.46 não encontrado.' }
+          Expand-Archive stage/ALIYVO_02346.zip payload -Force
+          if (-not (Test-Path 'payload\_app\Aliyvo.pyw')) { throw 'Aliyvo.pyw ausente.' }
+          if (-not (Test-Path 'payload\_app\main.py')) { throw 'main.py ausente.' }
+          Select-String -Path 'payload\_app\main.py' -Pattern 'ALIYVO_VERSION = "0.23.46"' | Out-Null
+
+      - name: Baixar mecanismos oficiais
+        shell: pwsh
+        run: |
+          $ProgressPreference='SilentlyContinue'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' -OutFile 'python-3.12.10-amd64.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile 'MicrosoftEdgeWebview2Setup.exe'
+          if ((Get-Item 'python-3.12.10-amd64.exe').Length -lt 10000000) { throw 'Python inválido.' }
+          if ((Get-Item 'MicrosoftEdgeWebview2Setup.exe').Length -lt 500000) { throw 'WebView2 inválido.' }
+
+      - name: Incluir integração do WhatsApp
+        shell: pwsh
+        run: |
+          $ProgressPreference='SilentlyContinue'
+          New-Item -ItemType Directory -Force 'payload\_app\_setup' | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/wppconnect-team/wa-js/releases/download/nightly/wppconnect-wa.js' -OutFile 'payload\_app\_setup\wppconnect-wa.js'
+          if ((Get-Item 'payload\_app\_setup\wppconnect-wa.js').Length -lt 100000) { throw 'Integração do WhatsApp inválida.' }
+
+      - name: Compilar instalador único
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc='C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'Compilador do instalador ausente.' }
+          $payload=(Resolve-Path 'payload').Path
+          $python=(Resolve-Path 'python-3.12.10-amd64.exe').Path
+          $webview=(Resolve-Path 'MicrosoftEdgeWebview2Setup.exe').Path
+          Push-Location 'distribuicao\installer'
+          & $iscc '/DAppVersion=0.23.46' "/DPayloadDir=$payload" "/DPythonInstaller=$python" "/DWebView2Installer=$webview" 'ALIYVO-Setup.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou: $LASTEXITCODE" }
+          Pop-Location
+          $built='distribuicao\installer\output\ALIYVO_BETA_SETUP_02346.exe'
+          if (-not (Test-Path $built)) { throw 'Instalador não foi criado.' }
+          Copy-Item $built 'out\ALIYVO_INSTALAR.exe' -Force
+
+      - name: Testar instalação completa em Windows limpo
+        shell: pwsh
+        run: |
+          $dest=Join-Path $env:LOCALAPPDATA 'Programs\ALIYVO'
+          Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
+          $proc=Start-Process -FilePath 'out\ALIYVO_INSTALAR.exe' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "Instalador retornou $($proc.ExitCode)." }
+          $python=Join-Path $dest 'runtime\python.exe'
+          $main=Join-Path $dest '_app\main.py'
+          $marker=Join-Path $dest 'runtime\.aliyvo_componentes_v1.ok'
+          if (-not (Test-Path $python)) { throw 'Python interno ausente.' }
+          if (-not (Test-Path $main)) { throw 'Aplicativo ausente.' }
+          if (-not (Test-Path $marker)) { throw 'Componentes não foram concluídos.' }
+          & $python -c "from PyQt6.QtWidgets import QApplication; from PyQt6.QtWebEngineWidgets import QWebEngineView; from qtwebview2 import QtWebView2Widget; from spellchecker import SpellChecker; from faster_whisper import WhisperModel; import easyocr,PIL,clr,pyaudiowpatch; print('ALIYVO_SETUP_OK')"
+          if ($LASTEXITCODE -ne 0) { throw 'Teste dos componentes instalados falhou.' }
+          & $python -m py_compile $main
+          if ($LASTEXITCODE -ne 0) { throw 'Aplicativo instalado não compila.' }
+          Select-String -Path $main -Pattern 'ALIYVO_VERSION = "0.23.46"' | Out-Null
+          Get-FileHash 'out\ALIYVO_INSTALAR.exe' -Algorithm SHA256 | Format-List
+
+      - name: Publicar link direto
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v0.23.46 'out\ALIYVO_INSTALAR.exe' --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Não foi possível publicar o instalador.' }
