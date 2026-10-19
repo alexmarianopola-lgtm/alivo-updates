@@ -1,0 +1,390 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -12,7 +12,7 @@
+ from PyQt6.QtWidgets import (
+     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLineEdit,
+     QPushButton, QLabel, QTextEdit, QTableWidget, QTableWidgetItem, QSplitter,
+-    QMessageBox, QHeaderView, QTabWidget, QCheckBox, QFileDialog, QSpinBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QComboBox,
++    QMessageBox, QHeaderView, QTabWidget, QCheckBox, QFileDialog, QSpinBox, QListWidget, QListWidgetItem, QDialog, QDialogButtonBox, QComboBox, QCompleter,
+     QInputDialog, QScrollArea, QSizePolicy, QFrame)
+ from PyQt6.QtWebEngineWidgets import QWebEngineView
+ from qtwebview2 import QtWebView2Widget
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.42"
++ALIYVO_VERSION = "0.23.43"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -42,6 +42,14 @@
+     from aliyvo_ponto import AliyvoPontoController
+ 
+ from aliyvo_call_ai import AliyvoCallAIManager
++from aliyvo_freight import (
++    brl as freight_brl,
++    city_choices as freight_city_choices,
++    copy_message as freight_copy_message,
++    quote_freight,
++    resolve_city as resolve_freight_city,
++    services_for_uf,
++)
+ 
+ # -----------------------------------------------------------------------------
+ # ALIYVO HTTPS - ponte segura com os certificados confiaveis do Windows
+@@ -1266,48 +1274,54 @@
+         head=QHBoxLayout(self.title_bar)
+         head.setContentsMargins(8,4,6,4)
+ 
+-        title=QLabel("💳 Prazos")
++        title=QLabel("💳 Prazos e frete")
+         title.setStyleSheet("background-color:#166534;color:white;font-weight:700;font-size:15px;padding:8px;border-radius:5px;")
+         head.addWidget(title)
+         head.addStretch(1)
+ 
+         self.expand_btn=QPushButton("⛶")
+-        self.expand_btn.setToolTip("Expandir painel de prazos")
++        self.expand_btn.setToolTip("Expandir painel de prazos e frete")
+         self.expand_btn.setFixedWidth(34)
+         head.addWidget(self.expand_btn)
+ 
+         self.close_btn=QPushButton("◀")
+-        self.close_btn.setToolTip("Recolher prazos")
++        self.close_btn.setToolTip("Recolher prazos e frete")
+         self.close_btn.setFixedWidth(34)
+         head.addWidget(self.close_btn)
+         lay.addWidget(self.title_bar)
+ 
++        self.prazo_tabs=QTabWidget()
++        self.payment_tab=QWidget()
++        pay_lay=QVBoxLayout(self.payment_tab)
++        pay_lay.setContentsMargins(5,8,5,5)
++        pay_lay.setSpacing(6)
++
+         desc=QLabel("Digite o valor total do orçamento:")
+-        lay.addWidget(desc)
++        pay_lay.addWidget(desc)
+ 
+         self.valor=QLineEdit()
+         self.valor.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+         self.valor.installEventFilter(self)
+         self.valor.setPlaceholderText("Ex.: 1850,00")
+-        lay.addWidget(self.valor)
++        pay_lay.addWidget(self.valor)
+ 
+         self.calc_btn=QPushButton("Calcular condição")
+-        lay.addWidget(self.calc_btn)
++        pay_lay.addWidget(self.calc_btn)
+ 
+         self.result=QTextEdit()
+         self.result.setReadOnly(True)
+         self.result.setMinimumHeight(150)
+-        lay.addWidget(self.result)
++        pay_lay.addWidget(self.result)
+ 
+         msg_title=QLabel("Mensagem para o cliente")
+         msg_title.setStyleSheet("font-weight:700;")
+-        lay.addWidget(msg_title)
++        pay_lay.addWidget(msg_title)
+ 
+         self.msg=QTextEdit()
+         self.msg.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+         self.msg.installEventFilter(self)
+         self.msg.setMaximumHeight(130)
+-        lay.addWidget(self.msg)
++        pay_lay.addWidget(self.msg)
+ 
+         row=QHBoxLayout()
+         self.copy_btn=QPushButton("📋")
+@@ -1317,17 +1331,238 @@
+         row.addWidget(self.copy_btn)
+         row.addWidget(self.clear_btn)
+         row.addStretch(1)
+-        lay.addLayout(row)
++        pay_lay.addLayout(row)
++        pay_lay.addStretch(1)
+ 
+-        lay.addStretch(1)
++        self.prazo_tabs.addTab(self.payment_tab,"Pagamento")
++        self._setup_freight_tab()
++        self.prazo_tabs.addTab(self.freight_tab,"Frete")
++        lay.addWidget(self.prazo_tabs,1)
+ 
+         self.calc_btn.clicked.connect(self.calcular)
+         self.copy_btn.clicked.connect(self.copiar)
+         self.clear_btn.clicked.connect(self.limpar)
+         self.valor.returnPressed.connect(self.calcular)
++        self.prazo_tabs.currentChanged.connect(self._prazo_tab_changed)
+ 
+         self.expanded=False
+ 
++    def _setup_freight_tab(self):
++        self.freight_tab=QWidget()
++        freight_lay=QVBoxLayout(self.freight_tab)
++        freight_lay.setContentsMargins(5,8,5,5)
++        freight_lay.setSpacing(6)
++
++        intro=QLabel("Cidade + transportadora + valor do pedido")
++        intro.setStyleSheet("font-weight:700;color:#0B3B5A;")
++        freight_lay.addWidget(intro)
++
++        self.freight_city=QComboBox()
++        self.freight_city.setEditable(True)
++        self.freight_city.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
++        choices=freight_city_choices()
++        self.freight_city.addItems(choices)
++        self.freight_city.setCurrentIndex(-1)
++        self.freight_city.lineEdit().setPlaceholderText("Cidade — ex.: Araranguá")
++        city_completer=QCompleter(choices,self.freight_city)
++        city_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
++        city_completer.setFilterMode(Qt.MatchFlag.MatchContains)
++        city_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
++        city_completer.setMaxVisibleItems(12)
++        self.freight_city.setCompleter(city_completer)
++        self.freight_city.lineEdit().setFocusPolicy(Qt.FocusPolicy.StrongFocus)
++        self.freight_city.lineEdit().installEventFilter(self)
++        freight_lay.addWidget(self.freight_city)
++
++        self.freight_carrier=QComboBox()
++        self.freight_carrier.addItem("Primeiro escolha a cidade",None)
++        freight_lay.addWidget(self.freight_carrier)
++
++        self.freight_value=QLineEdit()
++        self.freight_value.setPlaceholderText("Valor do pedido — ex.: 980,00")
++        self.freight_value.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
++        self.freight_value.installEventFilter(self)
++        freight_lay.addWidget(self.freight_value)
++
++        self.freight_calc_btn=QPushButton("Calcular frete")
++        self.freight_calc_btn.setStyleSheet(
++            "QPushButton{background:#0B6A8E;color:white;font-weight:700;padding:8px;"
++            "border:0;border-radius:5px;}QPushButton:hover{background:#075773;}"
++        )
++        freight_lay.addWidget(self.freight_calc_btn)
++
++        self.freight_result=QLabel(
++            "Escolha a cidade, a transportadora e informe o valor."
++        )
++        self.freight_result.setWordWrap(True)
++        self.freight_result.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
++        self.freight_result.setMinimumHeight(150)
++        self.freight_result.setStyleSheet(
++            "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
++            "padding:12px;color:#435466;"
++        )
++        freight_lay.addWidget(self.freight_result)
++
++        freight_actions=QHBoxLayout()
++        self.freight_copy_btn=QPushButton("📋 Copiar resultado")
++        self.freight_copy_btn.setEnabled(False)
++        self.freight_clear_btn=QPushButton("🗑 Limpar")
++        freight_actions.addWidget(self.freight_copy_btn)
++        freight_actions.addWidget(self.freight_clear_btn)
++        freight_lay.addLayout(freight_actions)
++
++        local_note=QLabel("Tabela local • funciona sem internet e sem API")
++        local_note.setStyleSheet("font-size:9px;color:#6B7C8F;")
++        local_note.setWordWrap(True)
++        freight_lay.addWidget(local_note)
++        freight_lay.addStretch(1)
++
++        self._last_freight_quote=None
++        self._freight_timer=QTimer(self)
++        self._freight_timer.setSingleShot(True)
++        self._freight_timer.setInterval(280)
++        self._freight_timer.timeout.connect(self._auto_calculate_freight)
++        self.freight_city.currentTextChanged.connect(self._refresh_freight_services)
++        self.freight_carrier.currentIndexChanged.connect(self._schedule_freight_calculation)
++        self.freight_value.textChanged.connect(self._schedule_freight_calculation)
++        self.freight_value.returnPressed.connect(self.calcular_frete)
++        self.freight_calc_btn.clicked.connect(self.calcular_frete)
++        self.freight_copy_btn.clicked.connect(self.copiar_frete)
++        self.freight_clear_btn.clicked.connect(self.limpar_frete)
++
++    def _prazo_tab_changed(self,index):
++        if index!=1:
++            return
++        target=self.freight_value if self.freight_city.currentText().strip() else self.freight_city.lineEdit()
++        QTimer.singleShot(0,lambda t=target:self._claim_editor_focus(t))
++
++    def _refresh_freight_services(self,text):
++        place=resolve_freight_city(text)
++        previous=self.freight_carrier.currentData()
++        self.freight_carrier.blockSignals(True)
++        self.freight_carrier.clear()
++        if not place.get("ok"):
++            self.freight_carrier.addItem("Primeiro escolha a cidade",None)
++            self.freight_carrier.blockSignals(False)
++            self._last_freight_quote=None
++            self.freight_copy_btn.setEnabled(False)
++            self.freight_result.setText("Escolha uma cidade da lista para ver as transportadoras.")
++            self.freight_result.setStyleSheet(
++                "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
++                "padding:12px;color:#435466;"
++            )
++            return
++        services=services_for_uf(place["uf"])
++        selected=-1
++        for service in services:
++            self.freight_carrier.addItem(service.label,service.key)
++            if service.key==previous:
++                selected=self.freight_carrier.count()-1
++        self.freight_carrier.setCurrentIndex(selected if selected>=0 else (0 if services else -1))
++        self.freight_carrier.blockSignals(False)
++        self._schedule_freight_calculation()
++
++    def _schedule_freight_calculation(self,*_args):
++        try:self._freight_timer.start()
++        except Exception:pass
++
++    def _auto_calculate_freight(self):
++        if (
++            self.freight_city.currentText().strip()
++            and self.freight_carrier.currentData()
++            and self.freight_value.text().strip()
++        ):
++            self.calcular_frete(silent=True)
++
++    def _set_freight_error(self,message):
++        self._last_freight_quote=None
++        self.freight_copy_btn.setEnabled(False)
++        self.freight_result.setStyleSheet(
++            "background:#FFF1F1;border:1px solid #F2A4A4;border-radius:8px;"
++            "padding:12px;color:#9F1D1D;font-weight:600;"
++        )
++        self.freight_result.setText("⚠ "+str(message))
++
++    def calcular_frete(self,silent=False):
++        quote=quote_freight(
++            self.freight_city.currentText(),
++            self.freight_carrier.currentData(),
++            self.freight_value.text(),
++        )
++        if not quote.get("ok"):
++            if not silent:self._set_freight_error(quote.get("reason","Confira os dados."))
++            return
++
++        self._last_freight_quote=quote
++        self.freight_copy_btn.setEnabled(True)
++        detail=(
++            f"<div style='font-size:11px;margin-top:5px'>"
++            f"{quote['city']} / {quote['uf']}<br>"
++            f"{quote['carrier']} · {quote['branch']} · cód. {quote['code']}<br>"
++            f"Corte: <b>{quote['cutoff']}</b>"
++            + (f"<br>{quote['note']}" if quote.get("note") else "")
++            + "</div>"
++        )
++        if quote["status"]=="free":
++            self.freight_result.setStyleSheet(
++                "background:#E7F7ED;border:2px solid #39A96B;border-radius:8px;"
++                "padding:12px;color:#126338;"
++            )
++            self.freight_result.setText(
++                "<div style='font-size:18px;font-weight:800'>🟢 FRETE GRÁTIS</div>"
++                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+detail
++            )
++        elif quote["status"]=="paid":
++            self.freight_result.setStyleSheet(
++                "background:#FFF4D6;border:2px solid #E8A72C;border-radius:8px;"
++                "padding:12px;color:#8A5200;"
++            )
++            missing=""
++            if quote.get("missing") is not None and quote["missing"]>0:
++                missing=(
++                    f"<div style='margin-top:7px'>Faltam <b>{freight_brl(quote['missing'])}</b>"
++                    " em produtos para frete grátis.</div>"
++                )
++            self.freight_result.setText(
++                f"<div style='font-size:18px;font-weight:800'>🟠 FRETE {freight_brl(quote['fee'])}</div>"
++                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+missing+detail
++            )
++        else:
++            self.freight_result.setStyleSheet(
++                "background:#FFF0E5;border:2px solid #E47A2E;border-radius:8px;"
++                "padding:12px;color:#873A0A;"
++            )
++            missing=""
++            if quote.get("missing") is not None and quote["missing"]>0:
++                missing=f"<div>Faltam <b>{freight_brl(quote['missing'])}</b> para o mínimo.</div>"
++            self.freight_result.setText(
++                "<div style='font-size:17px;font-weight:800'>🟠 CONFIRMAR FRETE</div>"
++                "<div>Valor abaixo do mínimo ou regra em negociação.</div>"+missing+detail
++            )
++
++    def copiar_frete(self):
++        text=freight_copy_message(self._last_freight_quote or {})
++        if text:
++            QApplication.clipboard().setText(text)
++            self.freight_copy_btn.setText("✅ Copiado")
++            QTimer.singleShot(1400,lambda:self.freight_copy_btn.setText("📋 Copiar resultado"))
++
++    def limpar_frete(self):
++        self._freight_timer.stop()
++        self.freight_city.setCurrentIndex(-1)
++        self.freight_city.setEditText("")
++        self.freight_value.clear()
++        self.freight_carrier.clear()
++        self.freight_carrier.addItem("Primeiro escolha a cidade",None)
++        self._last_freight_quote=None
++        self.freight_copy_btn.setEnabled(False)
++        self.freight_result.setStyleSheet(
++            "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
++            "padding:12px;color:#435466;"
++        )
++        self.freight_result.setText("Escolha a cidade, a transportadora e informe o valor.")
++        self._claim_editor_focus(self.freight_city.lineEdit())
++
+     def _claim_editor_focus(self,editor=None):
+         target=editor or getattr(self,"valor",None)
+         try:
+@@ -1350,7 +1585,13 @@
+ 
+     def eventFilter(self,obj,event):
+         try:
+-            if obj in (getattr(self,"valor",None),getattr(self,"msg",None)):
++            focus_editors=(
++                getattr(self,"valor",None),
++                getattr(self,"msg",None),
++                getattr(self,"freight_value",None),
++                self.freight_city.lineEdit() if hasattr(self,"freight_city") else None,
++            )
++            if obj in focus_editors:
+                 if event.type() in (QEvent.Type.MouseButtonPress,QEvent.Type.FocusIn):
+                     # Libera o WebView2 imediatamente; o clique continua normalmente.
+                     try:
+@@ -6246,7 +6487,7 @@
+         nav_lay.setSpacing(14)
+ 
+         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+-        self.prazo_toggle=QPushButton("▣  Prazos")
++        self.prazo_toggle=QPushButton("▣  Prazos / frete")
+         self.chat_toggle=QPushButton("◉  Assistente")
+         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+         self.plate_toggle=QPushButton("🚚  Busca placa")
+@@ -6382,7 +6623,7 @@
+         self.quick_technical=QPushButton("🔎  Busca Somaforce")
+         self.lens_toggle=QPushButton("🔎  Busca por imagem")
+         self.audio_toggle=QPushButton("🎙  Áudio")
+-        self.quick_prazo=QPushButton("▣  Prazos")
++        self.quick_prazo=QPushButton("▣  Prazos / frete")
+         self.quick_chat=QPushButton("◉  Assistente")
+         self.quick_campaign=QPushButton("➤  Disparo de mensagens")
+         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+@@ -11567,14 +11808,14 @@
+     def _reset_tool_button_texts(self):
+         # Mantém os rótulos reais do topo e das Ações rápidas.
+         self.campaign_toggle.setText("➤  Disparo de mensagens")
+-        self.prazo_toggle.setText("▣  Prazos")
++        self.prazo_toggle.setText("▣  Prazos / frete")
+         self.chat_toggle.setText("◉  Assistente")
+         self.nav_lens_toggle.setText("🔎  Busca por imagem")
+         self.plate_toggle.setText("🚚  Busca placa")
+         self.quick_technical.setText("🔎  Busca Somaforce")
+         self.lens_toggle.setText("🔎  Busca por imagem")
+         self.audio_toggle.setText("🎙  Áudio")
+-        self.quick_prazo.setText("▣  Prazos")
++        self.quick_prazo.setText("▣  Prazos / frete")
+         self.quick_chat.setText("◉  Assistente")
+         self.quick_campaign.setText("➤  Disparo de mensagens")
+         self.quick_diagnostic.setText("🩺  Diagnóstico")

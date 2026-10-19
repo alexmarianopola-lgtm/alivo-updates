@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.43
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-aliyvo-02343.yml'
+      - 'source/v0.23.43/**'
+      - 'tests/test_freight_v2343.py'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar versão base
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,build,out | Out-Null
+          gh release download v0.23.42 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02342.zip" --dir base
+          if ($LASTEXITCODE -ne 0) { throw "Base 0.23.42 não baixada" }
+          Expand-Archive base/ALIYVO_02342.zip build -Force
+
+      - name: Aplicar Prazos e frete
+        shell: pwsh
+        run: |
+          git apply --check --directory=build source/v0.23.43/main.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do main.py incompatível" }
+          git apply --directory=build source/v0.23.43/main.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do main.py falhou" }
+          Copy-Item source/v0.23.43/aliyvo_freight.py build/_app/aliyvo_freight.py -Force
+
+      - name: Validar regras e código
+        shell: pwsh
+        run: |
+          python -m unittest tests/test_freight_v2343.py -v
+          if ($LASTEXITCODE -ne 0) { throw "Testes das faixas de frete falharam" }
+          python -m compileall -q build/_app
+          if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
+          python -c "import pathlib; p=pathlib.Path('build/_app/main.py').read_text(encoding='utf-8'); assert 'ALIYVO_VERSION = \"0.23.43\"' in p; assert 'Prazos / frete' in p"
+          if ($LASTEXITCODE -ne 0) { throw "Versão ou interface de frete não encontrada" }
+
+      - name: Empacotar atualização
+        shell: pwsh
+        run: |
+          python -c "import pathlib,zipfile; root=pathlib.Path('build'); z=zipfile.ZipFile('out/ALIYVO_02343.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.name!='soma_catalog.sqlite']; z.close()"
+          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02343.zip'); assert z.testzip() is None; assert '_app/aliyvo_freight.py' in z.namelist(); assert '_app/main.py' in z.namelist()"
+          if ($LASTEXITCODE -ne 0) { throw "Pacote final inválido" }
+          $sha=(Get-FileHash out/ALIYVO_02343.zip -Algorithm SHA256).Hash.ToLower()
+          "ALIYVO 0.23.43. Nova aba Frete dentro de Prazos. Consulta local por cidade, transportadora e valor; mostra frete grátis, valor do frete e quanto falta para o mínimo. Regras SC/RS da planilha recebida. Sem IA, API ou consumo adicional. 10 grupos de testes e limites das faixas verificados. SHA256: $sha" | Set-Content out/VALIDACAO_02343.txt
+
+      - name: Publicar versão 0.23.43
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.23.43 --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.23.43 out/ALIYVO_02343.zip out/VALIDACAO_02343.txt --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            gh release create v0.23.43 out/ALIYVO_02343.zip out/VALIDACAO_02343.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.43 - Prazos e frete" --notes "O botão Prazos agora possui as abas Pagamento e Frete. Na aba Frete, informe somente cidade, transportadora e valor do pedido. O ALIYVO reconhece os municípios de SC/RS, filtra as transportadoras disponíveis e mostra visualmente: frete grátis, valor a cobrar, quanto falta para o frete grátis, filial, código e horário de corte. A mensagem pode ser copiada para o cliente. Cálculo totalmente local, sem internet, IA ou API. São João permanece marcado como negociação onde a planilha não informa uma tarifa; nenhum valor é inventado. Mantém CRM, Busca Peça, Busca Placa e modo econômico da 0.23.42." --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publicação falhou" }
+
