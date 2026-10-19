@@ -1,0 +1,285 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.43"
++ALIYVO_VERSION = "0.23.44"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -109,6 +109,8 @@
+ USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+ CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
+ CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
++PURCHASE_PORTAL_URL = "https://somaforce.com.br/pedewilliam/"
++PURCHASE_PROFILE_DIR = ALIYVO_USER_DIR / "pedidos_compras_profile"
+ 
+ def _prepare_persistent_user_data():
+     """
+@@ -6419,6 +6421,149 @@
+         if not self.list.currentItem() and self.list.count():
+             self.list.setCurrentRow(0)
+ 
++
++class PurchasePortalWindow(QMainWindow):
++    """Janela dedicada ao portal de pedidos, sem consumir API de IA."""
++    URL = PURCHASE_PORTAL_URL
++
++    def __init__(self,parent=None):
++        super().__init__(parent)
++        self.setWindowTitle("ALIYVO — Pedido ao comprador")
++        self.resize(1450,900)
++        try:
++            icon_path=APP_DIR/"copiloto_a_icon.ico"
++            if icon_path.exists():
++                self.setWindowIcon(QIcon(str(icon_path)))
++        except Exception:
++            pass
++
++        try:
++            PURCHASE_PROFILE_DIR.mkdir(parents=True,exist_ok=True)
++        except Exception:
++            pass
++
++        central=QWidget(self)
++        central.setObjectName("purchasePortalRoot")
++        central.setStyleSheet("""
++            QWidget#purchasePortalRoot{background:#F1F5F9;color:#0F172A;}
++            QWidget#purchasePortalBar{background:#071A2B;border-bottom:2px solid #20E983;}
++            QWidget#purchasePortalBar QLabel{color:#F8FAFC;background:transparent;}
++            QWidget#purchasePortalBar QPushButton{
++                background:#0A2236;color:#F8FAFC;border:1px solid #28506A;
++                border-radius:7px;padding:8px 13px;font-weight:700;
++            }
++            QWidget#purchasePortalBar QPushButton:hover{
++                background:#0D303B;border-color:#20E983;
++            }
++        """)
++        self.setCentralWidget(central)
++        lay=QVBoxLayout(central)
++        lay.setContentsMargins(0,0,0,0)
++        lay.setSpacing(0)
++
++        bar=QWidget(central)
++        bar.setObjectName("purchasePortalBar")
++        row=QHBoxLayout(bar)
++        row.setContentsMargins(16,9,12,9)
++        row.setSpacing(8)
++
++        title=QLabel("🛒  PEDIDO AO COMPRADOR")
++        title.setStyleSheet("font-size:16px;font-weight:900;color:#FFFFFF;")
++        row.addWidget(title)
++        self.status=QLabel("Sessão protegida e salva neste computador • sem consumo de API")
++        self.status.setStyleSheet("font-size:10px;color:#87DDBE;padding-left:10px;")
++        row.addWidget(self.status)
++        row.addStretch(1)
++
++        self.home_btn=QPushButton("⌂ Início")
++        self.reload_btn=QPushButton("↻ Atualizar")
++        self.external_btn=QPushButton("↗ Abrir no navegador")
++        self.close_btn=QPushButton("Fechar")
++        row.addWidget(self.home_btn)
++        row.addWidget(self.reload_btn)
++        row.addWidget(self.external_btn)
++        row.addWidget(self.close_btn)
++        lay.addWidget(bar)
++
++        self.web=QtWebView2Widget(
++            url=self.URL,
++            user_agent=None,
++            debug=False,
++            context_menus=True,
++            transparent=False,
++            background_color="#FFFFFF",
++            handle_new_window=True,
++            lazyload=False,
++            user_data_folder=str(PURCHASE_PROFILE_DIR),
++            no_local_storage=False,
++            fullscreen_support=True,
++            parent=None,
++        )
++        lay.addWidget(self.web,1)
++
++        self.home_btn.clicked.connect(self._go_home)
++        self.reload_btn.clicked.connect(self._reload)
++        self.external_btn.clicked.connect(self._open_external)
++        self.close_btn.clicked.connect(self.hide)
++        try:
++            self.web.bridge.initialization_done.connect(self._initialized)
++        except Exception:
++            pass
++        try:
++            self.web.bridge.domContentLoaded.connect(self._loaded)
++        except Exception:
++            pass
++
++    def _initialized(self,*args):
++        try:
++            if args and args[0] is False:
++                self.status.setText("Não foi possível iniciar a tela interna • use Abrir no navegador")
++                return
++        except Exception:
++            pass
++        self.status.setText("Abrindo Pede pro William…")
++
++    def _loaded(self,*args):
++        self.status.setText("Pronto • sua sessão fica salva neste computador • sem consumo de API")
++
++    def _go_home(self):
++        try:
++            self.status.setText("Abrindo Pede pro William…")
++            self.web.load_url(self.URL)
++        except Exception:
++            self._open_external()
++
++    def _reload(self):
++        try:
++            self.status.setText("Atualizando pedidos…")
++            self.web.reload()
++        except Exception:
++            self._go_home()
++
++    def _open_external(self):
++        try:
++            webbrowser.open(self.URL)
++        except Exception as exc:
++            QMessageBox.warning(
++                self,
++                "Pedido ao comprador",
++                "Não consegui abrir o navegador: "+str(exc),
++            )
++
++    def open_portal(self):
++        self.showMaximized()
++        self.raise_()
++        self.activateWindow()
++
++    def closeEvent(self,event):
++        # Fechar só esconde a janela. A sessão e a página continuam prontas.
++        try:
++            event.ignore()
++        except Exception:
++            pass
++        self.hide()
++
++
+ class MainWindow(QMainWindow):
+     def __init__(self):
+         super().__init__()
+@@ -6493,6 +6638,9 @@
+         self.plate_toggle=QPushButton("🚚  Busca placa")
+         self.attendance_toggle=QPushButton("📊  Diagnóstico")
+         self.reminder_toggle=QPushButton("👥  CRM")
++        self.purchase_toggle=QPushButton("🛒  Pedido ao comprador")
++        self.purchase_toggle.setToolTip("Abrir o Pede pro William em uma janela própria")
++        self.purchase_toggle.setStyleSheet("QPushButton{background:#0D5E45;border-color:#20E983;color:white;} QPushButton:hover{background:#117A59;}")
+         self.calls_ai_toggle=QPushButton("📞  Ligações IA")
+         self.calls_ai_toggle.setToolTip("Gravação, transcrição, avaliação comercial e CRM")
+         self.radar_toggle=QPushButton("🔎  Buscar peça")
+@@ -6529,6 +6677,7 @@
+         nav_lay.addWidget(self.plate_toggle)
+         nav_lay.addWidget(self.attendance_toggle)
+         nav_lay.addWidget(self.reminder_toggle)
++        nav_lay.addWidget(self.purchase_toggle)
+         nav_lay.addWidget(self.calls_ai_toggle)
+         nav_lay.addWidget(self.radar_toggle)
+         nav_lay.addWidget(self.ponto_toggle)
+@@ -6629,6 +6778,8 @@
+         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+         self.quick_update=QPushButton("⬆  Atualizações")
+         self.quick_plate=QPushButton("🚚  Busca por placa")
++        self.quick_purchase=QPushButton("🛒  Pedido ao comprador")
++        self.quick_purchase.setStyleSheet("QPushButton{background:#0D5E45;border-color:#20E983;color:white;} QPushButton:hover{background:#117A59;}")
+ 
+         q.addWidget(qtitle)
+         q.addWidget(qsub)
+@@ -6642,6 +6792,7 @@
+         q.addWidget(self.quick_diagnostic)
+         q.addWidget(self.quick_update)
+         q.addWidget(self.quick_plate)
++        q.addWidget(self.quick_purchase)
+         q.addStretch(1)
+ 
+         # Host da direita: alterna entre Ações rápidas e a ferramenta escolhida.
+@@ -6775,6 +6926,7 @@
+         self.plate_panel.on_read_current=self._catalog_read_current
+         self.plate_panel.on_capture=self._catalog_capture_start
+         self._catalog_window=None
++        self._purchase_window=None
+ 
+         self.audio_panel.on_audio_file=self._transcribe_downloaded_audio
+         self.web.media_download_callback=self._handle_whatsapp_media_download
+@@ -6805,6 +6957,8 @@
+         self.quick_update.clicked.connect(lambda: self._open_quick_tool("update"))
+         self.plate_toggle.clicked.connect(lambda: self._open_quick_tool("plate"))
+         self.quick_plate.clicked.connect(lambda: self._open_quick_tool("plate"))
++        self.purchase_toggle.clicked.connect(self._open_purchase_portal)
++        self.quick_purchase.clicked.connect(self._open_purchase_portal)
+         self.attendance_toggle.clicked.connect(self._diagnostic_show_dialog)
+         self.reminder_toggle.clicked.connect(self._crm_clients_dialog)
+         self.calls_ai_toggle.clicked.connect(
+@@ -11486,6 +11640,28 @@
+         self.plate_panel.expand_btn.setText("↩" if self.plate_panel.expanded else "⛶")
+         self.quick_host.setFixedWidth(self._quick_tool_width("plate",self.plate_panel.expanded))
+ 
++    def _open_purchase_portal(self):
++        """Abre o portal pronto para uso, sem fazer leitura do WhatsApp ou usar IA."""
++        try:
++            self._release_whatsapp_focus()
++        except Exception:
++            pass
++        try:
++            if self._purchase_window is None:
++                self._purchase_window=PurchasePortalWindow(self)
++            self._purchase_window.open_portal()
++        except Exception as exc:
++            try:
++                webbrowser.open(PURCHASE_PORTAL_URL)
++            except Exception:
++                pass
++            QMessageBox.warning(
++                self,
++                "Pedido ao comprador",
++                "A tela interna não iniciou. O portal foi enviado ao navegador.\n\n"
++                +str(exc),
++            )
++
+     def _get_catalog_window(self,show=False):
+         if self._catalog_window is None:
+             self._catalog_window=CatalogBrowserWindow(self)
+@@ -11812,6 +11988,7 @@
+         self.chat_toggle.setText("◉  Assistente")
+         self.nav_lens_toggle.setText("🔎  Busca por imagem")
+         self.plate_toggle.setText("🚚  Busca placa")
++        self.purchase_toggle.setText("🛒  Pedido ao comprador")
+         self.quick_technical.setText("🔎  Busca Somaforce")
+         self.lens_toggle.setText("🔎  Busca por imagem")
+         self.audio_toggle.setText("🎙  Áudio")
+@@ -11821,6 +11998,7 @@
+         self.quick_diagnostic.setText("🩺  Diagnóstico")
+         self.quick_update.setText("⬆  Atualizações")
+         self.quick_plate.setText("🚚  Busca por placa")
++        self.quick_purchase.setText("🛒  Pedido ao comprador")
+ 
+     def _restore_quick_actions(self):
+         try:self._set_prazo_focus_guard(False)
+@@ -13032,6 +13210,17 @@
+                 except Exception:pass
+                 self._catalog_window=None
+         except Exception:pass
++        try:
++            purchase=getattr(self,"_purchase_window",None)
++            if purchase is not None:
++                try:purchase.hide()
++                except Exception:pass
++                try:self._aliyvo_dispose_webview_widget(getattr(purchase,"web",None))
++                except Exception:pass
++                try:purchase.deleteLater()
++                except Exception:pass
++                self._purchase_window=None
++        except Exception:pass
+         try:self._aliyvo_log_webview_startup("encerramento conservador concluido")
+         except Exception:pass
+ 

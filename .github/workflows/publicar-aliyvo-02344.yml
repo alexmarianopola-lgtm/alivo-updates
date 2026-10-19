@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.44
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-aliyvo-02344.yml'
+      - 'source/v0.23.44/**'
+      - 'tests/test_purchase_portal_v2344.py'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar versão base
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,build,out | Out-Null
+          gh release download v0.23.43 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02343.zip" --dir base
+          if ($LASTEXITCODE -ne 0) { throw "Base 0.23.43 não baixada" }
+          Expand-Archive base/ALIYVO_02343.zip build -Force
+
+      - name: Integrar Pedido ao comprador
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; p=Path('source/v0.23.44/main.patch'); p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n'))"
+          python -c "from pathlib import Path; p=Path('build/_app/main.py'); p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n'))"
+          git apply --check --directory=build source/v0.23.44/main.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do main.py incompatível" }
+          git apply --directory=build source/v0.23.44/main.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do main.py falhou" }
+
+      - name: Validar integração e código
+        shell: pwsh
+        run: |
+          python -m unittest tests/test_purchase_portal_v2344.py -v
+          if ($LASTEXITCODE -ne 0) { throw "Testes do portal de compras falharam" }
+          python -m compileall -q build/_app
+          if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
+          python -c "import ast,pathlib; p=pathlib.Path('build/_app/main.py'); s=p.read_text(encoding='utf-8'); ast.parse(s); assert '0.23.44' in s; assert 'https://somaforce.com.br/pedewilliam/' in s; assert 'PurchasePortalWindow' in s; assert 'user_data_folder=str(PURCHASE_PROFILE_DIR)' in s"
+          if ($LASTEXITCODE -ne 0) { throw "Versão ou integração de compras não encontrada" }
+
+      - name: Empacotar atualização
+        shell: pwsh
+        run: |
+          python -c "import pathlib,zipfile; root=pathlib.Path('build'); z=zipfile.ZipFile('out/ALIYVO_02344.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.name!='soma_catalog.sqlite']; z.close()"
+          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02344.zip'); assert z.testzip() is None; assert '_app/main.py' in z.namelist(); s=z.read('_app/main.py').decode('utf-8'); assert '0.23.44' in s; assert 'Pedido ao comprador' in s"
+          if ($LASTEXITCODE -ne 0) { throw "Pacote final inválido" }
+          $sha=(Get-FileHash out/ALIYVO_02344.zip -Algorithm SHA256).Hash.ToLower()
+          "ALIYVO 0.23.44. Novo botão Pedido ao comprador na barra superior e em Ações rápidas. Abre o Pede pro William em janela grande própria, com sessão persistente separada do WhatsApp, controles de início, atualização e abertura no navegador. Não usa API de IA. URL, patch, sintaxe, empacotamento e persistência verificados. SHA256: $sha" | Set-Content out/VALIDACAO_02344.txt
+
+      - name: Publicar versão 0.23.44
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.23.44 --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.23.44 out/ALIYVO_02344.zip out/VALIDACAO_02344.txt --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            gh release create v0.23.44 out/ALIYVO_02344.zip out/VALIDACAO_02344.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.44 - Pedido ao comprador" --notes "Novo acesso direto ao Pede pro William dentro do ALIYVO. O botão Pedido ao comprador aparece na barra superior e em Ações rápidas, abrindo uma janela grande e dedicada. O primeiro login fica salvo em um perfil local separado do WhatsApp e continua disponível depois das atualizações. Há botões para voltar ao início, atualizar, abrir no navegador e fechar sem perder a sessão. A integração não usa IA nem consome créditos de API. Mantém Prazos/Frete, CRM, Busca Peça, Busca Placa e o modo econômico da 0.23.43." --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publicação falhou" }
