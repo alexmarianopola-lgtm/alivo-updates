@@ -51,7 +51,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Testes de frete e pagamento falharam" }
           python -m compileall -q build/_app
           if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
-          python -c "import ast,pathlib; p=pathlib.Path('build/_app/main.py'); s=p.read_text(encoding='utf-8'); ast.parse(s); panel=s[s.index('class PrazoPanel'):s.index('class ChatGPTPanel')]; assert '0.23.45' in s; assert 'Frete e pagamento' in panel; assert 'Calcular frete + pagamento' in panel; assert 'Colocar no WhatsApp' in panel; assert 'prazo_tabs' not in panel; assert 'payment_tab' not in panel; assert \"quote['cutoff']\" not in panel; assert 'Corte:' not in panel; assert 'Faltam' not in panel"
+          python -c "import ast,pathlib; p=pathlib.Path('build/_app/main.py'); s=p.read_text(encoding='utf-8'); ast.parse(s); panel=s[s.index('class PrazoPanel'):s.index('class ChatGPTPanel')]; assert '0.23.45' in s; assert 'Frete e pagamento' in panel; assert 'Calcular frete + pagamento' in panel; assert 'Colocar no WhatsApp' in panel; assert 'prazo_tabs' not in panel; assert 'payment_tab' not in panel; assert 'cutoff' not in panel; assert 'Corte:' not in panel; assert 'Faltam' not in panel"
           if ($LASTEXITCODE -ne 0) { throw "Integração final incompleta" }
 
       - name: Empacotar atualização
