@@ -1,0 +1,554 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.44"
++ALIYVO_VERSION = "0.23.45"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -46,6 +46,7 @@
+     brl as freight_brl,
+     city_choices as freight_city_choices,
+     copy_message as freight_copy_message,
++    payment_terms as freight_payment_terms,
+     quote_freight,
+     resolve_city as resolve_freight_city,
+     services_for_uf,
+@@ -1211,28 +1212,6 @@
+ 
+ 
+ class PrazoPanel(QWidget):
+-    def _formatar_mensagem_prazos(self, texto):
+-        """Organiza cada condição de prazo em uma linha separada."""
+-        if not texto:
+-            return texto
+-
+-        texto = str(texto).strip()
+-
+-        prefixo = "Consigo fazer nesses prazos:"
+-        if texto.startswith(prefixo):
+-            resto = texto[len(prefixo):].strip()
+-
+-            # Normaliza separadores antigos para uma condição por linha.
+-            # Não altera barras dentro de cada condição (20/40/60 etc.).
+-            resto = resto.replace(" ou ", "\n")
+-            resto = resto.replace(", ", "\n")
+-
+-            linhas = [x.strip(" ,") for x in resto.splitlines() if x.strip(" ,")]
+-            return prefixo + "\n" + "\n".join(linhas)
+-
+-        return texto
+-
+-
+     def __init__(self, parent=None):
+         super().__init__(parent)
+         self.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+@@ -1252,21 +1231,6 @@
+         self.setStyleSheet("background-color:#FFFFFF;")
+         self.setStyleSheet("background-color:#FFFFFF;")
+ 
+-        self.faixas = [
+-            (0.00,    "30",    ["30","20/40"]),
+-            (950.00,  "35",    ["35","28/42"]),
+-            (1100.00, "37,50", ["25/50"]),
+-            (1200.00, "40",    ["20/40/60","35/45"]),
+-            (1300.00, "42",    ["28/42/56","28/56"]),
+-            (1400.00, "45",    ["30/60","30/45/60"]),
+-            (1800.00, "50",    ["25/50/75","30/50/70","20/40/60/80"]),
+-            (2800.00, "55/56", ["28/56/84","28/42/56/70/84","30/55/80"]),
+-            (3000.00, "60",    ["30/60/90","20/40/60/80/100","30/50/70/90","25/45/65/90"]),
+-            (4000.00, "62,50", ["25/50/75/100"]),
+-            (6000.00, "67,50", ["30/45/60/75/90/105"]),
+-            (8000.00, "70",    ["20/40/60/80/100/120","28/56/84/112","30/50/70/90/110"]),
+-        ]
+-
+         lay=QVBoxLayout(self)
+         lay.setContentsMargins(8,8,8,8)
+         lay.setSpacing(6)
+@@ -1276,77 +1240,26 @@
+         head=QHBoxLayout(self.title_bar)
+         head.setContentsMargins(8,4,6,4)
+ 
+-        title=QLabel("💳 Prazos e frete")
++        title=QLabel("🚚 Frete e pagamento")
+         title.setStyleSheet("background-color:#166534;color:white;font-weight:700;font-size:15px;padding:8px;border-radius:5px;")
+         head.addWidget(title)
+         head.addStretch(1)
+ 
+         self.expand_btn=QPushButton("⛶")
+-        self.expand_btn.setToolTip("Expandir painel de prazos e frete")
++        self.expand_btn.setToolTip("Expandir frete e pagamento")
+         self.expand_btn.setFixedWidth(34)
+         head.addWidget(self.expand_btn)
+ 
+         self.close_btn=QPushButton("◀")
+-        self.close_btn.setToolTip("Recolher prazos e frete")
++        self.close_btn.setToolTip("Recolher frete e pagamento")
+         self.close_btn.setFixedWidth(34)
+         head.addWidget(self.close_btn)
+         lay.addWidget(self.title_bar)
+ 
+-        self.prazo_tabs=QTabWidget()
+-        self.payment_tab=QWidget()
+-        pay_lay=QVBoxLayout(self.payment_tab)
+-        pay_lay.setContentsMargins(5,8,5,5)
+-        pay_lay.setSpacing(6)
+-
+-        desc=QLabel("Digite o valor total do orçamento:")
+-        pay_lay.addWidget(desc)
+-
+-        self.valor=QLineEdit()
+-        self.valor.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+-        self.valor.installEventFilter(self)
+-        self.valor.setPlaceholderText("Ex.: 1850,00")
+-        pay_lay.addWidget(self.valor)
+-
+-        self.calc_btn=QPushButton("Calcular condição")
+-        pay_lay.addWidget(self.calc_btn)
+-
+-        self.result=QTextEdit()
+-        self.result.setReadOnly(True)
+-        self.result.setMinimumHeight(150)
+-        pay_lay.addWidget(self.result)
+-
+-        msg_title=QLabel("Mensagem para o cliente")
+-        msg_title.setStyleSheet("font-weight:700;")
+-        pay_lay.addWidget(msg_title)
+-
+-        self.msg=QTextEdit()
+-        self.msg.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+-        self.msg.installEventFilter(self)
+-        self.msg.setMaximumHeight(130)
+-        pay_lay.addWidget(self.msg)
+-
+-        row=QHBoxLayout()
+-        self.copy_btn=QPushButton("📋")
+-        self.copy_btn.setToolTip("Copiar mensagem")
+-        self.clear_btn=QPushButton("🗑")
+-        self.clear_btn.setToolTip("Limpar")
+-        row.addWidget(self.copy_btn)
+-        row.addWidget(self.clear_btn)
+-        row.addStretch(1)
+-        pay_lay.addLayout(row)
+-        pay_lay.addStretch(1)
+-
+-        self.prazo_tabs.addTab(self.payment_tab,"Pagamento")
+         self._setup_freight_tab()
+-        self.prazo_tabs.addTab(self.freight_tab,"Frete")
+-        lay.addWidget(self.prazo_tabs,1)
+-
+-        self.calc_btn.clicked.connect(self.calcular)
+-        self.copy_btn.clicked.connect(self.copiar)
+-        self.clear_btn.clicked.connect(self.limpar)
+-        self.valor.returnPressed.connect(self.calcular)
+-        self.prazo_tabs.currentChanged.connect(self._prazo_tab_changed)
++        lay.addWidget(self.freight_tab,1)
+ 
++        self.on_send_to_whatsapp=None
+         self.expanded=False
+ 
+     def _setup_freight_tab(self):
+@@ -1386,7 +1299,7 @@
+         self.freight_value.installEventFilter(self)
+         freight_lay.addWidget(self.freight_value)
+ 
+-        self.freight_calc_btn=QPushButton("Calcular frete")
++        self.freight_calc_btn=QPushButton("Calcular frete + pagamento")
+         self.freight_calc_btn.setStyleSheet(
+             "QPushButton{background:#0B6A8E;color:white;font-weight:700;padding:8px;"
+             "border:0;border-radius:5px;}QPushButton:hover{background:#075773;}"
+@@ -1398,7 +1311,7 @@
+         )
+         self.freight_result.setWordWrap(True)
+         self.freight_result.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
+-        self.freight_result.setMinimumHeight(150)
++        self.freight_result.setMinimumHeight(225)
+         self.freight_result.setStyleSheet(
+             "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
+             "padding:12px;color:#435466;"
+@@ -1406,10 +1319,18 @@
+         freight_lay.addWidget(self.freight_result)
+ 
+         freight_actions=QHBoxLayout()
+-        self.freight_copy_btn=QPushButton("📋 Copiar resultado")
++        self.freight_copy_btn=QPushButton("📋 Copiar mensagem")
+         self.freight_copy_btn.setEnabled(False)
++        self.freight_whatsapp_btn=QPushButton("💬 Colocar no WhatsApp")
++        self.freight_whatsapp_btn.setEnabled(False)
++        self.freight_whatsapp_btn.setStyleSheet(
++            "QPushButton{background:#128C7E;color:white;font-weight:700;padding:7px;"
++            "border:0;border-radius:5px;}QPushButton:hover{background:#0C7469;}"
++            "QPushButton:disabled{background:#AAB8C2;color:#F2F5F7;}"
++        )
+         self.freight_clear_btn=QPushButton("🗑 Limpar")
+         freight_actions.addWidget(self.freight_copy_btn)
++        freight_actions.addWidget(self.freight_whatsapp_btn)
+         freight_actions.addWidget(self.freight_clear_btn)
+         freight_lay.addLayout(freight_actions)
+ 
+@@ -1420,6 +1341,7 @@
+         freight_lay.addStretch(1)
+ 
+         self._last_freight_quote=None
++        self._last_payment_terms=None
+         self._freight_timer=QTimer(self)
+         self._freight_timer.setSingleShot(True)
+         self._freight_timer.setInterval(280)
+@@ -1430,14 +1352,9 @@
+         self.freight_value.returnPressed.connect(self.calcular_frete)
+         self.freight_calc_btn.clicked.connect(self.calcular_frete)
+         self.freight_copy_btn.clicked.connect(self.copiar_frete)
++        self.freight_whatsapp_btn.clicked.connect(self.enviar_frete_whatsapp)
+         self.freight_clear_btn.clicked.connect(self.limpar_frete)
+ 
+-    def _prazo_tab_changed(self,index):
+-        if index!=1:
+-            return
+-        target=self.freight_value if self.freight_city.currentText().strip() else self.freight_city.lineEdit()
+-        QTimer.singleShot(0,lambda t=target:self._claim_editor_focus(t))
+-
+     def _refresh_freight_services(self,text):
+         place=resolve_freight_city(text)
+         previous=self.freight_carrier.currentData()
+@@ -1447,7 +1364,9 @@
+             self.freight_carrier.addItem("Primeiro escolha a cidade",None)
+             self.freight_carrier.blockSignals(False)
+             self._last_freight_quote=None
++            self._last_payment_terms=None
+             self.freight_copy_btn.setEnabled(False)
++            self.freight_whatsapp_btn.setEnabled(False)
+             self.freight_result.setText("Escolha uma cidade da lista para ver as transportadoras.")
+             self.freight_result.setStyleSheet(
+                 "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
+@@ -1478,7 +1397,9 @@
+ 
+     def _set_freight_error(self,message):
+         self._last_freight_quote=None
++        self._last_payment_terms=None
+         self.freight_copy_btn.setEnabled(False)
++        self.freight_whatsapp_btn.setEnabled(False)
+         self.freight_result.setStyleSheet(
+             "background:#FFF1F1;border:1px solid #F2A4A4;border-radius:8px;"
+             "padding:12px;color:#9F1D1D;font-weight:600;"
+@@ -1495,14 +1416,25 @@
+             if not silent:self._set_freight_error(quote.get("reason","Confira os dados."))
+             return
+ 
++        payment=freight_payment_terms(quote["value"])
++        if not payment.get("ok"):
++            if not silent:self._set_freight_error(payment.get("reason","Confira o valor do pedido."))
++            return
++
+         self._last_freight_quote=quote
++        self._last_payment_terms=payment
+         self.freight_copy_btn.setEnabled(True)
++        self.freight_whatsapp_btn.setEnabled(True)
++        payment_html=(
++            "<div style='margin-top:12px;padding-top:9px;border-top:1px solid rgba(0,0,0,.15)'>"
++            "<b>💳 Opções de pagamento</b><br>"
++            + "<br>".join(f"• {option} dias" for option in payment.get("options",[]))
++            + "</div>"
++        )
+         detail=(
+             f"<div style='font-size:11px;margin-top:5px'>"
+             f"{quote['city']} / {quote['uf']}<br>"
+-            f"{quote['carrier']} · {quote['branch']} · cód. {quote['code']}<br>"
+-            f"Corte: <b>{quote['cutoff']}</b>"
+-            + (f"<br>{quote['note']}" if quote.get("note") else "")
++            f"{quote['carrier']} · {quote['branch']} · cód. {quote['code']}"
+             + "</div>"
+         )
+         if quote["status"]=="free":
+@@ -1512,42 +1444,45 @@
+             )
+             self.freight_result.setText(
+                 "<div style='font-size:18px;font-weight:800'>🟢 FRETE GRÁTIS</div>"
+-                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+detail
++                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+detail+payment_html
+             )
+         elif quote["status"]=="paid":
+             self.freight_result.setStyleSheet(
+                 "background:#FFF4D6;border:2px solid #E8A72C;border-radius:8px;"
+                 "padding:12px;color:#8A5200;"
+             )
+-            missing=""
+-            if quote.get("missing") is not None and quote["missing"]>0:
+-                missing=(
+-                    f"<div style='margin-top:7px'>Faltam <b>{freight_brl(quote['missing'])}</b>"
+-                    " em produtos para frete grátis.</div>"
+-                )
+             self.freight_result.setText(
+                 f"<div style='font-size:18px;font-weight:800'>🟠 FRETE {freight_brl(quote['fee'])}</div>"
+-                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+missing+detail
++                f"<div>Pedido: <b>{freight_brl(quote['value'])}</b></div>"+detail+payment_html
+             )
+         else:
+             self.freight_result.setStyleSheet(
+                 "background:#FFF0E5;border:2px solid #E47A2E;border-radius:8px;"
+                 "padding:12px;color:#873A0A;"
+             )
+-            missing=""
+-            if quote.get("missing") is not None and quote["missing"]>0:
+-                missing=f"<div>Faltam <b>{freight_brl(quote['missing'])}</b> para o mínimo.</div>"
+             self.freight_result.setText(
+                 "<div style='font-size:17px;font-weight:800'>🟠 CONFIRMAR FRETE</div>"
+-                "<div>Valor abaixo do mínimo ou regra em negociação.</div>"+missing+detail
++                "<div>Valor do frete ainda precisa ser confirmado.</div>"+detail+payment_html
+             )
+ 
+     def copiar_frete(self):
+-        text=freight_copy_message(self._last_freight_quote or {})
++        text=freight_copy_message(
++            self._last_freight_quote or {},
++            self._last_payment_terms or {},
++        )
+         if text:
+             QApplication.clipboard().setText(text)
+             self.freight_copy_btn.setText("✅ Copiado")
+-            QTimer.singleShot(1400,lambda:self.freight_copy_btn.setText("📋 Copiar resultado"))
++            QTimer.singleShot(1400,lambda:self.freight_copy_btn.setText("📋 Copiar mensagem"))
++
++    def enviar_frete_whatsapp(self):
++        text=freight_copy_message(
++            self._last_freight_quote or {},
++            self._last_payment_terms or {},
++        )
++        callback=getattr(self,"on_send_to_whatsapp",None)
++        if text and callable(callback):
++            callback(text)
+ 
+     def limpar_frete(self):
+         self._freight_timer.stop()
+@@ -1557,7 +1492,9 @@
+         self.freight_carrier.clear()
+         self.freight_carrier.addItem("Primeiro escolha a cidade",None)
+         self._last_freight_quote=None
++        self._last_payment_terms=None
+         self.freight_copy_btn.setEnabled(False)
++        self.freight_whatsapp_btn.setEnabled(False)
+         self.freight_result.setStyleSheet(
+             "background:#F4F7FA;border:1px solid #D5DEE7;border-radius:8px;"
+             "padding:12px;color:#435466;"
+@@ -1566,7 +1503,11 @@
+         self._claim_editor_focus(self.freight_city.lineEdit())
+ 
+     def _claim_editor_focus(self,editor=None):
+-        target=editor or getattr(self,"valor",None)
++        target=editor or (
++            self.freight_value
++            if self.freight_city.currentText().strip()
++            else self.freight_city.lineEdit()
++        )
+         try:
+             win=self.window()
+             web=getattr(win,"web",None)
+@@ -1588,8 +1529,6 @@
+     def eventFilter(self,obj,event):
+         try:
+             focus_editors=(
+-                getattr(self,"valor",None),
+-                getattr(self,"msg",None),
+                 getattr(self,"freight_value",None),
+                 self.freight_city.lineEdit() if hasattr(self,"freight_city") else None,
+             )
+@@ -1615,59 +1554,6 @@
+         except Exception:pass
+         super().mousePressEvent(event)
+ 
+-    def parse_valor(self):
+-        s=self.valor.text().strip().replace("R$","").replace(" ","")
+-        if not s:
+-            return None
+-        if "," in s:
+-            s=s.replace(".","").replace(",",".")
+-        try:
+-            return float(s)
+-        except:
+-            return None
+-
+-    def calcular(self):
+-        valor=self.parse_valor()
+-        if valor is None or valor < 0:
+-            self.result.setPlainText("Informe um valor válido. Ex.: 1850,00")
+-            self.msg.clear()
+-            return
+-
+-        faixa=self.faixas[0]
+-        for f in self.faixas:
+-            if valor >= f[0]:
+-                faixa=f
+-            else:
+-                break
+-
+-        minimo, medio, opcoes=faixa
+-        br=f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X",".")
+-
+-        self.result.setPlainText(
+-            f"Valor: R$ {br}\n"
+-            f"Médio permitido: {medio} dias\n\n"
+-            "Opções:\n• " + "\n• ".join(opcoes)
+-        )
+-
+-        if len(opcoes)==1:
+-            texto=f"Consigo fazer no prazo {opcoes[0]}."
+-        elif len(opcoes)==2:
+-            texto=f"Consigo fazer em {opcoes[0]} ou {opcoes[1]}."
+-        else:
+-            texto="Consigo fazer nesses prazos:\n" + "\n".join(opcoes[:-1]) + " ou " + opcoes[-1] + "."
+-
+-        self.msg.setPlainText(texto)
+-
+-    def copiar(self):
+-        txt=self.msg.toPlainText().strip()
+-        if txt:
+-            QApplication.clipboard().setText(txt)
+-
+-    def limpar(self):
+-        self.valor.clear()
+-        self.result.clear()
+-        self.msg.clear()
+-
+     def paintEvent(self, event):
+         painter=QPainter(self)
+         painter.fillRect(self.rect(), QColor("#FFFFFF"))
+@@ -6632,7 +6518,7 @@
+         nav_lay.setSpacing(14)
+ 
+         self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
+-        self.prazo_toggle=QPushButton("▣  Prazos / frete")
++        self.prazo_toggle=QPushButton("▣  Frete / pagamento")
+         self.chat_toggle=QPushButton("◉  Assistente")
+         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+         self.plate_toggle=QPushButton("🚚  Busca placa")
+@@ -6772,7 +6658,7 @@
+         self.quick_technical=QPushButton("🔎  Busca Somaforce")
+         self.lens_toggle=QPushButton("🔎  Busca por imagem")
+         self.audio_toggle=QPushButton("🎙  Áudio")
+-        self.quick_prazo=QPushButton("▣  Prazos / frete")
++        self.quick_prazo=QPushButton("▣  Frete / pagamento")
+         self.quick_chat=QPushButton("◉  Assistente")
+         self.quick_campaign=QPushButton("➤  Disparo de mensagens")
+         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+@@ -6883,6 +6769,7 @@
+         self.chat_panel.raise_()
+ 
+         self.prazo_panel=PrazoPanel(self.web_host)
++        self.prazo_panel.on_send_to_whatsapp=self._place_freight_message_in_whatsapp
+         self.prazo_panel.hide()
+         self.prazo_panel.raise_()
+ 
+@@ -11554,6 +11441,62 @@
+         self.technical_panel.expand_btn.setText("↩" if self.technical_panel.expanded else "⛶")
+         self._position_quick_tool("technical")
+ 
++    def _place_freight_message_in_whatsapp(self,text):
++        """Preenche a conversa aberta; o vendedor revisa e confirma o envio."""
++        payload=json.dumps(str(text or ""),ensure_ascii=False)
++        js=r"""
++        ((text) => {
++          try {
++            const main=document.querySelector("#main");
++            if(!main) return {ok:false,error:"Nenhuma conversa aberta"};
++            const footer=main.querySelector("footer") || main;
++            const editor=
++              footer.querySelector("[contenteditable='true'][role='textbox']") ||
++              footer.querySelector("[contenteditable='true']");
++            if(!editor) return {ok:false,error:"Campo de mensagem não localizado"};
++            editor.focus();
++            const selection=window.getSelection();
++            const range=document.createRange();
++            range.selectNodeContents(editor);
++            selection.removeAllRanges();
++            selection.addRange(range);
++            document.execCommand("delete",false,null);
++            if((editor.innerText || editor.textContent || "").trim()){
++              editor.textContent="";
++              editor.dispatchEvent(new InputEvent("input",{
++                bubbles:true,inputType:"deleteContentBackward"
++              }));
++            }
++            editor.focus();
++            document.execCommand("insertText",false,text);
++            editor.dispatchEvent(new InputEvent("input",{
++              bubbles:true,inputType:"insertText",data:text
++            }));
++            return {ok:true};
++          } catch(error) {
++            return {ok:false,error:String(error)};
++          }
++        })(%TEXT%);
++        """.replace("%TEXT%",payload)
++        try:
++            self.web.page().runJavaScript(js,self._after_freight_message_in_whatsapp)
++        except Exception as error:
++            self._after_freight_message_in_whatsapp({"ok":False,"error":str(error)})
++
++    def _after_freight_message_in_whatsapp(self,result):
++        if result and result.get("ok"):
++            self.prazo_panel.freight_whatsapp_btn.setText("✅ Pronto no WhatsApp")
++            QTimer.singleShot(
++                1700,
++                lambda:self.prazo_panel.freight_whatsapp_btn.setText("💬 Colocar no WhatsApp")
++            )
++            return
++        QMessageBox.warning(
++            self,
++            "WhatsApp",
++            (result or {}).get("error","Não consegui preencher a conversa aberta."),
++        )
++
+     def _set_prazo_focus_guard(self,enabled=True,editor=None):
+         enabled=bool(enabled)
+         try:setattr(self.web,"_aliyvo_focus_blocked",enabled)
+@@ -11563,7 +11506,7 @@
+             except Exception:pass
+             target=editor
+             if target is None:
+-                try:target=self.prazo_panel.valor
++                try:target=self.prazo_panel.freight_city.lineEdit()
+                 except Exception:target=None
+             if target is not None:
+                 try:QTimer.singleShot(0,lambda t=target:self.prazo_panel._claim_editor_focus(t))
+@@ -11601,7 +11544,7 @@
+         control=None
+         candidates={
+             "campaign": ["message","search_contact"],
+-            "prazo": ["valor"],
++            "prazo": ["freight_city","freight_value"],
+             "audio": ["text"],
+             "diagnostic": ["report"],
+             "update": ["channel"],
+@@ -11985,7 +11928,7 @@
+     def _reset_tool_button_texts(self):
+         # Mantém os rótulos reais do topo e das Ações rápidas.
+         self.campaign_toggle.setText("➤  Disparo de mensagens")
+-        self.prazo_toggle.setText("▣  Prazos / frete")
++        self.prazo_toggle.setText("▣  Frete / pagamento")
+         self.chat_toggle.setText("◉  Assistente")
+         self.nav_lens_toggle.setText("🔎  Busca por imagem")
+         self.plate_toggle.setText("🚚  Busca placa")
+@@ -11993,7 +11936,7 @@
+         self.quick_technical.setText("🔎  Busca Somaforce")
+         self.lens_toggle.setText("🔎  Busca por imagem")
+         self.audio_toggle.setText("🎙  Áudio")
+-        self.quick_prazo.setText("▣  Prazos / frete")
++        self.quick_prazo.setText("▣  Frete / pagamento")
+         self.quick_chat.setText("◉  Assistente")
+         self.quick_campaign.setText("➤  Disparo de mensagens")
+         self.quick_diagnostic.setText("🩺  Diagnóstico")
+@@ -17135,9 +17078,10 @@
+             panel.expand_btn.setToolTip("Voltar ao tamanho compacto")
+         else:
+             panel.expand_btn.setText("⛶")
+-            panel.expand_btn.setToolTip("Expandir painel de prazos")
++            panel.expand_btn.setToolTip("Expandir frete e pagamento")
+         self._position_quick_tool("prazo")
+-        try:self._set_prazo_focus_guard(True,panel.valor)
++        target=panel.freight_value if panel.freight_city.currentText().strip() else panel.freight_city.lineEdit()
++        try:self._set_prazo_focus_guard(True,target)
+         except Exception:pass
+ 
+     def position_chat_overlay(self):

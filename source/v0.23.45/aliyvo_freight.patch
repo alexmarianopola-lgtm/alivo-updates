@@ -1,0 +1,77 @@
+--- a/_app/aliyvo_freight.py
++++ b/_app/aliyvo_freight.py
+@@ -98,6 +98,41 @@
+     return "R$ " + text.replace(",", "X").replace(".", ",").replace("X", ".")
+ 
+ 
++PAYMENT_RANGES = (
++    (Decimal("0"), "30", ("30", "20/40")),
++    (Decimal("950"), "35", ("35", "28/42")),
++    (Decimal("1100"), "37,50", ("25/50",)),
++    (Decimal("1200"), "40", ("20/40/60", "35/45")),
++    (Decimal("1300"), "42", ("28/42/56", "28/56")),
++    (Decimal("1400"), "45", ("30/60", "30/45/60")),
++    (Decimal("1800"), "50", ("25/50/75", "30/50/70", "20/40/60/80")),
++    (Decimal("2800"), "55/56", ("28/56/84", "28/42/56/70/84", "30/55/80")),
++    (Decimal("3000"), "60", ("30/60/90", "20/40/60/80/100", "30/50/70/90", "25/45/65/90")),
++    (Decimal("4000"), "62,50", ("25/50/75/100",)),
++    (Decimal("6000"), "67,50", ("30/45/60/75/90/105",)),
++    (Decimal("8000"), "70", ("20/40/60/80/100/120", "28/56/84/112", "30/50/70/90/110")),
++)
++
++
++def payment_terms(order_value) -> dict:
++    value = parse_brl(order_value)
++    if value is None:
++        return {"ok": False, "reason": "Informe um valor valido."}
++    minimum, average_days, options = PAYMENT_RANGES[0]
++    for candidate in PAYMENT_RANGES:
++        if value >= candidate[0]:
++            minimum, average_days, options = candidate
++        else:
++            break
++    return {
++        "ok": True,
++        "value": value,
++        "minimum": minimum,
++        "average_days": average_days,
++        "options": list(options),
++    }
++
++
+ @dataclass(frozen=True)
+ class FreightRule:
+     uf: str
+@@ -213,18 +248,21 @@
+     }
+ 
+ 
+-def copy_message(quote: dict) -> str:
++def copy_message(quote: dict, payment: dict | None = None) -> str:
+     if not quote.get("ok"):
+         return ""
+-    carrier = quote["carrier"]
+-    cutoff = quote.get("cutoff")
+-    cutoff_text = "" if not cutoff or cutoff == "Em negociação" else f" Horário de corte: {cutoff}."
++
++    payment = payment if payment and payment.get("ok") else payment_terms(quote.get("value"))
++    lines = [f"Condições para o pedido de {brl(quote['value'])}:"]
+     if quote["status"] == "free":
+-        return f"O pedido tem frete grátis pela {carrier}.{cutoff_text}".strip()
+-    if quote["status"] == "paid":
+-        text = f"O frete pela {carrier} fica {brl(quote['fee'])}."
+-        if quote.get("missing") is not None and quote["missing"] > 0:
+-            text += f" Faltam {brl(quote['missing'])} em produtos para o frete grátis."
+-        return (text + cutoff_text).strip()
+-    return f"O frete pela {carrier} precisa ser confirmado com a transportadora."
++        lines.append("✅ Frete grátis.")
++    elif quote["status"] == "paid":
++        lines.append(f"🚚 Frete: {brl(quote['fee'])}.")
++    else:
++        lines.append("🚚 O valor do frete precisa ser confirmado.")
++
++    if payment and payment.get("options"):
++        lines.extend(["", "💳 Opções de pagamento:"])
++        lines.extend(f"• {option} dias" for option in payment["options"])
++    return "\n".join(lines)
+ 
