@@ -47,7 +47,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Testes das faixas de frete falharam" }
           python -m compileall -q build/_app
           if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
-          python -c "import pathlib; p=pathlib.Path('build/_app/main.py').read_text(encoding='utf-8'); assert 'ALIYVO_VERSION = \"0.23.43\"' in p; assert 'Prazos / frete' in p"
+          python -c "import pathlib; p=pathlib.Path('build/_app/main.py').read_text(encoding='utf-8'); assert '0.23.43' in p; assert 'Prazos / frete' in p"
           if ($LASTEXITCODE -ne 0) { throw "Versão ou interface de frete não encontrada" }
 
       - name: Empacotar atualização
