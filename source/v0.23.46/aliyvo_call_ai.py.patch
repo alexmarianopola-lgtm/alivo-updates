@@ -1,0 +1,73 @@
+--- a/_app/aliyvo_call_ai.py
++++ b/_app/aliyvo_call_ai.py
+@@ -13,6 +13,7 @@
+     QListWidgetItem, QTextEdit, QMessageBox, QComboBox, QCheckBox, QWidget,
+     QSplitter
+ )
++from aliyvo_call_quota import QuotaExceeded
+ 
+ APP_DIR = Path(__file__).resolve().parent
+ VENDOR_DIR = APP_DIR / "vendor"
+@@ -819,7 +820,7 @@
+ 
+             from aliyvo_call_quota import reserve
+             with wave.open(str(mixed),"rb") as quota_audio:duration=quota_audio.getnframes()/quota_audio.getframerate()
+-            reserve(BASE_DIR / "cota_avaliacao.json",duration)
++            reserve(BASE_DIR / "cota_avaliacao.json",duration,operation_id=call_id)
+             self._update_call(call_id, status="transcrevendo", error="")
+             parts = _split_wav(mixed, 8)
+             texts = []
+@@ -842,6 +843,8 @@
+             self._update_call(call_id, evaluation=evaluation, score=score, status="concluido", processed_ts=time.time(), error="")
+             try: self.owner._diagnostic_log("call_ai_completed", client=call.get("client"), call_ai_id=call_id, score=score, result=evaluation.get("resultado"))
+             except Exception: pass
++        except QuotaExceeded as exc:
++            self._update_call(call_id, status="aguardando_cota", error=str(exc))
+         except urllib.error.HTTPError as exc:
+             try: detail = exc.read().decode("utf-8", "replace")[:1200]
+             except Exception: detail = str(exc)
+@@ -876,7 +879,7 @@
+             transcript = str(call.get("transcript") or "").strip()
+             from aliyvo_call_quota import reserve
+             with wave.open(str(mixed),"rb") as quota_audio:duration=quota_audio.getnframes()/quota_audio.getframerate()
+-            reserve(BASE_DIR / "cota_avaliacao.json",0 if transcript else duration)
++            reserve(BASE_DIR / "cota_avaliacao.json",0 if transcript else duration,operation_id=call_id)
+             if not transcript:
+                 parts = _split_wav(mixed, 8); texts=[]
+                 try:
+@@ -893,6 +896,8 @@
+             self._update_call(call_id,status="avaliando")
+             ev=evaluate_transcript(transcript,str(call.get("client") or ""),key,model,float(call.get("started_ts") or 0))
+             self._update_call(call_id,evaluation=ev,score=_score_general(ev),status="concluido",processed_ts=time.time(),error="")
++        except QuotaExceeded as exc:
++            self._update_call(call_id,status="aguardando_cota",error=str(exc))
+         except Exception as exc:
+             self._update_call(call_id,status="erro",error=str(exc)[:1200])
+         self.updated.emit(call_id)
+@@ -1090,7 +1095,10 @@
+         sub=QLabel("Gravação automática das ligações detectadas no WhatsApp → transcrição → avaliação IA → CRM → follow-up.")
+         sub.setWordWrap(True);sub.setStyleSheet("color:#5B6872;font-weight:600;");lay.addWidget(sub)
+ 
+-        economy=QLabel("Modo econômico · sem IA ao vivo · cota mensal: 30 análises / 60 minutos de áudio. Buscas manuais são separadas.");economy.setWordWrap(True);lay.addWidget(economy)
++        from aliyvo_call_quota import usage
++        quota=usage(BASE_DIR / "cota_avaliacao.json")
++        used_minutes=int(float(quota.get("seconds") or 0)//60)
++        economy=QLabel(f"Modo econômico · sem IA ao vivo · usado neste mês: {quota.get('calls',0)}/30 ligações e {used_minutes}/60 min. Ao atingir o limite, o áudio continua salvo para reprocessar no próximo mês.");economy.setWordWrap(True);lay.addWidget(economy)
+         partb=QPushButton("🔎 Buscar peça / código original");partb.clicked.connect(self.show_parts_search);lay.addWidget(partb)
+         opts=QHBoxLayout()
+         auto=QCheckBox("Gravar automaticamente");auto.setChecked(bool(self._cfg.get("auto_record",True)))
+@@ -1136,10 +1144,11 @@
+         avg=round(sum(float(x["score"]) for x in done)/len(done),1) if done else None
+         closed=sum(1 for x in done if isinstance(x.get("evaluation"),dict) and x["evaluation"].get("resultado")=="pedido_fechado")
+         errs=sum(1 for x in rows if str(x.get("status") or "").startswith("erro") or x.get("status")=="aguardando_chave_ia")
+-        self._summary.setText(f"Ligações: {len(rows)}   •   Avaliadas: {len(done)}   •   Nota média: {avg if avg is not None else '-'}   •   Pedidos fechados: {closed}   •   Pendências/erros: {errs}")
++        queued=sum(1 for x in rows if x.get("status")=="aguardando_cota")
++        self._summary.setText(f"Ligações: {len(rows)}   •   Avaliadas: {len(done)}   •   Nota média: {avg if avg is not None else '-'}   •   Pedidos fechados: {closed}   •   Aguardando cota: {queued}   •   Erros: {errs}")
+         for row in rows:
+             score=row.get("score");status=str(row.get("status") or "")
+-            icon="✅" if status=="concluido" else "🔴" if status.startswith("erro") else "⏳" if status not in ("ligacao_curta","aguardando_chave_ia") else "⚠"
++            icon="✅" if status=="concluido" else "🔴" if status.startswith("erro") else "💾" if status=="aguardando_cota" else "⏳" if status not in ("ligacao_curta","aguardando_chave_ia") else "⚠"
+             when=str(row.get("started_at") or "")[:16].replace("T"," ")
+             txt=f"{icon} {when}  •  {row.get('client') or 'Contato'}\n{status}"+(f"  •  nota {score}" if score is not None else "")
+             it=QListWidgetItem(txt);it.setData(Qt.ItemDataRole.UserRole,str(row.get("id") or ""));self._list.addItem(it)
+

@@ -1,0 +1,88 @@
+--- a/_app/aliyvo_call_quota.py
++++ b/_app/aliyvo_call_quota.py
+@@ -1,19 +1,69 @@
+-"""Conservative local monthly usage quota; not a provider billing balance."""
+-import json,threading,os
++"""Conservative, idempotent local quota for automatic call analysis."""
++import json, threading, os
+ from datetime import datetime
+-_lock=threading.Lock()
+-MAX_CALLS=30
+-MAX_SECONDS=3600
+ 
+-def reserve(path,seconds,now=None):
+-    month=(now or datetime.now()).strftime('%Y-%m');seconds=max(0,float(seconds))
++_lock = threading.Lock()
++MAX_CALLS = 30
++MAX_SECONDS = 3600
++
++
++class QuotaExceeded(ValueError):
++    """The audio stays local; this is an economy pause, not a processing error."""
++
++
++def _month(now=None):
++    return (now or datetime.now()).strftime("%Y-%m")
++
++
++def _fresh(month):
++    return {"month": month, "calls": 0, "seconds": 0.0, "operations": []}
++
++
++def _read(path, now=None):
++    month = _month(now)
++    try:
++        data = json.loads(path.read_text(encoding="utf-8"))
++    except FileNotFoundError:
++        data = {}
++    except Exception as exc:
++        raise ValueError("Não foi possível conferir a cota mensal. Nenhuma API foi chamada.") from exc
++    if not isinstance(data, dict) or data.get("month") != month:
++        return _fresh(month)
++    data["calls"] = max(0, int(data.get("calls") or 0))
++    data["seconds"] = max(0.0, float(data.get("seconds") or 0))
++    operations = data.get("operations")
++    data["operations"] = list(dict.fromkeys(str(x) for x in operations)) if isinstance(operations, list) else []
++    return data
++
++
++def usage(path, now=None):
++    with _lock:
++        data = _read(path, now)
++    data.update({"max_calls": MAX_CALLS, "max_seconds": MAX_SECONDS})
++    return data
++
++
++def reserve(path, seconds, operation_id="", now=None):
++    """Reserve once per call, so retries never spend the local allowance twice."""
++    seconds = max(0.0, float(seconds))
++    operation_id = str(operation_id or "").strip()
+     with _lock:
+-        try:data=json.loads(path.read_text(encoding='utf-8'))
+-        except FileNotFoundError:data={}
+-        except Exception:raise ValueError('Não foi possível conferir a cota mensal. Nenhuma API foi chamada.')
+-        if data.get('month')!=month:data={'month':month,'calls':0,'seconds':0}
+-        if data['calls']+1>MAX_CALLS or data['seconds']+seconds>MAX_SECONDS:
+-            raise ValueError('Cota mensal da avaliação atingida (30 análises / 60 minutos). Áudio preservado para o próximo mês. Buscas manuais têm consumo separado.')
+-        data['calls']+=1;data['seconds']+=seconds
+-        path.parent.mkdir(parents=True,exist_ok=True);tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(data),encoding='utf-8');os.replace(tmp,path)
++        data = _read(path, now)
++        if operation_id and operation_id in data["operations"]:
++            data.update({"max_calls": MAX_CALLS, "max_seconds": MAX_SECONDS, "already_reserved": True})
++            return data
++        if data["calls"] + 1 > MAX_CALLS or data["seconds"] + seconds > MAX_SECONDS:
++            raise QuotaExceeded(
++                "Limite econômico mensal atingido (30 ligações ou 60 minutos). "
++                "A gravação foi salva e poderá ser reprocessada no próximo mês."
++            )
++        data["calls"] += 1
++        data["seconds"] += seconds
++        if operation_id:
++            data["operations"].append(operation_id)
++        path.parent.mkdir(parents=True, exist_ok=True)
++        tmp = path.with_suffix(".tmp")
++        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
++        os.replace(tmp, path)
++    data.update({"max_calls": MAX_CALLS, "max_seconds": MAX_SECONDS, "already_reserved": False})
+     return data
+
