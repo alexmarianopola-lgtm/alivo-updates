@@ -33,6 +33,7 @@ jobs:
       - name: Aplicar Prazos e frete
         shell: pwsh
         run: |
+          python -c "from pathlib import Path; p=Path('source/v0.23.43/main.patch'); p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n'))"
           git apply --check --directory=build source/v0.23.43/main.patch
           if ($LASTEXITCODE -ne 0) { throw "Patch do main.py incompatível" }
           git apply --directory=build source/v0.23.43/main.patch
