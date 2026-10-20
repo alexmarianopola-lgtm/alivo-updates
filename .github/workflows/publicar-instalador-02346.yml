@@ -1,4 +1,4 @@
-name: Publicar instalador simples ALIYVO 0.23.46
+name: Publicar instalador simples ALIYVO 0.23.47
 
 on:
   push:
@@ -15,18 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Baixar ALIYVO 0.23.46
+      - name: Baixar ALIYVO 0.23.47
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force stage,payload,out | Out-Null
-          gh release download v0.23.46 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02346.zip" --dir stage
-          if ($LASTEXITCODE -ne 0) { throw 'Pacote 0.23.46 não encontrado.' }
-          Expand-Archive stage/ALIYVO_02346.zip payload -Force
+          gh release download v0.23.47 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02347.zip" --dir stage
+          if ($LASTEXITCODE -ne 0) { throw 'Pacote 0.23.47 não encontrado.' }
+          Expand-Archive stage/ALIYVO_02347.zip payload -Force
           if (-not (Test-Path 'payload\_app\Aliyvo.pyw')) { throw 'Aliyvo.pyw ausente.' }
           if (-not (Test-Path 'payload\_app\main.py')) { throw 'main.py ausente.' }
-          Select-String -Path 'payload\_app\main.py' -Pattern 'ALIYVO_VERSION = "0.23.46"' | Out-Null
+          Select-String -Path 'payload\_app\main.py' -Pattern 'ALIYVO_VERSION = "0.23.47"' | Out-Null
 
       - name: Baixar mecanismos oficiais
         shell: pwsh
@@ -55,10 +55,10 @@ jobs:
           $python=(Resolve-Path 'python-3.12.10-amd64.exe').Path
           $webview=(Resolve-Path 'MicrosoftEdgeWebview2Setup.exe').Path
           Push-Location 'distribuicao\installer'
-          & $iscc '/DAppVersion=0.23.46' "/DPayloadDir=$payload" "/DPythonInstaller=$python" "/DWebView2Installer=$webview" 'ALIYVO-Setup.iss'
+          & $iscc '/DAppVersion=0.23.47' "/DPayloadDir=$payload" "/DPythonInstaller=$python" "/DWebView2Installer=$webview" 'ALIYVO-Setup.iss'
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou: $LASTEXITCODE" }
           Pop-Location
-          $built='distribuicao\installer\output\ALIYVO_BETA_SETUP_02346.exe'
+          $built='distribuicao\installer\output\ALIYVO_BETA_SETUP_02347.exe'
           if (-not (Test-Path $built)) { throw 'Instalador não foi criado.' }
           Copy-Item $built 'out\ALIYVO_INSTALAR.exe' -Force
 
@@ -79,7 +79,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Teste dos componentes instalados falhou.' }
           & $python -m py_compile $main
           if ($LASTEXITCODE -ne 0) { throw 'Aplicativo instalado não compila.' }
-          Select-String -Path $main -Pattern 'ALIYVO_VERSION = "0.23.46"' | Out-Null
+          Select-String -Path $main -Pattern 'ALIYVO_VERSION = "0.23.47"' | Out-Null
           Get-FileHash 'out\ALIYVO_INSTALAR.exe' -Algorithm SHA256 | Format-List
 
       - name: Publicar link direto
@@ -87,5 +87,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload v0.23.46 'out\ALIYVO_INSTALAR.exe' --repo "$env:GITHUB_REPOSITORY" --clobber
+          gh release upload v0.23.47 'out\ALIYVO_INSTALAR.exe' --repo "$env:GITHUB_REPOSITORY" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Não foi possível publicar o instalador.' }
