@@ -1,0 +1,29 @@
+name: Inspecionar mídia ALIYVO 0.23.47
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/inspecionar-midia-02347.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar pacote atual
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,build | Out-Null
+          gh release download v0.23.47 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02347.zip" --dir base
+          Expand-Archive base/ALIYVO_02347.zip build -Force
+      - name: Inspecionar integração WebView2
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; p=Path('build/_app/main.py'); s=p.read_text(encoding='utf-8'); keys=['class WhatsAppView','media_download_callback','_on_whatsapp_loaded','PermissionRequested']; print('\n'.join('\n===== '+k+' =====\n'+s[max(0,s.find(k)-1500):s.find(k)+9000] for k in keys if s.find(k)>=0))"
+          Get-ChildItem build/_app -Recurse -Filter "*webview2*.py" | ForEach-Object { Write-Host "===== $($_.FullName) ====="; Get-Content $_.FullName -TotalCount 800 }
