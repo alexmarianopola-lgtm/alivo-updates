@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.47
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-aliyvo-02347.yml'
+      - 'source/v0.23.47/**'
+      - 'tests/test_delivery_tracking_v2347.py'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar versão base
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,build,out | Out-Null
+          gh release download v0.23.46 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02346.zip" --dir base
+          if ($LASTEXITCODE -ne 0) { throw "Base 0.23.46 não baixada" }
+          Expand-Archive base/ALIYVO_02346.zip build -Force
+
+      - name: Integrar rastreamento de moto
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; paths=[Path('source/v0.23.47/main.py.patch'),Path('build/_app/main.py')]; [p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n')) for p in paths]"
+          git apply --check --directory=build source/v0.23.47/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do rastreamento incompatível" }
+          git apply --directory=build source/v0.23.47/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do rastreamento falhou" }
+
+      - name: Validar navegação e preservação
+        shell: pwsh
+        run: |
+          $env:ALIYVO_TEST_APP_DIR=(Resolve-Path 'build/_app').Path
+          python -m unittest tests/test_delivery_tracking_v2347.py -v
+          if ($LASTEXITCODE -ne 0) { throw "Testes do rastreamento falharam" }
+          python -m compileall -q build/_app
+          if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
+
+      - name: Empacotar atualização
+        shell: pwsh
+        run: |
+          python -c "import pathlib,zipfile; root=pathlib.Path('build'); z=zipfile.ZipFile('out/ALIYVO_02347.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.name!='soma_catalog.sqlite']; z.close()"
+          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02347.zip'); assert z.testzip() is None; s=z.read('_app/main.py').decode('utf-8'); assert '0.23.47' in s; assert '🏍️  Rastrear moto' in s; assert 'https://somaforce.com.br/entregas/painel' in s"
+          if ($LASTEXITCODE -ne 0) { throw "Pacote final inválido" }
+          $sha=(Get-FileHash out/ALIYVO_02347.zip -Algorithm SHA256).Hash.ToLower()
+          "ALIYVO 0.23.47. O botão superior Buscar peça foi substituído por Rastrear moto. Abre o painel interno https://somaforce.com.br/entregas/painel em uma janela própria, com sessão persistente e alternativa pelo navegador. Busca de peças nas demais áreas e todas as outras funções foram preservadas. Testes, sintaxe e pacote verificados. SHA256: $sha" | Set-Content out/VALIDACAO_02347.txt
+
+      - name: Publicar versão 0.23.47
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.23.47 --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.23.47 out/ALIYVO_02347.zip out/VALIDACAO_02347.txt --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            gh release create v0.23.47 out/ALIYVO_02347.zip out/VALIDACAO_02347.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.47 - Rastrear moto" --notes "O botão Buscar peça da barra superior foi substituído por Rastrear moto. Ao clicar, o ALIYVO abre internamente o painel de entregas da Somaforce, preserva a sessão neste computador e oferece alternativa para abrir no navegador. As demais funções permanecem iguais."
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publicação falhou" }
+          gh release edit v0.23.47 --repo "$env:GITHUB_REPOSITORY" --latest
+          if ($LASTEXITCODE -ne 0) { throw "Não foi possível marcar como versão mais recente" }

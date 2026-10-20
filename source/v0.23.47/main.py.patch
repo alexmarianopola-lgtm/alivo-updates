@@ -1,0 +1,176 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.46"
++ALIYVO_VERSION = "0.23.47"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -112,6 +112,8 @@
+ CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+ PURCHASE_PORTAL_URL = "https://somaforce.com.br/pedewilliam/"
+ PURCHASE_PROFILE_DIR = ALIYVO_USER_DIR / "pedidos_compras_profile"
++DELIVERY_TRACKING_URL = "https://somaforce.com.br/entregas/painel"
++DELIVERY_TRACKING_PROFILE_DIR = ALIYVO_USER_DIR / "rastreio_entregas_profile"
+ 
+ def _prepare_persistent_user_data():
+     """
+@@ -6311,10 +6313,15 @@
+ class PurchasePortalWindow(QMainWindow):
+     """Janela dedicada ao portal de pedidos, sem consumir API de IA."""
+     URL = PURCHASE_PORTAL_URL
++    PROFILE_DIR = PURCHASE_PROFILE_DIR
++    WINDOW_TITLE = "ALIYVO — Pedido ao comprador"
++    HEADING = "🛒  PEDIDO AO COMPRADOR"
++    PORTAL_NAME = "Pede pro William"
++    ERROR_TITLE = "Pedido ao comprador"
+ 
+     def __init__(self,parent=None):
+         super().__init__(parent)
+-        self.setWindowTitle("ALIYVO — Pedido ao comprador")
++        self.setWindowTitle(self.WINDOW_TITLE)
+         self.resize(1450,900)
+         try:
+             icon_path=APP_DIR/"copiloto_a_icon.ico"
+@@ -6324,7 +6331,7 @@
+             pass
+ 
+         try:
+-            PURCHASE_PROFILE_DIR.mkdir(parents=True,exist_ok=True)
++            self.PROFILE_DIR.mkdir(parents=True,exist_ok=True)
+         except Exception:
+             pass
+ 
+@@ -6353,7 +6360,7 @@
+         row.setContentsMargins(16,9,12,9)
+         row.setSpacing(8)
+ 
+-        title=QLabel("🛒  PEDIDO AO COMPRADOR")
++        title=QLabel(self.HEADING)
+         title.setStyleSheet("font-size:16px;font-weight:900;color:#FFFFFF;")
+         row.addWidget(title)
+         self.status=QLabel("Sessão protegida e salva neste computador • sem consumo de API")
+@@ -6380,7 +6387,7 @@
+             background_color="#FFFFFF",
+             handle_new_window=True,
+             lazyload=False,
+-            user_data_folder=str(PURCHASE_PROFILE_DIR),
++            user_data_folder=str(self.PROFILE_DIR),
+             no_local_storage=False,
+             fullscreen_support=True,
+             parent=None,
+@@ -6407,14 +6414,14 @@
+                 return
+         except Exception:
+             pass
+-        self.status.setText("Abrindo Pede pro William…")
++        self.status.setText("Abrindo "+self.PORTAL_NAME+"…")
+ 
+     def _loaded(self,*args):
+         self.status.setText("Pronto • sua sessão fica salva neste computador • sem consumo de API")
+ 
+     def _go_home(self):
+         try:
+-            self.status.setText("Abrindo Pede pro William…")
++            self.status.setText("Abrindo "+self.PORTAL_NAME+"…")
+             self.web.load_url(self.URL)
+         except Exception:
+             self._open_external()
+@@ -6432,7 +6439,7 @@
+         except Exception as exc:
+             QMessageBox.warning(
+                 self,
+-                "Pedido ao comprador",
++                self.ERROR_TITLE,
+                 "Não consegui abrir o navegador: "+str(exc),
+             )
+ 
+@@ -6450,6 +6457,16 @@
+         self.hide()
+ 
+ 
++class DeliveryTrackingWindow(PurchasePortalWindow):
++    """Painel interno de rastreamento das entregas da Somaforce."""
++    URL = DELIVERY_TRACKING_URL
++    PROFILE_DIR = DELIVERY_TRACKING_PROFILE_DIR
++    WINDOW_TITLE = "ALIYVO — Rastrear moto"
++    HEADING = "🏍️  RASTREAR MOTO"
++    PORTAL_NAME = "rastreamento das entregas"
++    ERROR_TITLE = "Rastrear moto"
++
++
+ class MainWindow(QMainWindow):
+     def __init__(self):
+         super().__init__()
+@@ -6529,9 +6546,9 @@
+         self.purchase_toggle.setStyleSheet("QPushButton{background:#0D5E45;border-color:#20E983;color:white;} QPushButton:hover{background:#117A59;}")
+         self.calls_ai_toggle=QPushButton("📞  Ligações IA")
+         self.calls_ai_toggle.setToolTip("Gravação, transcrição, avaliação comercial e CRM")
+-        self.radar_toggle=QPushButton("🔎  Buscar peça")
+-        self.radar_toggle.setToolTip("Buscar peça, foto e referências de linha pesada, mesmo fora de uma ligação")
+-        self.radar_toggle.clicked.connect(self._parts_search_dialog)
++        self.radar_toggle=QPushButton("🏍️  Rastrear moto")
++        self.radar_toggle.setToolTip("Abrir o painel interno de rastreamento das entregas Somaforce")
++        self.radar_toggle.clicked.connect(self._open_delivery_tracking)
+         self.ponto_toggle=QPushButton("🕒  Ponto")
+         self.ponto_toggle.setToolTip("Controle de ponto • 07:50 • 12:08 • 13:30 • 18:00")
+ 
+@@ -6815,6 +6832,7 @@
+         self.plate_panel.on_capture=self._catalog_capture_start
+         self._catalog_window=None
+         self._purchase_window=None
++        self._tracking_window=None
+ 
+         self.audio_panel.on_audio_file=self._transcribe_downloaded_audio
+         self.web.media_download_callback=self._handle_whatsapp_media_download
+@@ -11606,6 +11624,28 @@
+                 +str(exc),
+             )
+ 
++    def _open_delivery_tracking(self):
++        """Abre o rastreamento de entregas em uma janela interna e persistente."""
++        try:
++            self._release_whatsapp_focus()
++        except Exception:
++            pass
++        try:
++            if self._tracking_window is None:
++                self._tracking_window=DeliveryTrackingWindow(self)
++            self._tracking_window.open_portal()
++        except Exception as exc:
++            try:
++                webbrowser.open(DELIVERY_TRACKING_URL)
++            except Exception:
++                pass
++            QMessageBox.warning(
++                self,
++                "Rastrear moto",
++                "A tela interna não iniciou. O rastreamento foi enviado ao navegador.\n\n"
++                +str(exc),
++            )
++
+     def _get_catalog_window(self,show=False):
+         if self._catalog_window is None:
+             self._catalog_window=CatalogBrowserWindow(self)
+@@ -13165,6 +13205,17 @@
+                 except Exception:pass
+                 self._purchase_window=None
+         except Exception:pass
++        try:
++            tracking=getattr(self,"_tracking_window",None)
++            if tracking is not None:
++                try:tracking.hide()
++                except Exception:pass
++                try:self._aliyvo_dispose_webview_widget(getattr(tracking,"web",None))
++                except Exception:pass
++                try:tracking.deleteLater()
++                except Exception:pass
++                self._tracking_window=None
++        except Exception:pass
+         try:self._aliyvo_log_webview_startup("encerramento conservador concluido")
+         except Exception:pass
+ 
+
