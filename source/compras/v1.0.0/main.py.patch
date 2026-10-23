@@ -1,0 +1,248 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,8 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.50"
++ALIYVO_VERSION = "1.0.0"
++ALIYVO_EDITION = "COMPRAS"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -98,12 +99,12 @@
+ _aliyvo_install_windows_certificate_bridge()
+ 
+ ALIYVO_PLAN = "BETA_FREE"
+-ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest"
++ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/tags/compras-v1.0.0"
+ DB_PATH = APP_DIR / "copiloto.db"
+ # Perfil estável do WhatsApp entre versões do ALIYVO.
+ ALIYVO_USER_DIR = Path(
+     os.environ.get("LOCALAPPDATA", str(APP_DIR))
+-) / "ALIYVO"
++) / "ALIYVO_COMPRAS"
+ PROFILE_DIR = ALIYVO_USER_DIR / "whatsapp_profile"
+ WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+ USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+@@ -115,6 +116,8 @@
+ PURCHASE_PROFILE_DIR = ALIYVO_USER_DIR / "pedidos_compras_profile"
+ DELIVERY_TRACKING_URL = "https://somaforce.com.br/entregas/painel"
+ DELIVERY_TRACKING_PROFILE_DIR = ALIYVO_USER_DIR / "rastreio_entregas_profile"
++ASANA_PORTAL_URL = "https://app.asana.com/"
++ASANA_PROFILE_DIR = ALIYVO_USER_DIR / "asana_profile"
+ 
+ def _prepare_persistent_user_data():
+     """
+@@ -6586,13 +6589,23 @@
+     ERROR_TITLE = "Rastrear moto"
+ 
+ 
++class AsanaPortalWindow(PurchasePortalWindow):
++    """Asana em janela própria, mantendo a sessão do comprador."""
++    URL = ASANA_PORTAL_URL
++    PROFILE_DIR = ASANA_PROFILE_DIR
++    WINDOW_TITLE = "ALIYVO Compras — Asana"
++    HEADING = "✅  ASANA — TAREFAS DE COMPRAS"
++    PORTAL_NAME = "Asana"
++    ERROR_TITLE = "Asana"
++
++
+ class MainWindow(QMainWindow):
+     def __init__(self):
+         super().__init__()
+         try:
+             import ctypes
+             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+-                "ALIYVO.Desktop.Comercial"
++                "ALIYVO.Desktop.Compras"
+             )
+         except Exception:
+             pass
+@@ -6601,7 +6614,7 @@
+         if icon_path.exists():
+             self.setWindowIcon(QIcon(str(icon_path)))
+ 
+-        self.setWindowTitle("ALIYVO")
++        self.setWindowTitle("ALIYVO COMPRAS")
+         self.setWindowFlags(
+             Qt.WindowType.FramelessWindowHint |
+             Qt.WindowType.Window
+@@ -6653,15 +6666,15 @@
+         nav_lay.setContentsMargins(14,5,14,5)
+         nav_lay.setSpacing(14)
+ 
+-        self.campaign_toggle=QPushButton("➤  Disparo de mensagens")
++        self.campaign_toggle=QPushButton("➤  Contatar fornecedores")
+         self.prazo_toggle=QPushButton("▣  Frete / pagamento")
+         self.chat_toggle=QPushButton("◉  Assistente")
+         self.nav_lens_toggle=QPushButton("🔎  Busca por imagem")
+         self.plate_toggle=QPushButton("🚚  Busca placa")
+         self.attendance_toggle=QPushButton("📊  Diagnóstico")
+-        self.reminder_toggle=QPushButton("👥  CRM")
+-        self.purchase_toggle=QPushButton("🛒  Pedido ao comprador")
+-        self.purchase_toggle.setToolTip("Abrir o Pede pro William em uma janela própria")
++        self.reminder_toggle=QPushButton("📅  Agenda de compras")
++        self.purchase_toggle=QPushButton("🛒  Pedidos de compra")
++        self.purchase_toggle.setToolTip("Abrir o painel interno de solicitações de compra")
+         self.purchase_toggle.setStyleSheet("QPushButton{background:#0D5E45;border-color:#20E983;color:white;} QPushButton:hover{background:#117A59;}")
+         self.calls_ai_toggle=QPushButton("📞  Ligações IA")
+         self.calls_ai_toggle.setToolTip("Gravação, transcrição, avaliação comercial e CRM")
+@@ -6696,13 +6709,12 @@
+         self.prazo_toggle.hide()
+         self.chat_toggle.hide()
+         self.nav_lens_toggle.hide()
+-        nav_lay.addWidget(self.plate_toggle)
+-        nav_lay.addWidget(self.attendance_toggle)
+         nav_lay.addWidget(self.reminder_toggle)
+         nav_lay.addWidget(self.purchase_toggle)
+-        nav_lay.addWidget(self.calls_ai_toggle)
+-        nav_lay.addWidget(self.radar_toggle)
+-        nav_lay.addWidget(self.ponto_toggle)
++        self.asana_toggle=QPushButton("✅  Asana")
++        nav_lay.addWidget(self.asana_toggle)
++        self.plate_toggle.hide();self.attendance_toggle.hide();self.calls_ai_toggle.hide()
++        self.radar_toggle.hide();self.ponto_toggle.hide();self.prazo_toggle.hide()
+         nav_lay.addStretch(1)
+         shell_lay.addWidget(nav)
+ 
+@@ -6786,7 +6798,7 @@
+         qtitle.setStyleSheet(
+             "font-size:14px;font-weight:800;color:white;"
+         )
+-        qsub=QLabel("Ferramentas do ALIYVO")
++        qsub=QLabel("Ferramentas do comprador")
+         qsub.setStyleSheet(
+             "font-size:9px;color:#69BBA4;"
+         )
+@@ -6796,11 +6808,12 @@
+         self.audio_toggle=QPushButton("🎙  Áudio")
+         self.quick_prazo=QPushButton("▣  Frete / pagamento")
+         self.quick_chat=QPushButton("◉  Assistente")
+-        self.quick_campaign=QPushButton("➤  Disparo de mensagens")
++        self.quick_campaign=QPushButton("➤  Contatar fornecedores")
+         self.quick_diagnostic=QPushButton("🩺  Diagnóstico")
+         self.quick_update=QPushButton("⬆  Atualizações")
+         self.quick_plate=QPushButton("🚚  Busca por placa")
+-        self.quick_purchase=QPushButton("🛒  Pedido ao comprador")
++        self.quick_purchase=QPushButton("🛒  Pedidos de compra")
++        self.quick_asana=QPushButton("✅  Asana")
+         self.quick_purchase.setStyleSheet("QPushButton{background:#0D5E45;border-color:#20E983;color:white;} QPushButton:hover{background:#117A59;}")
+ 
+         q.addWidget(qtitle)
+@@ -6809,13 +6822,11 @@
+         q.addWidget(self.quick_technical)
+         q.addWidget(self.lens_toggle)
+         q.addWidget(self.audio_toggle)
+-        q.addWidget(self.quick_prazo)
+         q.addWidget(self.quick_chat)
+         q.addWidget(self.quick_campaign)
+-        q.addWidget(self.quick_diagnostic)
+         q.addWidget(self.quick_update)
+-        q.addWidget(self.quick_plate)
+         q.addWidget(self.quick_purchase)
++        q.addWidget(self.quick_asana)
+         q.addStretch(1)
+ 
+         # Host da direita: alterna entre Ações rápidas e a ferramenta escolhida.
+@@ -6953,6 +6964,7 @@
+         self._catalog_window=None
+         self._purchase_window=None
+         self._tracking_window=None
++        self._asana_window=None
+ 
+         self.audio_panel.on_audio_file=self._transcribe_downloaded_audio
+         self.web.media_download_callback=self._handle_whatsapp_media_download
+@@ -6985,8 +6997,10 @@
+         self.quick_plate.clicked.connect(lambda: self._open_quick_tool("plate"))
+         self.purchase_toggle.clicked.connect(self._open_purchase_portal)
+         self.quick_purchase.clicked.connect(self._open_purchase_portal)
++        self.asana_toggle.clicked.connect(self._open_asana_portal)
++        self.quick_asana.clicked.connect(self._open_asana_portal)
+         self.attendance_toggle.clicked.connect(self._diagnostic_show_dialog)
+-        self.reminder_toggle.clicked.connect(self._crm_clients_dialog)
++        self.reminder_toggle.clicked.connect(self._reminder_show_dialog)
+         self.calls_ai_toggle.clicked.connect(
+             lambda: self._call_ai_manager.show_dashboard()
+             if getattr(self,"_call_ai_manager",None) is not None
+@@ -11200,22 +11214,18 @@
+     def _reminder_update_button(self):
+         try:
+             n=sum(1 for x in getattr(self,"_reminders",[]) if isinstance(x,dict) and not x.get("done") and not x.get("needs_review"))
+-            self.reminder_toggle.setText(f"👥  CRM ({n})" if n else "👥  CRM")
++            self.reminder_toggle.setText(f"📅  Agenda de compras ({n})" if n else "📅  Agenda de compras")
+         except Exception: pass
+ 
+     def _reminder_show_dialog(self):
+-        manager=getattr(self,'_call_ai_manager',None)
+-        if manager is not None:
+-            manager.show_contacts(self)
+-            return
+         from PyQt6.QtWidgets import QDialog,QVBoxLayout,QHBoxLayout,QListWidget,QListWidgetItem,QPushButton,QComboBox,QLabel,QWidget
+         from PyQt6.QtGui import QColor,QFont
+         from PyQt6.QtCore import QSize
+         import datetime,time
+-        dlg=QDialog(self); dlg.setWindowTitle("📊 ALIYVO CRM — Lembretes e Oportunidades"); dlg.resize(940,690); lay=QVBoxLayout(dlg)
++        dlg=QDialog(self); dlg.setWindowTitle("📅 ALIYVO Compras — Agenda e prazos"); dlg.resize(940,690); lay=QVBoxLayout(dlg)
+ 
+         # Cabeçalho visual do CRM
+-        crm_title=QLabel("ALIYVO CRM")
++        crm_title=QLabel("AGENDA DE COMPRAS")
+         crm_title.setStyleSheet("font-size:22px;font-weight:900;color:#0B3349;padding:2px 2px 0 2px;")
+         crm_sub=QLabel("Clientes, compradores, histórico, retornos, lembretes e oportunidades em um só lugar")
+         crm_sub.setStyleSheet("font-size:11px;font-weight:600;color:#657784;padding:0 2px 8px 2px;")
+@@ -11744,6 +11754,26 @@
+                 +str(exc),
+             )
+ 
++    def _open_asana_portal(self):
++        """Abre o Asana em perfil persistente e separado do WhatsApp."""
++        try:
++            self._release_whatsapp_focus()
++        except Exception:
++            pass
++        try:
++            if self._asana_window is None:
++                self._asana_window=AsanaPortalWindow(self)
++            self._asana_window.open_portal()
++        except Exception as exc:
++            try:
++                webbrowser.open(ASANA_PORTAL_URL)
++            except Exception:
++                pass
++            QMessageBox.warning(
++                self,"Asana",
++                "A tela interna não iniciou. O Asana foi enviado ao navegador.\n\n"+str(exc),
++            )
++
+     def _open_delivery_tracking(self):
+         """Abre o rastreamento de entregas em uma janela interna e persistente."""
+         try:
+@@ -12087,22 +12117,22 @@
+ 
+     def _reset_tool_button_texts(self):
+         # Mantém os rótulos reais do topo e das Ações rápidas.
+-        self.campaign_toggle.setText("➤  Disparo de mensagens")
++        self.campaign_toggle.setText("➤  Contatar fornecedores")
+         self.prazo_toggle.setText("▣  Frete / pagamento")
+         self.chat_toggle.setText("◉  Assistente")
+         self.nav_lens_toggle.setText("🔎  Busca por imagem")
+         self.plate_toggle.setText("🚚  Busca placa")
+-        self.purchase_toggle.setText("🛒  Pedido ao comprador")
++        self.purchase_toggle.setText("🛒  Pedidos de compra")
+         self.quick_technical.setText("🔎  Busca Somaforce")
+         self.lens_toggle.setText("🔎  Busca por imagem")
+         self.audio_toggle.setText("🎙  Áudio")
+         self.quick_prazo.setText("▣  Frete / pagamento")
+         self.quick_chat.setText("◉  Assistente")
+-        self.quick_campaign.setText("➤  Disparo de mensagens")
++        self.quick_campaign.setText("➤  Contatar fornecedores")
+         self.quick_diagnostic.setText("🩺  Diagnóstico")
+         self.quick_update.setText("⬆  Atualizações")
+         self.quick_plate.setText("🚚  Busca por placa")
+-        self.quick_purchase.setText("🛒  Pedido ao comprador")
++        self.quick_purchase.setText("🛒  Pedidos de compra")
+ 
+     def _restore_quick_actions(self):
+         try:self._set_prazo_focus_guard(False)
+
