@@ -50,7 +50,7 @@ Source: "{#PayloadDir}\_app\copiloto.db"; DestDir: "{app}\_app"; Flags: onlyifdo
 Source: "{#PayloadDir}\LEIA-ME-ALIYVO.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#PythonInstaller}"; DestDir: "{tmp}"; DestName: "python-aliyvo.exe"; Flags: deleteafterinstall
 Source: "{#WebView2Installer}"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: deleteafterinstall
-Source: "instalar_componentes.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
+Source: "instalar_componentes_compras.ps1"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{autodesktop}\ALIYVO Compras"; Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\_app\Aliyvo.pyw"""; WorkingDir: "{app}\_app"; IconFilename: "{app}\_app\Aliyvo.ico"; Comment: "ALIYVO Compras - Central do comprador"
@@ -108,11 +108,11 @@ begin
 
   if not ComponentsReady() then
   begin
-    ScriptPath := ExpandConstant('{tmp}\instalar_componentes.ps1');
+    ScriptPath := ExpandConstant('{tmp}\instalar_componentes_compras.ps1');
     AppDir := ExpandConstant('{app}\_app');
     Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '" -Python "' + PythonExe + '" -AppDir "' + AppDir + '"';
     if not ExecChecked(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params,
-      'Instalando audio, corretor, OCR e componentes do ALIYVO. Isso pode levar alguns minutos...') then
+      'Instalando os componentes essenciais do ALIYVO Compras...') then
       RaiseException('Falha ao instalar os componentes do ALIYVO. Veja %LOCALAPPDATA%\ALIYVO_COMPRAS\logs\INSTALACAO.log e execute o instalador novamente.');
   end;
 
