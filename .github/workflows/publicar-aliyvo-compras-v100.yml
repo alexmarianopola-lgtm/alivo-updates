@@ -74,6 +74,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou: $LASTEXITCODE" }
           Pop-Location
           Copy-Item 'distribuicao\installer\output\ALIYVO_COMPRAS_SETUP_100.exe' 'out\ALIYVO_COMPRAS_INSTALAR.exe' -Force
+          Compress-Archive -Path 'out\ALIYVO_COMPRAS_INSTALAR.exe' -DestinationPath 'out\ALIYVO_COMPRAS_INSTALAR.zip' -Force
 
       - name: Testar instalação completa e coexistência
         shell: pwsh
@@ -97,8 +98,8 @@ jobs:
         run: |
           gh release view compras-v1.0.0 --repo "$env:GITHUB_REPOSITORY" 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload compras-v1.0.0 'out\ALIYVO_COMPRAS_INSTALAR.exe' --repo "$env:GITHUB_REPOSITORY" --clobber
+            gh release upload compras-v1.0.0 'out\ALIYVO_COMPRAS_INSTALAR.exe' 'out\ALIYVO_COMPRAS_INSTALAR.zip' --repo "$env:GITHUB_REPOSITORY" --clobber
           } else {
-            gh release create compras-v1.0.0 'out\ALIYVO_COMPRAS_INSTALAR.exe' --repo "$env:GITHUB_REPOSITORY" --title 'ALIYVO Compras 1.0.0' --notes 'Edição independente para compradores: WhatsApp, Pede pro William, Asana, agenda de compras, fornecedores, busca de produtos e campanhas. Instalação, dados e atualizações separados do ALIYVO Vendas.'
+            gh release create compras-v1.0.0 'out\ALIYVO_COMPRAS_INSTALAR.exe' 'out\ALIYVO_COMPRAS_INSTALAR.zip' --repo "$env:GITHUB_REPOSITORY" --title 'ALIYVO Compras 1.0.0' --notes 'Edição independente para compradores: WhatsApp, Pede pro William, Asana, agenda de compras, fornecedores, busca de produtos e campanhas. Instalação, dados e atualizações separados do ALIYVO Vendas.'
           }
           if ($LASTEXITCODE -ne 0) { throw 'Publicação do ALIYVO Compras falhou.' }
