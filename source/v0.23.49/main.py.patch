@@ -1,0 +1,458 @@
+diff --git a/_app/main.py b/_app/main.py
+index 045e642..d1e94bb 100644
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.48"
++ALIYVO_VERSION = "0.23.49"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -109,6 +109,7 @@ WEBVIEW2_PROFILE_DIR = ALIYVO_USER_DIR / "webview2_whatsapp_profile"
+ USER_DATA_DIR = ALIYVO_USER_DIR / "dados"
+ USER_CACHE_DIR = ALIYVO_USER_DIR / "cache_usuario"
+ CAMPAIGN_LISTS_FILE = USER_DATA_DIR / "campaign_lists.json"
++CAMPAIGN_DRAFT_FILE = USER_DATA_DIR / "campaign_draft.json"
+ CATALOG_PROFILE_DIR = ALIYVO_USER_DIR / "catalogo_profile"
+ PURCHASE_PORTAL_URL = "https://somaforce.com.br/pedewilliam/"
+ PURCHASE_PROFILE_DIR = ALIYVO_USER_DIR / "pedidos_compras_profile"
+@@ -125,7 +126,9 @@ def _prepare_persistent_user_data():
+         USER_CACHE_DIR.mkdir(parents=True,exist_ok=True)
+ 
+         marker=USER_DATA_DIR/"migration_v1.done"
+-        if marker.exists():
++        # Se uma instalação antiga criou o marcador sem localizar a lista,
++        # procura novamente enquanto o arquivo persistente não existir.
++        if marker.exists() and CAMPAIGN_LISTS_FILE.exists():
+             return
+ 
+         # Se já existe lista persistente, apenas consolida.
+@@ -550,6 +553,11 @@ class CampaignPanel(QWidget):
+         self.selected_list_name=None
+ 
+         self.lists_file=CAMPAIGN_LISTS_FILE
++        self.draft_file=CAMPAIGN_DRAFT_FILE
++        self._draft_loading=False
++        self._draft_timer=QTimer(self)
++        self._draft_timer.setSingleShot(True)
++        self._draft_timer.timeout.connect(self._save_draft)
+         self._load_saved_lists()
+ 
+         lay=QVBoxLayout(self)
+@@ -595,6 +603,12 @@ class CampaignPanel(QWidget):
+         row.addWidget(self.save_current_btn)
+         lay.addLayout(row)
+ 
++        self.import_agenda_btn=QPushButton("📥 Importar agenda do WhatsApp")
++        self.import_agenda_btn.setToolTip(
++            "Carregar de uma vez os contatos salvos no WhatsApp, sem abrir conversa por conversa"
++        )
++        lay.addWidget(self.import_agenda_btn)
++
+         # SEARCH WORKFLOW
+         search_title=QLabel("Adicionar cliente pelo WhatsApp")
+         search_title.setStyleSheet("font-weight:700;margin-top:4px;")
+@@ -616,8 +630,8 @@ class CampaignPanel(QWidget):
+         lay.addLayout(row2)
+ 
+         hint=QLabel(
+-            "Mais confiável: pesquise pelo próprio WhatsApp → abra o cliente → "
+-            "clique em ➕ Adicionar conversa atual."
++            "Use 📥 Importar agenda para carregar todos de uma vez. "
++            "Adicionar conversa atual continua disponível para um contato específico."
+         )
+         hint.setWordWrap(True)
+         hint.setStyleSheet("color:#666;")
+@@ -689,6 +703,7 @@ class CampaignPanel(QWidget):
+         self.new_list_btn.clicked.connect(self.new_list)
+         self.use_list_btn.clicked.connect(self.use_saved_list)
+         self.save_current_btn.clicked.connect(self.save_current_list)
++        self.import_agenda_btn.clicked.connect(self.request_import_whatsapp_agenda)
+         self.search_whatsapp_btn.clicked.connect(self.request_search_whatsapp)
+         self.add_current_btn.clicked.connect(self.request_add_current_chat)
+         self.remove_selected_btn.clicked.connect(self.remove_selected)
+@@ -699,8 +714,10 @@ class CampaignPanel(QWidget):
+         self.start_btn.clicked.connect(self.request_start)
+         self.pause_btn.clicked.connect(self.pause)
+         self.search_contact.returnPressed.connect(self.request_search_whatsapp)
++        self.message.textChanged.connect(self._schedule_draft_save)
+ 
+         self._refresh_saved_combo()
++        self._load_draft()
+ 
+     def _load_saved_lists(self):
+         try:
+@@ -716,12 +733,68 @@ class CampaignPanel(QWidget):
+     def _save_lists_file(self):
+         try:
+             self.lists_file.parent.mkdir(parents=True,exist_ok=True)
+-            self.lists_file.write_text(
++            temp=self.lists_file.with_suffix(".json.tmp")
++            temp.write_text(
+                 json.dumps(self.saved_lists,ensure_ascii=False,indent=2),
+                 encoding="utf-8"
+             )
++            temp.replace(self.lists_file)
++            return True
+         except:
++            return False
++
++    def _schedule_draft_save(self):
++        if self._draft_loading:
++            return
++        try:self._draft_timer.start(250)
++        except Exception:pass
++
++    def _save_draft(self):
++        """Mantém a campanha atual fora da pasta atualizada do programa."""
++        if self._draft_loading:
++            return
++        try:
++            self.draft_file.parent.mkdir(parents=True,exist_ok=True)
++            data={
++                "format":2,
++                "selected_list_name":self.selected_list_name or "",
++                "contacts":list(self.contacts),
++                "message":self.message.toPlainText(),
++                "image_path":self.image_path or "",
++                "saved_at":datetime.datetime.now().isoformat(timespec="seconds"),
++            }
++            temp=self.draft_file.with_suffix(".json.tmp")
++            temp.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
++            temp.replace(self.draft_file)
++        except Exception as exc:
++            try:self.status.setText("⚠ Não consegui salvar a campanha: "+str(exc))
++            except Exception:pass
++
++    def _load_draft(self):
++        try:
++            if not self.draft_file.exists():
++                return
++            data=json.loads(self.draft_file.read_text(encoding="utf-8"))
++            if not isinstance(data,dict):
++                return
++            self._draft_loading=True
++            contacts=data.get("contacts") or []
++            self.contacts=[x for x in contacts if isinstance(x,dict)]
++            self.selected_list_name=str(data.get("selected_list_name") or "").strip() or None
++            self.message.setPlainText(str(data.get("message") or ""))
++            image=str(data.get("image_path") or "").strip()
++            self.image_path=image if image and Path(image).exists() else None
++            self.image_label.setText(Path(image).name if self.image_path else "Sem imagem • opcional")
++            self._refresh_current_list()
++            if self.selected_list_name:
++                idx=self.saved_combo.findText(self.selected_list_name)
++                if idx>=0:self.saved_combo.setCurrentIndex(idx)
++            if self.contacts or self.message.toPlainText().strip():
++                self.status.setText("✅ Campanha anterior recuperada automaticamente.")
++        except Exception:
+             pass
++        finally:
++            self._draft_loading=False
+ 
+     def _refresh_saved_combo(self):
+         self.saved_combo.clear()
+@@ -762,6 +835,15 @@ class CampaignPanel(QWidget):
+         self.selected_list_name=name.strip()
+         self._refresh_current_list()
+         self.status.setText(f"Nova lista: {self.selected_list_name}")
++        self._schedule_draft_save()
++
++    def request_import_whatsapp_agenda(self):
++        cb=getattr(self,"on_import_whatsapp_agenda",None)
++        if not callable(cb):
++            QMessageBox.warning(self,"Agenda do WhatsApp","A importação não iniciou nesta sessão.")
++            return
++        self.status.setText("📥 Preparando leitura da agenda do WhatsApp...")
++        cb()
+ 
+     def request_search_whatsapp(self):
+         term=self.search_contact.text().strip()
+@@ -832,6 +914,27 @@ class CampaignPanel(QWidget):
+             self.status.setText(
+                 f"✅ {name} / {phone} adicionado. Total: {len(self.contacts)}"
+             )
++        self._schedule_draft_save()
++
++    def add_contacts_from_whatsapp(self, contacts):
++        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
++        added=0
++        for contact in contacts or []:
++            phone="".join(ch for ch in str(contact.get("phone") or "") if ch.isdigit())
++            if len(phone) in (10,11):phone="55"+phone
++            if len(phone)<12 or len(phone)>15:continue
++            name=str(contact.get("name") or "").strip() or ("Contato ••••"+phone[-4:])
++            if phone not in existing:added+=1
++            existing[phone]={
++                "name":name,
++                "phone":phone,
++                "chat_id":str(contact.get("chat_id") or phone+"@c.us"),
++            }
++        self.contacts=list(existing.values())
++        self._refresh_current_list()
++        self._schedule_draft_save()
++        self.status.setText(f"✅ {added} novo(s) contato(s). Total na lista: {len(self.contacts)}")
++        return added
+ 
+     def save_current_list(self):
+         if not self.contacts:
+@@ -854,6 +957,7 @@ class CampaignPanel(QWidget):
+         if idx>=0:
+             self.saved_combo.setCurrentIndex(idx)
+         self.status.setText(f"✅ Lista salva: {name}")
++        self._schedule_draft_save()
+ 
+     def use_saved_list(self):
+         name=self.saved_combo.currentText().strip()
+@@ -863,6 +967,7 @@ class CampaignPanel(QWidget):
+         self.selected_list_name=name
+         self._refresh_current_list()
+         self.status.setText(f"Lista carregada: {name}")
++        self._schedule_draft_save()
+ 
+     def remove_selected(self):
+         selected=self.current_list.selectedItems()
+@@ -871,10 +976,12 @@ class CampaignPanel(QWidget):
+         data=[x.data(Qt.ItemDataRole.UserRole) for x in selected]
+         self.contacts=[c for c in self.contacts if c not in data]
+         self._refresh_current_list()
++        self._schedule_draft_save()
+ 
+     def clear_contacts(self):
+         self.contacts=[]
+         self._refresh_current_list()
++        self._schedule_draft_save()
+ 
+     def review_message_ptbr(self):
+         text=self.message.toPlainText()
+@@ -969,6 +1076,7 @@ class CampaignPanel(QWidget):
+             return
+         self.image_path=path
+         self.image_label.setText(Path(path).name)
++        self._schedule_draft_save()
+ 
+     def request_test_one(self):
+         if not self.contacts:
+@@ -1016,6 +1124,7 @@ class CampaignPanel(QWidget):
+         idx=self.saved_combo.findText(name)
+         if idx>=0:
+             self.saved_combo.setCurrentIndex(idx)
++        self._schedule_draft_save()
+ 
+     def request_start(self):
+         if not self.contacts:
+@@ -6798,6 +6907,7 @@ class MainWindow(QMainWindow):
+         self.campaign_panel.on_test_one=self._campaign_test_one
+         self.campaign_panel.on_search_whatsapp=self._campaign_search_whatsapp
+         self.campaign_panel.on_add_current_chat=self._campaign_add_current_chat
++        self.campaign_panel.on_import_whatsapp_agenda=self._campaign_import_whatsapp_agenda
+         self.campaign_panel.hide()
+         self.campaign_panel.raise_()
+         self.campaign_panel.on_start_campaign=self._start_campaign_queue
+@@ -12521,11 +12631,10 @@ class MainWindow(QMainWindow):
+     def _reload_user_campaign_lists(self):
+         try:
+             self.campaign_panel.lists_file=CAMPAIGN_LISTS_FILE
++            self.campaign_panel.draft_file=CAMPAIGN_DRAFT_FILE
+             self.campaign_panel._load_saved_lists()
+-            self.campaign_panel.contacts=[]
+-            self.campaign_panel.selected_list_name=None
+             self.campaign_panel._refresh_saved_combo()
+-            self.campaign_panel._refresh_current_list()
++            self.campaign_panel._load_draft()
+         except Exception:
+             pass
+ 
+@@ -13302,6 +13411,10 @@ class MainWindow(QMainWindow):
+         except Exception:pass
+ 
+     def closeEvent(self,event):
++        try:
++            self.campaign_panel.autosave_current_list()
++            self.campaign_panel._save_draft()
++        except Exception:pass
+         try:self._aliyvo_shutdown_webviews()
+         except Exception:pass
+         try:event.accept()
+@@ -15101,8 +15214,9 @@ class MainWindow(QMainWindow):
+ 
+         self._campaign_wajs_prepare()
+ 
+-    def _campaign_wajs_prepare(self):
++    def _campaign_wajs_prepare(self,action="send"):
+         panel=self.campaign_panel
++        self._campaign_wajs_action=str(action or "send")
+         panel.status.setText("⚙ Preparando motor WA-JS...")
+ 
+         self._campaign_wajs_file=APP_DIR/"wppconnect-wa.js"
+@@ -15253,7 +15367,8 @@ class MainWindow(QMainWindow):
+     def _campaign_wajs_poll_ready(self):
+         panel=self.campaign_panel
+ 
+-        if not panel.running:
++        action=getattr(self,"_campaign_wajs_action","send")
++        if action=="send" and not panel.running:
+             return
+ 
+         self._campaign_wajs_ready_poll = (
+@@ -15295,6 +15410,11 @@ class MainWindow(QMainWindow):
+                 return
+ 
+             if result.get("ready"):
++                if action=="import_agenda":
++                    panel.status.setText("📥 Lendo contatos salvos no WhatsApp...")
++                    self._campaign_wajs_action="idle"
++                    QTimer.singleShot(100,self._campaign_read_whatsapp_agenda)
++                    return
+                 panel.status.setText(
+                     "✅ WA-JS pronto. Iniciando campanha..."
+                 )
+@@ -15326,6 +15446,145 @@ class MainWindow(QMainWindow):
+         )
+ 
+ 
++    def _campaign_import_whatsapp_agenda(self):
++        """Carrega a agenda pelo WA-JS; não abre nem percorre conversas."""
++        if getattr(self.campaign_panel,"running",False):
++            QMessageBox.information(
++                self,"Agenda do WhatsApp","Pause a campanha antes de importar a agenda."
++            )
++            return
++        self._campaign_wajs_prepare("import_agenda")
++
++    def _campaign_read_whatsapp_agenda(self):
++        js=r"""
++        (async () => {
++          try{
++            if(!window.WPP || !WPP.contact || typeof WPP.contact.list!=="function"){
++              return {ok:false,error:"O motor do WhatsApp não disponibilizou a agenda."};
++            }
++            const raw=await WPP.contact.list({onlyMyContacts:true});
++            const items=[];
++            const seen=new Set();
++            const digits=(value)=>String(value||"").replace(/\D/g,"");
++            for(const c of (raw||[])){
++              try{
++                if(c.isMe || c.isGroup || c.isBroadcast || c.isNewsletter || c.isPSA) continue;
++                const id=c.id||{};
++                const pn=c.pnForLid||{};
++                const serialized=String(id._serialized||id.id||id||"");
++                const choices=[
++                  id.user,c.userid,c.formattedUser,pn.user,pn._serialized,
++                  c.username,serialized.split("@")[0]
++                ];
++                let phone="";
++                for(const candidate of choices){
++                  const d=digits(candidate);
++                  if(d.length>=10 && d.length<=15){phone=d;break;}
++                }
++                if(!phone) continue;
++                if(phone.length===10 || phone.length===11) phone="55"+phone;
++                if(phone.length<12 || phone.length>15 || seen.has(phone)) continue;
++                seen.add(phone);
++                const name=String(
++                  c.name||c.formattedName||c.shortName||c.pushname||c.notifyName||""
++                ).trim();
++                items.push({
++                  name:name||("Contato ••••"+phone.slice(-4)),
++                  phone:phone,
++                  chat_id:phone+"@c.us"
++                });
++              }catch(e){}
++            }
++            items.sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
++            return {ok:true,items:items,totalRaw:(raw||[]).length};
++          }catch(e){
++            return {ok:false,error:String(e)};
++          }
++        })();
++        """
++        self.web.page().runJavaScript(js,self._campaign_show_whatsapp_agenda)
++
++    def _campaign_show_whatsapp_agenda(self,result):
++        panel=self.campaign_panel
++        if not result or not result.get("ok"):
++            error=(result or {}).get("error","Não consegui ler a agenda.")
++            panel.status.setText("⚠ "+error)
++            QMessageBox.warning(self,"Agenda do WhatsApp",error)
++            return
++        items=result.get("items") or []
++        if not items:
++            QMessageBox.information(
++                self,"Agenda do WhatsApp","Nenhum contato salvo com telefone foi encontrado."
++            )
++            panel.status.setText("Nenhum contato disponível na agenda.")
++            return
++
++        dlg=QDialog(self)
++        dlg.setWindowTitle("📥 Importar agenda do WhatsApp")
++        dlg.resize(600,680)
++        lay=QVBoxLayout(dlg)
++        title=QLabel(f"{len(items)} contatos encontrados")
++        title.setStyleSheet(
++            "background:#128C7E;color:white;font-size:16px;font-weight:800;"
++            "padding:12px;border-radius:7px;"
++        )
++        lay.addWidget(title)
++        info=QLabel(
++            "Todos estão marcados. Desmarque quem não deve receber a campanha. "
++            "Envie somente para clientes que autorizaram seu contato."
++        )
++        info.setWordWrap(True)
++        lay.addWidget(info)
++        search=QLineEdit()
++        search.setPlaceholderText("Buscar por nome ou telefone...")
++        lay.addWidget(search)
++        lst=QListWidget()
++        lay.addWidget(lst,1)
++        for contact in items:
++            it=QListWidgetItem(
++                f"{contact.get('name','Contato')}  •  {contact.get('phone','')}"
++            )
++            it.setFlags(it.flags()|Qt.ItemFlag.ItemIsUserCheckable)
++            it.setCheckState(Qt.CheckState.Checked)
++            it.setData(Qt.ItemDataRole.UserRole,contact)
++            lst.addItem(it)
++
++        def filter_items(text):
++            term=str(text or "").casefold()
++            for i in range(lst.count()):
++                lst.item(i).setHidden(term not in lst.item(i).text().casefold())
++        search.textChanged.connect(filter_items)
++
++        buttons=QHBoxLayout()
++        allb=QPushButton("Marcar todos")
++        noneb=QPushButton("Desmarcar todos")
++        importb=QPushButton("✅ Importar marcados")
++        cancel=QPushButton("Cancelar")
++        buttons.addWidget(allb);buttons.addWidget(noneb);buttons.addStretch(1)
++        buttons.addWidget(importb);buttons.addWidget(cancel);lay.addLayout(buttons)
++
++        def set_all(state):
++            for i in range(lst.count()):lst.item(i).setCheckState(state)
++        allb.clicked.connect(lambda:set_all(Qt.CheckState.Checked))
++        noneb.clicked.connect(lambda:set_all(Qt.CheckState.Unchecked))
++
++        def do_import():
++            selected=[
++                lst.item(i).data(Qt.ItemDataRole.UserRole)
++                for i in range(lst.count())
++                if lst.item(i).checkState()==Qt.CheckState.Checked
++            ]
++            if not selected:
++                QMessageBox.information(dlg,"Agenda","Marque pelo menos um contato.")
++                return
++            panel.add_contacts_from_whatsapp(selected)
++            panel.autosave_current_list()
++            panel._save_draft()
++            dlg.accept()
++        importb.clicked.connect(do_import)
++        cancel.clicked.connect(dlg.reject)
++        dlg.exec()
++
+     def _campaign_prepare_image_payload(self):
+         panel=self.campaign_panel
+         path_str=(panel.image_path or "").strip()
