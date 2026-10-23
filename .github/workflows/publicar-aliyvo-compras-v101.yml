@@ -1,0 +1,107 @@
+name: Publicar ALIYVO Compras 1.0.1
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-aliyvo-compras-v101.yml'
+      - 'source/compras/v1.0.1/**'
+      - 'tests/test_aliyvo_compras_v101.py'
+      - 'distribuicao/installer/ALIYVO-Compras-Setup.iss'
+      - 'distribuicao/installer/instalar_componentes_compras.ps1'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar base estável do ALIYVO Vendas
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,payload,out | Out-Null
+          gh release download v0.23.50 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02350.zip" --dir base
+          if ($LASTEXITCODE -ne 0) { throw 'Base 0.23.50 não encontrada.' }
+          Expand-Archive base/ALIYVO_02350.zip payload -Force
+
+      - name: Criar edição Compras independente
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; paths=[Path('source/compras/v1.0.1/main.py.patch'),Path('payload/_app/main.py')]; [p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n')) for p in paths]"
+          git apply --check --directory=payload source/compras/v1.0.1/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Patch Compras incompatível.' }
+          git apply --directory=payload source/compras/v1.0.1/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Patch Compras falhou.' }
+
+      - name: Validar produto e código
+        shell: pwsh
+        run: |
+          $env:ALIYVO_TEST_APP_DIR=(Resolve-Path 'payload/_app').Path
+          python -m unittest tests/test_aliyvo_compras_v101.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Testes do ALIYVO Compras falharam.' }
+          python -m compileall -q payload/_app
+          if ($LASTEXITCODE -ne 0) { throw 'Código do ALIYVO Compras não compila.' }
+
+      - name: Baixar mecanismos oficiais
+        shell: pwsh
+        run: |
+          $ProgressPreference='SilentlyContinue'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe' -OutFile 'python-3.12.10-amd64.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile 'MicrosoftEdgeWebview2Setup.exe'
+          New-Item -ItemType Directory -Force 'payload\_app\_setup' | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/wppconnect-team/wa-js/releases/download/nightly/wppconnect-wa.js' -OutFile 'payload\_app\_setup\wppconnect-wa.js'
+          if ((Get-Item 'python-3.12.10-amd64.exe').Length -lt 10000000) { throw 'Python inválido.' }
+          if ((Get-Item 'MicrosoftEdgeWebview2Setup.exe').Length -lt 500000) { throw 'WebView2 inválido.' }
+          if ((Get-Item 'payload\_app\_setup\wppconnect-wa.js').Length -lt 100000) { throw 'Integração WhatsApp inválida.' }
+
+      - name: Compilar instalador separado
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc='C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          $payload=(Resolve-Path 'payload').Path
+          $python=(Resolve-Path 'python-3.12.10-amd64.exe').Path
+          $webview=(Resolve-Path 'MicrosoftEdgeWebview2Setup.exe').Path
+          Push-Location 'distribuicao\installer'
+          & $iscc '/DAppVersion=1.0.1' "/DPayloadDir=$payload" "/DPythonInstaller=$python" "/DWebView2Installer=$webview" 'ALIYVO-Compras-Setup.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou: $LASTEXITCODE" }
+          Pop-Location
+          Copy-Item 'distribuicao\installer\output\ALIYVO_COMPRAS_SETUP_100.exe' 'out\ALIYVO_COMPRAS_INSTALAR.exe' -Force
+          Compress-Archive -Path 'out\ALIYVO_COMPRAS_INSTALAR.exe' -DestinationPath 'out\ALIYVO_COMPRAS_INSTALAR.zip' -Force
+
+      - name: Testar instalação completa e coexistência
+        shell: pwsh
+        run: |
+          $dest=Join-Path $env:LOCALAPPDATA 'Programs\ALIYVO_COMPRAS'
+          Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
+          $proc=Start-Process -FilePath 'out\ALIYVO_COMPRAS_INSTALAR.exe' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "Instalador retornou $($proc.ExitCode)." }
+          $python=Join-Path $dest 'runtime\python.exe'
+          $main=Join-Path $dest '_app\main.py'
+          if (-not (Test-Path $python)) { throw 'Python interno ausente.' }
+          if (-not (Test-Path $main)) { throw 'Aplicativo Compras ausente.' }
+          & $python -m py_compile $main
+          Select-String -Path $main -Pattern 'ALIYVO_EDITION = "COMPRAS"' | Out-Null
+          Select-String -Path $main -Pattern '/ "ALIYVO_COMPRAS"' | Out-Null
+
+      - name: Publicar ALIYVO Compras 1.0.1
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view compras-v1.0.1 --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload compras-v1.0.1 'out\ALIYVO_COMPRAS_INSTALAR.exe' 'out\ALIYVO_COMPRAS_INSTALAR.zip' --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            gh release create compras-v1.0.1 'out\ALIYVO_COMPRAS_INSTALAR.exe' 'out\ALIYVO_COMPRAS_INSTALAR.zip' --repo "$env:GITHUB_REPOSITORY" --title 'ALIYVO Compras 1.0.1' --notes 'Edição independente para compradores: WhatsApp, Pede pro William, Asana, agenda de compras, fornecedores, busca de produtos e campanhas. Instalação, dados e atualizações separados do ALIYVO Vendas.'
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Publicação do ALIYVO Compras falhou.' }
+
