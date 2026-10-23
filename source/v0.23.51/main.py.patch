@@ -1,0 +1,38 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.50"
++ALIYVO_VERSION = "0.23.51"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -98,7 +98,7 @@
+ _aliyvo_install_windows_certificate_bridge()
+ 
+ ALIYVO_PLAN = "BETA_FREE"
+-ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest"
++ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://raw.githubusercontent.com/alexmarianopola-lgtm/alivo-updates/main/channels/vendas.json"
+ DB_PATH = APP_DIR / "copiloto.db"
+ # Perfil estável do WhatsApp entre versões do ALIYVO.
+ ALIYVO_USER_DIR = Path(
+@@ -18257,14 +18257,14 @@
+             import urllib.request as _ur
+             import json as _json
+             req=_ur.Request(
+-                "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest",
++                str(globals().get("ALIYVO_OFFICIAL_UPDATE_CHANNEL") or ""),
+                 headers={"User-Agent":"ALIYVO-Update-Notice/"+str(globals().get("ALIYVO_VERSION",""))}
+             )
+             with _ur.urlopen(req,timeout=5) as resp:
+                 d=_json.loads(resp.read(65536).decode("utf-8","replace"))
+             bridge.ready.emit({
+-                "version":str(d.get("tag_name") or "").lstrip("vV"),
+-                "body":str(d.get("body") or ""),
++                "version":str(d.get("version") or d.get("tag_name") or "").lstrip("vV"),
++                "body":str(d.get("notes") or d.get("body") or ""),
+             })
+         except Exception:
+             pass
