@@ -1,0 +1,102 @@
+diff --git a/_app/main.py b/_app/main.py
+index d99b16e..045e642 100644
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.47"
++ALIYVO_VERSION = "0.23.48"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -13082,6 +13082,88 @@ class MainWindow(QMainWindow):
+             pass
+         return super().eventFilter(obj,event)
+ 
++    def _restore_whatsapp_composer_focus(self):
++        """Devolve o teclado ao campo da conversa ao retornar com Alt+Tab."""
++        try:
++            if (
++                not self.isVisible() or
++                self.isMinimized() or
++                not self.isActiveWindow() or
++                bool(getattr(self,"_aliyvo_shutting_down",False))
++            ):
++                return
++            if bool(getattr(self.web,"_aliyvo_focus_blocked",False)):
++                return
++            if getattr(self,"_quick_mode_tool",None) is not None:
++                return
++            if QApplication.activeModalWidget() is not None:
++                return
++
++            # Não rouba o teclado de nenhuma ferramenta sobre o WhatsApp.
++            overlays=(
++                "technical_panel","lens_panel","chat_panel","prazo_panel",
++                "audio_panel","campaign_panel","diagnostic_panel",
++                "update_panel","plate_panel",
++            )
++            for name in overlays:
++                panel=getattr(self,name,None)
++                if panel is not None and panel.isVisible():
++                    return
++        except Exception:
++            return
++
++        try:
++            self.web.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
++        except Exception:
++            pass
++
++        js=r"""
++        (() => {
++          try{
++            const main=document.querySelector("#main");
++            if(!main) return false;
++            const footer=main.querySelector("footer") || main;
++            const editor=
++              footer.querySelector("[contenteditable='true'][role='textbox']") ||
++              footer.querySelector("[contenteditable='true']");
++            if(!editor) return false;
++            editor.focus({preventScroll:true});
++            try{
++              const selection=window.getSelection();
++              if(selection && !selection.rangeCount){
++                const range=document.createRange();
++                range.selectNodeContents(editor);
++                range.collapse(false);
++                selection.removeAllRanges();
++                selection.addRange(range);
++              }
++            }catch(e){}
++            return document.activeElement===editor || editor.contains(document.activeElement);
++          }catch(e){
++            return false;
++          }
++        })();
++        """
++
++        def finished(ok):
++            if not ok:
++                return
++            try:self.web.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
++            except Exception:pass
++
++        try:self.web.page().runJavaScript(js,finished)
++        except Exception:pass
++
++    def changeEvent(self,event):
++        super().changeEvent(event)
++        try:
++            if event.type()==QEvent.Type.ActivationChange and self.isActiveWindow():
++                # O HWND nativo do WebView2 termina sua ativação depois do Qt.
++                QTimer.singleShot(90,self._restore_whatsapp_composer_focus)
++                QTimer.singleShot(280,self._restore_whatsapp_composer_focus)
++        except Exception:
++            pass
++
+ 
+     def _toggle_maximize_window(self):
+         if self.isMaximized():
