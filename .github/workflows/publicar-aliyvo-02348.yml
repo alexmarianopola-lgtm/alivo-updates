@@ -1,0 +1,73 @@
+name: Publicar ALIYVO 0.23.48
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publicar-aliyvo-02348.yml'
+      - 'source/v0.23.48/**'
+      - 'tests/test_alt_tab_focus_v2348.py'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Baixar versão base
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force base,build,out | Out-Null
+          gh release download v0.23.47 --repo "$env:GITHUB_REPOSITORY" --pattern "ALIYVO_02347.zip" --dir base
+          if ($LASTEXITCODE -ne 0) { throw "Base 0.23.47 não baixada" }
+          Expand-Archive base/ALIYVO_02347.zip build -Force
+
+      - name: Integrar foco automático no WhatsApp
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; paths=[Path('source/v0.23.48/main.py.patch'),Path('build/_app/main.py')]; [p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n')) for p in paths]"
+          git apply --check --directory=build source/v0.23.48/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do foco incompatível" }
+          git apply --directory=build source/v0.23.48/main.py.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch do foco falhou" }
+
+      - name: Validar foco e preservação
+        shell: pwsh
+        run: |
+          $env:ALIYVO_TEST_APP_DIR=(Resolve-Path 'build/_app').Path
+          python -m unittest tests/test_alt_tab_focus_v2348.py -v
+          if ($LASTEXITCODE -ne 0) { throw "Testes do foco falharam" }
+          python -m compileall -q build/_app
+          if ($LASTEXITCODE -ne 0) { throw "Compilação do aplicativo falhou" }
+
+      - name: Empacotar atualização
+        shell: pwsh
+        run: |
+          python -c "import pathlib,zipfile; root=pathlib.Path('build'); z=zipfile.ZipFile('out/ALIYVO_02348.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.name!='soma_catalog.sqlite']; z.close()"
+          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02348.zip'); assert z.testzip() is None; s=z.read('_app/main.py').decode('utf-8'); assert '0.23.48' in s; assert '_restore_whatsapp_composer_focus' in s; assert 'QEvent.Type.ActivationChange' in s; assert '🏍️  Rastrear moto' in s"
+          if ($LASTEXITCODE -ne 0) { throw "Pacote final inválido" }
+          $sha=(Get-FileHash out/ALIYVO_02348.zip -Algorithm SHA256).Hash.ToLower()
+          "ALIYVO 0.23.48. Ao retornar ao ALIYVO com Alt+Tab, o foco nativo do WebView2 e o campo de mensagem da conversa aberta são restaurados automaticamente. Ferramentas, janelas e diálogos continuam protegidos contra roubo de foco. Demais funções preservadas. SHA256: $sha" | Set-Content out/VALIDACAO_02348.txt
+
+      - name: Publicar versão 0.23.48
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.23.48 --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v0.23.48 out/ALIYVO_02348.zip out/VALIDACAO_02348.txt --repo "$env:GITHUB_REPOSITORY" --clobber
+          } else {
+            gh release create v0.23.48 out/ALIYVO_02348.zip out/VALIDACAO_02348.txt --repo "$env:GITHUB_REPOSITORY" --title "ALIYVO 0.23.48 - Foco automático ao voltar" --notes "Ao retornar ao ALIYVO com Alt+Tab, o cursor volta automaticamente para o campo de mensagem da conversa aberta. A correção não recarrega o WhatsApp, não interfere em chamadas e não rouba o foco das ferramentas laterais ou diálogos."
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Publicação falhou" }
+          gh release edit v0.23.48 --repo "$env:GITHUB_REPOSITORY" --latest
+          if ($LASTEXITCODE -ne 0) { throw "Não foi possível marcar como versão mais recente" }
