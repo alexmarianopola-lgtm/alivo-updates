@@ -15,7 +15,7 @@
  
  ALIYVO_PLAN = "BETA_FREE"
 -ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest"
-+ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/tags/compras-v1.0.1"
++ALIYVO_OFFICIAL_UPDATE_CHANNEL = "https://raw.githubusercontent.com/alexmarianopola-lgtm/alivo-updates/main/channels/compras.json"
  DB_PATH = APP_DIR / "copiloto.db"
  # Perfil estável do WhatsApp entre versões do ALIYVO.
  ALIYVO_USER_DIR = Path(
@@ -245,4 +245,22 @@
  
      def _restore_quick_actions(self):
          try:self._set_prazo_focus_guard(False)
+@@ -18257,14 +18287,14 @@
+             import urllib.request as _ur
+             import json as _json
+             req=_ur.Request(
+-                "https://api.github.com/repos/alexmarianopola-lgtm/alivo-updates/releases/latest",
++                str(globals().get("ALIYVO_OFFICIAL_UPDATE_CHANNEL") or ""),
+                 headers={"User-Agent":"ALIYVO-Update-Notice/"+str(globals().get("ALIYVO_VERSION",""))}
+             )
+             with _ur.urlopen(req,timeout=5) as resp:
+                 d=_json.loads(resp.read(65536).decode("utf-8","replace"))
+             bridge.ready.emit({
+-                "version":str(d.get("tag_name") or "").lstrip("vV"),
+-                "body":str(d.get("body") or ""),
++                "version":str(d.get("version") or d.get("tag_name") or "").lstrip("vV"),
++                "body":str(d.get("notes") or d.get("body") or ""),
+             })
+         except Exception:
+             pass
 
