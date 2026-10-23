@@ -1,0 +1,220 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.49"
++ALIYVO_VERSION = "0.23.50"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+@@ -917,18 +917,28 @@
+         self._schedule_draft_save()
+ 
+     def add_contacts_from_whatsapp(self, contacts):
+-        existing={str(c.get("phone") or ""):c for c in self.contacts if c.get("phone")}
++        def contact_key(c):
++            phone="".join(ch for ch in str(c.get("phone") or "") if ch.isdigit())
++            chat_id=str(c.get("chat_id") or "").strip()
++            return phone or chat_id
++        existing={contact_key(c):c for c in self.contacts if contact_key(c)}
+         added=0
+         for contact in contacts or []:
+             phone="".join(ch for ch in str(contact.get("phone") or "") if ch.isdigit())
+             if len(phone) in (10,11):phone="55"+phone
+-            if len(phone)<12 or len(phone)>15:continue
+-            name=str(contact.get("name") or "").strip() or ("Contato ••••"+phone[-4:])
+-            if phone not in existing:added+=1
+-            existing[phone]={
++            if len(phone)<12 or len(phone)>15:phone=""
++            chat_id=str(contact.get("chat_id") or "").strip()
++            if phone and not chat_id:chat_id=phone+"@c.us"
++            valid_chat_id=chat_id.endswith("@c.us") or chat_id.endswith("@lid")
++            if not phone and not valid_chat_id:continue
++            key=phone or chat_id
++            suffix=phone[-4:] if phone else "WhatsApp"
++            name=str(contact.get("name") or "").strip() or ("Contato ••••"+suffix)
++            if key not in existing:added+=1
++            existing[key]={
+                 "name":name,
+                 "phone":phone,
+-                "chat_id":str(contact.get("chat_id") or phone+"@c.us"),
++                "chat_id":chat_id,
+             }
+         self.contacts=list(existing.values())
+         self._refresh_current_list()
+@@ -15459,44 +15469,87 @@
+         js=r"""
+         (async () => {
+           try{
+-            if(!window.WPP || !WPP.contact || typeof WPP.contact.list!=="function"){
++            if(!window.WPP){
+               return {ok:false,error:"O motor do WhatsApp não disponibilizou a agenda."};
+             }
+-            const raw=await WPP.contact.list({onlyMyContacts:true});
++            let contacts=[];
++            let chats=[];
++            if(WPP.contact && typeof WPP.contact.list==="function"){
++              try{contacts=await WPP.contact.list({onlyMyContacts:true})||[];}catch(e){}
++            }
++            if(WPP.chat && typeof WPP.chat.list==="function"){
++              try{chats=await WPP.chat.list({onlyUsers:true})||[];}catch(e){}
++            }
+             const items=[];
+             const seen=new Set();
+             const digits=(value)=>String(value||"").replace(/\D/g,"");
+-            for(const c of (raw||[])){
++            const serialized=(value)=>{
++              if(!value)return "";
++              if(typeof value==="string")return value;
++              return String(value._serialized||value.id||"");
++            };
++            const raw=[
++              ...contacts.map(x=>({item:x,source:"contact"})),
++              ...chats.map(x=>({item:x,source:"chat"}))
++            ];
++            let lidCount=0;
++            let lidResolved=0;
++            for(const entry of raw){
+               try{
++                const c=entry.item||{};
+                 if(c.isMe || c.isGroup || c.isBroadcast || c.isNewsletter || c.isPSA) continue;
+-                const id=c.id||{};
+-                const pn=c.pnForLid||{};
+-                const serialized=String(id._serialized||id.id||id||"");
++                const linked=c.contact||{};
++                const id=c.id||linked.id||c.chatId||c.wid||{};
++                let sid=serialized(id);
++                let pn=c.pnForLid||linked.pnForLid||{};
++                if(sid.endsWith("@lid")){
++                  lidCount++;
++                  if(!serialized(pn) && WPP.contact && typeof WPP.contact.getPnLidEntry==="function"){
++                    try{
++                      const resolved=await WPP.contact.getPnLidEntry(sid);
++                      pn=(resolved&&(
++                        resolved.pn||resolved.phoneNumber||resolved.phone||resolved.id||resolved
++                      ))||pn;
++                    }catch(e){}
++                  }
++                }
+                 const choices=[
+-                  id.user,c.userid,c.formattedUser,pn.user,pn._serialized,
+-                  c.username,serialized.split("@")[0]
++                  id.user,c.userid,c.formattedUser,pn.user,serialized(pn),
++                  linked.userid,linked.formattedUser,linked.id&&linked.id.user,
++                  c.username,sid.endsWith("@c.us")?sid.split("@")[0]:""
+                 ];
+                 let phone="";
+                 for(const candidate of choices){
+                   const d=digits(candidate);
+                   if(d.length>=10 && d.length<=15){phone=d;break;}
+                 }
+-                if(!phone) continue;
+                 if(phone.length===10 || phone.length===11) phone="55"+phone;
+-                if(phone.length<12 || phone.length>15 || seen.has(phone)) continue;
+-                seen.add(phone);
++                if(phone.length<12 || phone.length>15)phone="";
++                if(phone && sid.endsWith("@lid"))lidResolved++;
++                let chatId=phone?(phone+"@c.us"):sid;
++                if(!phone && !chatId.endsWith("@lid") && !chatId.endsWith("@c.us"))continue;
++                const key=phone||chatId;
++                if(seen.has(key))continue;
++                seen.add(key);
+                 const name=String(
+-                  c.name||c.formattedName||c.shortName||c.pushname||c.notifyName||""
++                  c.name||c.formattedName||c.formattedTitle||c.title||c.shortName||
++                  c.pushname||c.notifyName||linked.name||linked.formattedName||
++                  linked.pushname||linked.notifyName||""
+                 ).trim();
+                 items.push({
+-                  name:name||("Contato ••••"+phone.slice(-4)),
++                  name:name||(phone?("Contato ••••"+phone.slice(-4)):"Contato do WhatsApp"),
+                   phone:phone,
+-                  chat_id:phone+"@c.us"
++                  chat_id:chatId,
++                  source:entry.source
+                 });
+               }catch(e){}
+             }
+             items.sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+-            return {ok:true,items:items,totalRaw:(raw||[]).length};
++            return {
++              ok:true,items:items,totalRaw:raw.length,
++              totalContacts:contacts.length,totalChats:chats.length,
++              lidCount:lidCount,lidResolved:lidResolved
++            };
+           }catch(e){
+             return {ok:false,error:String(e)};
+           }
+@@ -15514,7 +15567,8 @@
+         items=result.get("items") or []
+         if not items:
+             QMessageBox.information(
+-                self,"Agenda do WhatsApp","Nenhum contato salvo com telefone foi encontrado."
++                self,"Agenda do WhatsApp",
++                "Nenhum contato individual foi encontrado. Deixe o WhatsApp terminar de carregar e tente novamente."
+             )
+             panel.status.setText("Nenhum contato disponível na agenda.")
+             return
+@@ -15523,7 +15577,7 @@
+         dlg.setWindowTitle("📥 Importar agenda do WhatsApp")
+         dlg.resize(600,680)
+         lay=QVBoxLayout(dlg)
+-        title=QLabel(f"{len(items)} contatos encontrados")
++        title=QLabel(f"{len(items)} contatos e conversas encontrados")
+         title.setStyleSheet(
+             "background:#128C7E;color:white;font-size:16px;font-weight:800;"
+             "padding:12px;border-radius:7px;"
+@@ -15541,9 +15595,8 @@
+         lst=QListWidget()
+         lay.addWidget(lst,1)
+         for contact in items:
+-            it=QListWidgetItem(
+-                f"{contact.get('name','Contato')}  •  {contact.get('phone','')}"
+-            )
++            identity=contact.get('phone') or "WhatsApp vinculado"
++            it=QListWidgetItem(f"{contact.get('name','Contato')}  •  {identity}")
+             it.setFlags(it.flags()|Qt.ItemFlag.ItemIsUserCheckable)
+             it.setCheckState(Qt.CheckState.Checked)
+             it.setData(Qt.ItemDataRole.UserRole,contact)
+@@ -15642,6 +15695,7 @@
+ 
+         contact=panel.queue[panel.current_index]
+         name=(contact.get("name") or "").strip()
++        stored_chat_id=str(contact.get("chat_id") or "").strip()
+         phone="".join(
+             ch for ch in str(contact.get("phone") or "")
+             if ch.isdigit()
+@@ -15653,7 +15707,11 @@
+         pos=panel.current_index+1
+         total=len(panel.queue)
+ 
+-        if len(phone)<12 or len(phone)>15:
++        valid_chat_id=(
++            stored_chat_id.endswith("@c.us") or
++            stored_chat_id.endswith("@lid")
++        )
++        if (len(phone)<12 or len(phone)>15) and not valid_chat_id:
+             self._campaign_wajs_fail+=1
+             panel.log(
+                 f"❌ {pos}/{total} • {name or 'Contato'} • número inválido"
+@@ -15688,7 +15746,7 @@
+ 
+         self._campaign_wajs_current={
+             "phone":phone,
+-            "name":name or ("Contato ••••"+phone[-4:]),
++            "name":name or (("Contato ••••"+phone[-4:]) if phone else "Contato do WhatsApp"),
+             "pos":pos,
+             "total":total,
+             "has_image":bool(image_payload)
+@@ -15704,7 +15762,7 @@
+         )
+ 
+         import json
+-        chat_json=json.dumps(phone+"@c.us")
++        chat_json=json.dumps(stored_chat_id if valid_chat_id else phone+"@c.us")
+         text_json=json.dumps(text)
+ 
+         if image_payload:
+
