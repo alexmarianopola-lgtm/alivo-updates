@@ -1,0 +1,7 @@
+{
+  "edition": "vendas",
+  "version": "0.23.51",
+  "download_url": "https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.23.51/ALIYVO_02351.zip",
+  "title": "ALIYVO Vendas 0.23.51",
+  "notes": "Corrige a separação das atualizações. O ALIYVO Vendas agora recebe somente versões de Vendas e nunca oferece a edição Compras."
+}
