@@ -1,7 +1,7 @@
 {
   "edition": "vendas",
-  "version": "0.23.51",
-  "download_url": "https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.23.51/ALIYVO_02351.zip",
-  "title": "ALIYVO Vendas 0.23.51",
-  "notes": "Corrige a separação das atualizações. O ALIYVO Vendas agora recebe somente versões de Vendas e nunca oferece a edição Compras."
+  "version": "0.23.52",
+  "download_url": "https://github.com/alexmarianopola-lgtm/alivo-updates/releases/download/v0.23.52/ALIYVO_02352.zip",
+  "title": "ALIYVO Vendas 0.23.52",
+  "notes": "Corrige a avaliação das ligações próxima do limite mensal. Uma análise iniciada com saldo agora termina normalmente e somente a próxima é pausada."
 }
