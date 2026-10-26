@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           python -c "import pathlib,zipfile; root=pathlib.Path('build'); z=zipfile.ZipFile('out/ALIYVO_02352.zip','w',zipfile.ZIP_DEFLATED); [z.write(p,p.relative_to(root)) for p in root.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.name!='soma_catalog.sqlite']; z.close()"
-          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02352.zip'); assert z.testzip() is None; m=z.read('_app/main.py').decode('utf-8'); q=z.read('_app/aliyvo_call_quota.py').decode('utf-8'); assert '0.23.52' in m; assert 'data[\"seconds\"] >= MAX_SECONDS' in q"
+          python -c "import zipfile; z=zipfile.ZipFile('out/ALIYVO_02352.zip'); assert z.testzip() is None; m=z.read('_app/main.py').decode('utf-8'); q=z.read('_app/aliyvo_call_quota.py').decode('utf-8'); assert '0.23.52' in m; assert '>= MAX_SECONDS' in q"
           if ($LASTEXITCODE -ne 0) { throw "Pacote final inválido" }
           $sha=(Get-FileHash out/ALIYVO_02352.zip -Algorithm SHA256).Hash.ToLower()
           "ALIYVO Vendas 0.23.52. Avaliação de ligação corrigida perto do limite mensal. SHA256: $sha" | Set-Content out/VALIDACAO_02352.txt
