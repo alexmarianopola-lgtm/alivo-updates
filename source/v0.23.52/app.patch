@@ -1,0 +1,38 @@
+--- a/_app/main.py
++++ b/_app/main.py
+@@ -23,7 +23,7 @@
+ 
+ 
+ APP_DIR = Path(__file__).parent
+-ALIYVO_VERSION = "0.23.51"
++ALIYVO_VERSION = "0.23.52"
+ # Proveniencia tecnica do ALIYVO.
+ # Nao e mecanismo de seguranca nem substitui registro juridico.
+ # Serve como marcador persistente ligado ao snapshot e ao historico Git.
+--- a/_app/aliyvo_call_quota.py
++++ b/_app/aliyvo_call_quota.py
+@@ -52,7 +52,10 @@
+         if operation_id and operation_id in data["operations"]:
+             data.update({"max_calls": MAX_CALLS, "max_seconds": MAX_SECONDS, "already_reserved": True})
+             return data
+-        if data["calls"] + 1 > MAX_CALLS or data["seconds"] + seconds > MAX_SECONDS:
++        # Verifica a cota antes de iniciar. Se ainda houver saldo, deixa a
++        # ligação atual terminar mesmo que atravesse o limite por minutos.
++        # A regra anterior bloqueava, por exemplo, com 16/30 e 59/60.
++        if data["calls"] >= MAX_CALLS or data["seconds"] >= MAX_SECONDS:
+             raise QuotaExceeded(
+                 "Limite econômico mensal atingido (30 ligações ou 60 minutos). "
+                 "A gravação foi salva e poderá ser reprocessada no próximo mês."
+--- a/_app/aliyvo_call_ai.py
++++ b/_app/aliyvo_call_ai.py
+@@ -1097,8 +1097,8 @@
+ 
+         from aliyvo_call_quota import usage
+         quota=usage(BASE_DIR / "cota_avaliacao.json")
+-        used_minutes=int(float(quota.get("seconds") or 0)//60)
+-        economy=QLabel(f"Modo econômico · sem IA ao vivo · usado neste mês: {quota.get('calls',0)}/30 ligações e {used_minutes}/60 min. Ao atingir o limite, o áudio continua salvo para reprocessar no próximo mês.");economy.setWordWrap(True);lay.addWidget(economy)
++        used_minutes=round(float(quota.get("seconds") or 0)/60.0,1)
++        economy=QLabel(f"Modo econômico · sem IA ao vivo · usado neste mês: {quota.get('calls',0)}/30 ligações e {used_minutes}/60 min. Se a análise começar antes do limite, ela será concluída; somente a próxima ficará salva para reprocessar.");economy.setWordWrap(True);lay.addWidget(economy)
+         partb=QPushButton("🔎 Buscar peça / código original");partb.clicked.connect(self.show_parts_search);lay.addWidget(partb)
+         opts=QHBoxLayout()
+         auto=QCheckBox("Gravar automaticamente");auto.setChecked(bool(self._cfg.get("auto_record",True)))
